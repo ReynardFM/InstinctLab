@@ -128,150 +128,58 @@
     return { inputs, food: f ? f.item : null, foodDist: f ? Math.sqrt(f.d2) : Infinity };
   }
 
-  // src/engine/world.ts
-  var DEFAULT_RULES = {
-    pop: 40,
-    food: 60,
-    genTicks: 1500,
-    elite: 2,
-    parents: 8,
-    mutation: 0.15,
-    splitDistance: 0.6,
-    championStreak: 3,
-    layouts: 3,
-    splitProof: 3,
-    senseFood2: 0,
-    senseCreature: 1,
-    walls: 0,
-    newcomers: 1,
-    newcomerMutation: 0.4,
-    protectGens: 3
-  };
-  var LEGACY_LIMIT = 500;
-  function createWorld(seed, rules) {
-    const w = {
-      rules: { ...rules },
-      rng: createRng(seed),
-      creatures: [],
-      food: [],
-      tick: 0,
-      generation: 1,
-      layout: 0,
-      avgHist: [],
-      bestHist: [],
-      worstHist: [],
-      topHalfHist: [],
-      nextId: 0,
-      families: /* @__PURE__ */ new Map(),
-      legacy: [],
-      nextFamilyId: rules.pop,
-      splits: 0,
-      branches: /* @__PURE__ */ new Map(),
-      nextBranchId: 0,
-      failedBranches: 0,
-      newcomerCount: 0
+  // src/engine/creature.ts
+  function newFood(w) {
+    return { x: w.rng.next() * W, y: w.rng.next() * H };
+  }
+  function newCreature(w, genome, family, elite, parentHue) {
+    const { rng } = w;
+    const id = w.nextId++;
+    const hue = parentHue === null ? founderHue(family) : elite ? parentHue : (parentHue + hueDrift(id) + 360) % 360;
+    return {
+      id,
+      family,
+      hue,
+      elite,
+      branch: null,
+      streak: 0,
+      g: genome,
+      x: rng.next() * W,
+      y: rng.next() * H,
+      a: rng.next() * Math.PI * 2,
+      energy: 1,
+      eaten: 0,
+      alive: true,
+      diedAt: null,
+      inputs: new Array(inputCount(w.rules)).fill(0),
+      hidden: new Array(HID).fill(0),
+      out: [0, 0]
     };
-    for (let i = 0; i < rules.pop; i++) {
-      const genome = Array.from({ length: genomeSize(inputCount(rules)) }, () => w.rng.gauss() * 0.5);
-      w.creatures.push(newCreature(w, genome, i, false, null));
-      w.families.set(i, newFamily(i, genome, null, 1));
-    }
-    w.food = Array.from({ length: rules.food }, () => newFood(w));
-    return w;
   }
-  function step(w) {
-    const walls = w.rules.walls > 0;
-    for (const c of w.creatures) {
-      if (!c.alive) continue;
-      const seen = sense(w, c);
-      c.inputs = seen.inputs;
-      const { hidden, out } = think(c.g, c.inputs);
-      c.hidden = hidden;
-      c.out = out;
-      const speed2 = (out[1] + 1) / 2 * 3;
-      c.a += out[0] * 0.2;
-      if (walls) {
-        c.x = Math.min(Math.max(c.x + Math.cos(c.a) * speed2, 0), W);
-        c.y = Math.min(Math.max(c.y + Math.sin(c.a) * speed2, 0), H);
-      } else {
-        c.x = (c.x + Math.cos(c.a) * speed2 + W) % W;
-        c.y = (c.y + Math.sin(c.a) * speed2 + H) % H;
-      }
-      c.energy -= 5e-4 + speed2 * 4e-4;
-      if (seen.food && seen.foodDist < 6) {
-        c.eaten++;
-        c.energy = Math.min(c.energy + 0.3, 1.5);
-        Object.assign(seen.food, newFood(w));
-      }
-      if (c.energy <= 0) {
-        c.alive = false;
-        c.diedAt = w.tick;
-      }
-    }
-    w.tick++;
-    if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
-      if (w.layout + 1 < w.rules.layouts) nextLayout(w);
-      else nextGeneration(w);
-    }
+  function founderHue(family) {
+    return family * 137.508 % 360;
   }
-  function nextLayout(w) {
-    w.layout++;
-    for (const c of w.creatures) {
-      c.x = w.rng.next() * W;
-      c.y = w.rng.next() * H;
-      c.a = w.rng.next() * Math.PI * 2;
-      c.energy = 1;
-      c.alive = true;
-      c.diedAt = null;
-    }
-    w.food = Array.from({ length: w.rules.food }, () => newFood(w));
-    w.tick = 0;
+  function hueDrift(id) {
+    let h = Math.imul(id ^ 2654435769, 2246822507);
+    h ^= h >>> 13;
+    h = Math.imul(h, 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296 * 16 - 8;
   }
-  function nextGeneration(w) {
-    const { rules, rng } = w;
-    const ranked = [...w.creatures].sort((a, b) => b.eaten - a.eaten);
-    const per = Math.max(1, rules.layouts);
-    w.avgHist.push(ranked.reduce((s, c) => s + c.eaten, 0) / ranked.length / per);
-    w.bestHist.push(ranked[0].eaten / per);
-    w.worstHist.push(ranked[ranked.length - 1].eaten / per);
-    const half = ranked.slice(0, Math.ceil(ranked.length / 2));
-    w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
-    const elite = Math.min(rules.elite, rules.pop);
-    const parents = Math.max(1, Math.min(rules.parents, rules.pop));
-    const next = [];
-    recordFamilyStats(w, ranked, per);
-    const proven = judgeBranches(w, ranked);
-    for (let i = 0; i < elite; i++) {
-      const copy = newCreature(w, ranked[i].g.slice(), ranked[i].family, true, ranked[i].hue);
-      copy.streak = ranked[i].streak + 1;
-      copy.branch = ranked[i].branch;
-      next.push(copy);
-    }
-    crownChampions(w, next);
-    protectNewcomers(w, ranked, next, elite);
-    for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
-    while (next.length < rules.pop) {
-      const p = ranked[Math.floor(rng.next() * parents)];
-      const child = newCreature(w, p.g.map((x) => x + rng.gauss() * rules.mutation), p.family, false, p.hue);
-      child.branch = p.branch;
-      maybeSplit(w, child);
-      next.push(child);
-    }
-    w.creatures = next;
+
+  // src/engine/lineage.ts
+  var LEGACY_LIMIT = 500;
+  function settleLineage(w, proven) {
     for (const b of proven) promote(w, b);
-    const inBranch = new Set(next.map((c) => c.branch));
+    const inBranch = new Set(w.creatures.map((c) => c.branch));
     for (const id of [...w.branches.keys()]) {
       if (!inBranch.has(id)) {
         w.branches.delete(id);
         w.failedBranches++;
       }
     }
-    const alive = new Set(next.map((c) => c.family));
+    const alive = new Set(w.creatures.map((c) => c.family));
     for (const fam of [...w.families.values()]) if (!alive.has(fam.id)) retire(w, fam, w.generation);
-    w.food = Array.from({ length: rules.food }, () => newFood(w));
-    w.tick = 0;
-    w.layout = 0;
-    w.generation++;
   }
   function maybeSplit(w, child) {
     const limit = w.rules.splitDistance;
@@ -426,42 +334,141 @@
     for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
     return Math.sqrt(s / a.length);
   }
-  function newFood(w) {
-    return { x: w.rng.next() * W, y: w.rng.next() * H };
-  }
-  function newCreature(w, genome, family, elite, parentHue) {
-    const { rng } = w;
-    const id = w.nextId++;
-    const hue = parentHue === null ? founderHue(family) : elite ? parentHue : (parentHue + hueDrift(id) + 360) % 360;
-    return {
-      id,
-      family,
-      hue,
-      elite,
-      branch: null,
-      streak: 0,
-      g: genome,
-      x: rng.next() * W,
-      y: rng.next() * H,
-      a: rng.next() * Math.PI * 2,
-      energy: 1,
-      eaten: 0,
-      alive: true,
-      diedAt: null,
-      inputs: new Array(inputCount(w.rules)).fill(0),
-      hidden: new Array(HID).fill(0),
-      out: [0, 0]
+
+  // src/engine/world.ts
+  var DEFAULT_RULES = {
+    pop: 40,
+    food: 60,
+    genTicks: 1500,
+    elite: 2,
+    parents: 8,
+    mutation: 0.15,
+    splitDistance: 0.6,
+    championStreak: 3,
+    layouts: 3,
+    splitProof: 3,
+    senseFood2: 0,
+    senseCreature: 1,
+    walls: 0,
+    newcomers: 1,
+    newcomerMutation: 0.4,
+    protectGens: 3
+  };
+  function createWorld(seed, rules) {
+    const w = {
+      rules: { ...rules },
+      rng: createRng(seed),
+      creatures: [],
+      food: [],
+      tick: 0,
+      generation: 1,
+      layout: 0,
+      avgHist: [],
+      bestHist: [],
+      worstHist: [],
+      topHalfHist: [],
+      nextId: 0,
+      families: /* @__PURE__ */ new Map(),
+      legacy: [],
+      nextFamilyId: rules.pop,
+      splits: 0,
+      branches: /* @__PURE__ */ new Map(),
+      nextBranchId: 0,
+      failedBranches: 0,
+      newcomerCount: 0
     };
+    for (let i = 0; i < rules.pop; i++) {
+      const genome = Array.from({ length: genomeSize(inputCount(rules)) }, () => w.rng.gauss() * 0.5);
+      w.creatures.push(newCreature(w, genome, i, false, null));
+      w.families.set(i, newFamily(i, genome, null, 1));
+    }
+    w.food = Array.from({ length: rules.food }, () => newFood(w));
+    return w;
   }
-  function founderHue(family) {
-    return family * 137.508 % 360;
+  function step(w) {
+    const walls = w.rules.walls > 0;
+    for (const c of w.creatures) {
+      if (!c.alive) continue;
+      const seen = sense(w, c);
+      c.inputs = seen.inputs;
+      const { hidden, out } = think(c.g, c.inputs);
+      c.hidden = hidden;
+      c.out = out;
+      const speed2 = (out[1] + 1) / 2 * 3;
+      c.a += out[0] * 0.2;
+      if (walls) {
+        c.x = Math.min(Math.max(c.x + Math.cos(c.a) * speed2, 0), W);
+        c.y = Math.min(Math.max(c.y + Math.sin(c.a) * speed2, 0), H);
+      } else {
+        c.x = (c.x + Math.cos(c.a) * speed2 + W) % W;
+        c.y = (c.y + Math.sin(c.a) * speed2 + H) % H;
+      }
+      c.energy -= 5e-4 + speed2 * 4e-4;
+      if (seen.food && seen.foodDist < 6) {
+        c.eaten++;
+        c.energy = Math.min(c.energy + 0.3, 1.5);
+        Object.assign(seen.food, newFood(w));
+      }
+      if (c.energy <= 0) {
+        c.alive = false;
+        c.diedAt = w.tick;
+      }
+    }
+    w.tick++;
+    if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
+      if (w.layout + 1 < w.rules.layouts) nextLayout(w);
+      else nextGeneration(w);
+    }
   }
-  function hueDrift(id) {
-    let h = Math.imul(id ^ 2654435769, 2246822507);
-    h ^= h >>> 13;
-    h = Math.imul(h, 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296 * 16 - 8;
+  function nextLayout(w) {
+    w.layout++;
+    for (const c of w.creatures) {
+      c.x = w.rng.next() * W;
+      c.y = w.rng.next() * H;
+      c.a = w.rng.next() * Math.PI * 2;
+      c.energy = 1;
+      c.alive = true;
+      c.diedAt = null;
+    }
+    w.food = Array.from({ length: w.rules.food }, () => newFood(w));
+    w.tick = 0;
+  }
+  function nextGeneration(w) {
+    const { rules, rng } = w;
+    const ranked = [...w.creatures].sort((a, b) => b.eaten - a.eaten);
+    const per = Math.max(1, rules.layouts);
+    w.avgHist.push(ranked.reduce((s, c) => s + c.eaten, 0) / ranked.length / per);
+    w.bestHist.push(ranked[0].eaten / per);
+    w.worstHist.push(ranked[ranked.length - 1].eaten / per);
+    const half = ranked.slice(0, Math.ceil(ranked.length / 2));
+    w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
+    const elite = Math.min(rules.elite, rules.pop);
+    const parents = Math.max(1, Math.min(rules.parents, rules.pop));
+    const next = [];
+    recordFamilyStats(w, ranked, per);
+    const proven = judgeBranches(w, ranked);
+    for (let i = 0; i < elite; i++) {
+      const copy = newCreature(w, ranked[i].g.slice(), ranked[i].family, true, ranked[i].hue);
+      copy.streak = ranked[i].streak + 1;
+      copy.branch = ranked[i].branch;
+      next.push(copy);
+    }
+    crownChampions(w, next);
+    protectNewcomers(w, ranked, next, elite);
+    for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
+    while (next.length < rules.pop) {
+      const p = ranked[Math.floor(rng.next() * parents)];
+      const child = newCreature(w, p.g.map((x) => x + rng.gauss() * rules.mutation), p.family, false, p.hue);
+      child.branch = p.branch;
+      maybeSplit(w, child);
+      next.push(child);
+    }
+    w.creatures = next;
+    settleLineage(w, proven);
+    w.food = Array.from({ length: rules.food }, () => newFood(w));
+    w.tick = 0;
+    w.layout = 0;
+    w.generation++;
   }
 
   // src/web/main.ts

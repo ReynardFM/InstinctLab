@@ -1,6 +1,7 @@
 // What a creature perceives each tick. Which senses exist is set by the rules; each one adds inputs
 // to the brain, so the brain (and the genome) grows with them.
-import type { Creature, Food, World } from "./world.ts"; // types only, no import at run time
+import type { World } from "./world.ts"; // types only, no import at run time
+import type { Creature, Food } from "./creature.ts";
 import { IN } from "./brain.ts";
 import { H, W, nearest } from "./space.ts";
 

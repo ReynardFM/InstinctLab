@@ -44,13 +44,20 @@ src/cli/bench.ts     generations/s vs number of workers (npm run bench)
 ├─→ src/cli/pool.ts
 └─→ src/engine/world.ts   (default rules)
 
-src/engine/world.ts  the simulation: World, createWorld, step, runGenerations
+src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerations, nextGeneration
+├─→ src/engine/lineage.ts  families, branches on trial, champions, newcomers, legacy
+│   └─→ src/engine/creature.ts
+├─→ src/engine/creature.ts Creature, Food, newCreature, colours
+│   ├─→ src/engine/senses.ts
+│   └─→ src/engine/space.ts
 ├─→ src/engine/senses.ts  what a creature perceives each tick
 │   ├─→ src/engine/space.ts   map size, wrap/walls, nearest(): the one lookup all senses use
 │   └─→ src/engine/brain.ts
-├─→ src/engine/space.ts
 ├─→ src/engine/brain.ts   tiny neural network: think(genome, inputs)
 └─→ src/engine/rng.ts     seeded random numbers, one per World
+
+lineage.ts, creature.ts and senses.ts use World only as a type (no import at run time), so there is no
+import loop. Other files import engine things through world.ts.
 
 test/engine.test.ts ─→ engine/*, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
@@ -61,8 +68,10 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 | `src/engine/rng.ts` | — | `world.ts`, `main.ts`, tests |
 | `src/engine/brain.ts` | — | `world.ts`, `senses.ts`, `main.ts`, tests |
 | `src/engine/space.ts` | — | `world.ts`, `senses.ts`, `main.ts`, tests |
-| `src/engine/senses.ts` | `space.ts`, `brain.ts` (and `world.ts` types only) | `world.ts`, `main.ts`, tests |
-| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
+| `src/engine/senses.ts` | `space.ts`, `brain.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `creature.ts`, `main.ts`, tests |
+| `src/engine/creature.ts` | `brain.ts`, `senses.ts`, `space.ts` (`World` type) | `world.ts`, `lineage.ts` |
+| `src/engine/lineage.ts` | `creature.ts` (`World` type) | `world.ts` |
+| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
 | `src/web/main.ts` | engine | `dist/app.js` (build output) |
 | `src/cli/job.ts` | `world.ts` | `worker.ts`, `pool.ts`, `run.ts`, `bench.ts`, `cli.test.ts` |
 | `src/cli/worker.ts` | `job.ts` | `pool.ts` (started as a thread, not imported) |
@@ -71,7 +80,7 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 | `src/cli/bench.ts` | `world.ts`, `job.ts`, `pool.ts` | `npm run bench`, `cli.test.ts` |
 | `test/golden.json` | — | `engine.test.ts` |
 
-Suggested reading order: `world.ts` → `senses.ts` → `space.ts` → `brain.ts` → `rng.ts` → `job.ts` → `pool.ts` → `run.ts` → `main.ts`.
+Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `senses.ts` → `space.ts` → `brain.ts` → `rng.ts` → `job.ts` → `pool.ts` → `run.ts` → `main.ts`.
 
 ## Measurements
 
