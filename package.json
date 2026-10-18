@@ -6,12 +6,14 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build": "esbuild src/web/main.ts --bundle --format=iife --target=es2022 --outfile=dist/app.js",
-    "watch": "esbuild src/web/main.ts --bundle --format=iife --target=es2022 --outfile=dist/app.js --watch",
+    "build": "node scripts/build.ts",
+    "watch": "node scripts/build.ts --watch",
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc -p .",
+    "check": "tsc -p . && node --test \"test/*.test.ts\" && node scripts/check-dist.ts",
     "lab": "node src/cli/run.ts",
-    "bench": "node src/cli/bench.ts"
+    "bench": "node src/cli/bench.ts",
+    "record-defaults": "node scripts/record-defaults.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.5",

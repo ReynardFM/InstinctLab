@@ -7,23 +7,22 @@ import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
 
-// Numbers recorded from the single-file browser version before the TypeScript split.
-// If these still match, the split changed nothing about how evolution behaves.
+// Recorded runs (see src/check/golden.ts): the original single-file version, plus the current defaults.
+import { BASE_RULES, CASES, firstDifference, runCase } from "../src/check/golden.ts";
 // the rules before food layouts, extra senses and newcomers existed
-const ONE = { ...DEFAULT_RULES, layouts: 1, senseFood2: 0, senseCreature: 0, walls: 0, newcomers: 0 };
+const ONE = BASE_RULES;
 const golden = JSON.parse(readFileSync(new URL("./golden.json", import.meta.url), "utf8"));
 
 test("matches the original browser version exactly", () => {
-  for (const seedText of ["42", "7", "hello"]) {
-    const w = createWorld(seedFrom(seedText), ONE);
-    runGenerations(w, 10);
-    assert.deepEqual(w.avgHist, golden[seedText].avg, `avg, seed ${seedText}`);
-    assert.deepEqual(w.bestHist, golden[seedText].best, `best, seed ${seedText}`);
+  for (const c of CASES.filter((x) => x.name !== "defaults")) {
+    assert.equal(firstDifference(runCase(c), golden[c.name]), null, `case ${c.name}`);
   }
-  const custom = { ...ONE, pop: 15, food: 20, elite: 0, parents: 50, mutation: 0.4, genTicks: 400 };
-  const w = createWorld(42, custom);
-  runGenerations(w, 10);
-  assert.deepEqual(w.avgHist, golden.custom.avg);
+});
+
+test("current default rules behave exactly as recorded (npm run record-defaults after a deliberate change)", () => {
+  const c = CASES.find((x) => x.name === "defaults")!;
+  assert.ok(golden.defaults, "defaults not recorded: run npm run record-defaults");
+  assert.equal(firstDifference(runCase(c), golden.defaults), null);
 });
 
 test("same seed, same run; different seed, different run", () => {

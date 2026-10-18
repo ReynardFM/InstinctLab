@@ -5,6 +5,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 ## Run
 
 - **Watch it:** double-click `index.html`. Works offline, no install. It loads the already-built `dist/app.js`.
+- **Check a browser replays runs exactly:** double-click `determinism.html` in that browser (about 10 s).
 - **Everything else** needs Node 22.18 or newer (`node -v`):
 
 | Command | Needs `npm install`? | What it does |
@@ -12,9 +13,11 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm test` | no | Runs the tests, including "behaves exactly like the original browser version" |
 | `npm run lab -- --gens=100 --mutation=0.05,0.15,0.4` | no | Compares settings across seeds without a browser, using all CPU cores. Prints a table and generations/second |
 | `npm run bench` | no | Measures generations/second with 1, 2, 4 ... workers up to your core count, and checks the results are identical |
-| `npm run build` | yes | Rebuilds `dist/app.js` after you change anything in `src/` |
+| `npm run build` | yes | Rebuilds `dist/app.js` and `dist/determinism.js` after you change anything in `src/` |
 | `npm run watch` | yes | Rebuilds on every save |
 | `npm run typecheck` | yes | Checks the TypeScript types |
+| `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
+| `npm run record-defaults` | no | Re-records the "current defaults" run in `test/golden.json`. Only after a change that is meant to alter behaviour |
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
@@ -59,7 +62,17 @@ src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerat
 lineage.ts, creature.ts and senses.ts use World only as a type (no import at run time), so there is no
 import loop. Other files import engine things through world.ts.
 
-test/engine.test.ts ─→ engine/*, test/golden.json
+src/check/golden.ts  the recorded runs (cases) and how to compare them
+└─→ src/engine/world.ts
+
+src/web/determinism.ts  determinism.html: replays the recorded runs in a browser
+├─→ src/check/golden.ts
+└─→ test/golden.json
+
+scripts/build.ts, check-dist.ts ─→ scripts/bundles.ts (list of browser bundles), esbuild
+scripts/record-defaults.ts      ─→ src/check/golden.ts, test/golden.json
+
+test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
 ```
 
@@ -78,7 +91,10 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 | `src/cli/pool.ts` | `job.ts` (types), `worker.ts` (starts it) | `run.ts`, `bench.ts`, `cli.test.ts` |
 | `src/cli/run.ts` | `world.ts`, `job.ts`, `pool.ts` | `npm run lab`, `cli.test.ts` |
 | `src/cli/bench.ts` | `world.ts`, `job.ts`, `pool.ts` | `npm run bench`, `cli.test.ts` |
-| `test/golden.json` | — | `engine.test.ts` |
+| `src/check/golden.ts` | `world.ts`, `rng.ts` | `engine.test.ts`, `determinism.ts`, `record-defaults.ts` |
+| `src/web/determinism.ts` | `golden.ts`, `golden.json` | `dist/determinism.js` (build output) |
+| `scripts/*.ts` | `bundles.ts`, esbuild, `golden.ts` | `npm run build / watch / check / record-defaults` |
+| `test/golden.json` | — | `engine.test.ts`, `determinism.ts`, `record-defaults.ts` |
 
 Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `senses.ts` → `space.ts` → `brain.ts` → `rng.ts` → `job.ts` → `pool.ts` → `run.ts` → `main.ts`.
 
@@ -99,5 +115,6 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-17 | Walls, same setup: no walls vs walls (basic senses) | 37.8 vs 33.9 (a harder world, not a better sense) |
 | 2026-10-17 | Cost per creature per tick, cloud machine, noisy (±20%) | basic ~1.1-1.4 µs (same as before senses), +2nd food ~1.4 µs, +nearest creature ~2.3 µs, everything ~2.4 µs |
 | 2026-10-17 | Newcomer families, 100 generations, seeds 1-3 (score = everyone / top half, last 10 generations) | none: 44.6 / 48.7, 1.2 families alive. Mutation 1.0 + protect 3: 41.6 / 48.6, 5.3 families, 4 of 300 newcomers lasted 5+ generations past protection. Mutation 0.4 + protect 3: 41.6 / 46.5, 6.1 families, 40 of 300. Mutation 0.4, no protection: 45.0 / 49.1, 3.5 families, 40 of 300 |
+| 2026-10-18 | Math functions, 200,000 random inputs each: Node 22 (V8 12.4) vs headless Chrome 141 | `sin` and `cos` give different last bits; `tanh`, `atan2`, `log`, `exp`, `sqrt` identical. The default-rules run diverges in generation 1, so the page in a new Chrome and `npm run lab` do not replay the same seed identically |
 
 Rows before 2026-10-17 ran with one food layout per generation (`--layouts=1` reproduces them).

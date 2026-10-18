@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Determinism Check</title>
+<style>
+  :root { --ink: #0d1a24; --panel: #142533; --text: #e6edf2; --muted: #9fb0bd; --pos: #7fc8d6; --neg: #e58c8c; }
+  body { margin: 0; background: var(--ink); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  p, small { color: var(--muted); }
+  ul { padding: 0; list-style: none; }
+  li { background: var(--panel); padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-family: ui-monospace, monospace; font-size: 14px; overflow-wrap: anywhere; }
+  .good { color: var(--pos); }
+  .bad { color: var(--neg); }
+  #summary { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Determinism check</h1>
+  <p>Replays the recorded runs from <code>test/golden.json</code> in this browser. Open this file in each browser you care about (Chrome, Edge, Firefox, Safari). Takes about 10 seconds.</p>
+  <ul id="results"></ul>
+  <p id="summary">Running...</p>
+  <small id="agent"></small>
+</main>
+<script src="dist/determinism.js"></script>
+</body>
+</html>
