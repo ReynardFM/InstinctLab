@@ -1,0 +1,21 @@
+{
+  "name": "evolution-lab",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "esbuild src/web/main.ts --bundle --format=iife --target=es2022 --outfile=dist/app.js",
+    "watch": "esbuild src/web/main.ts --bundle --format=iife --target=es2022 --outfile=dist/app.js --watch",
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p .",
+    "lab": "node src/cli/run.ts",
+    "bench": "node src/cli/bench.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}
