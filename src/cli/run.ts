@@ -17,7 +17,8 @@ interface Options {
 }
 
 export function parseArgs(argv: string[]): Options {
-  const opts: Options = { gens: 100, seeds: [1, 2, 3], workers: availableParallelism(), grid: {} };
+  // 7 seeds by default: with 3, differences of about 2 food were indistinguishable from luck
+  const opts: Options = { gens: 100, seeds: [1, 2, 3, 4, 5, 6, 7], workers: availableParallelism(), grid: {} };
   for (const arg of argv) {
     const m = /^--(\w+)=(.+)$/.exec(arg);
     if (!m) throw new Error(`Can't read "${arg}". Use --name=value or --name=a,b,c`);
@@ -40,6 +41,19 @@ export function combinations(grid: Options["grid"]): Rules[] {
     combos = combos.flatMap((r) => values.map((v) => ({ ...r, [key]: v })));
   }
   return combos;
+}
+
+// Two-sided 95% t-values by degrees of freedom (n - 1), for the ± column.
+const T95 = [NaN, 12.71, 4.3, 3.18, 2.78, 2.57, 2.45, 2.36, 2.31, 2.26, 2.23, 2.2, 2.18, 2.16, 2.14, 2.13, 2.12, 2.11, 2.1, 2.09, 2.09];
+
+// Half-width of the 95% confidence interval of the mean across seeds: the score is probably within
+// mean ± this. Two settings whose intervals overlap a lot are not shown to differ. NaN with one seed.
+export function margin95(xs: number[]): number {
+  const n = xs.length;
+  if (n < 2) return NaN;
+  const mean = xs.reduce((s, x) => s + x, 0) / n;
+  const sd = Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1));
+  return ((T95[n - 1] ?? 1.96) * sd) / Math.sqrt(n);
 }
 
 // Score of one run: average food eaten over its last 10 generations (less noisy than the last one alone).
@@ -71,20 +85,23 @@ async function main(): Promise<void> {
     const scores = mine.map((r) => score(r.avgHist));
     const mean = scores.reduce((s, x) => s + x, 0) / scores.length;
     const top = mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / mine.length;
+    const m = margin95(scores);
     rows.push([
       ...varied.map((k) => String(rules[k])),
       mean.toFixed(1),
+      Number.isNaN(m) ? "-" : `±${m.toFixed(1)}`,
       top.toFixed(1),
       `${Math.min(...scores).toFixed(1)}..${Math.max(...scores).toFixed(1)}`,
     ]);
   }
 
-  const header = [...varied, "score", "top half", "seed range"];
+  const header = [...varied, "score", "±95%", "top half", "seed range"];
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padStart(widths[i])).join("  ");
   console.log(line(header));
   for (const r of rows) console.log(line(r));
   console.log(`\nscore = average food eaten per creature per layout, last 10 generations, averaged over seeds`);
+  console.log(`±95% = the true score is probably within score ± this; settings whose ranges overlap are not shown to differ`);
   console.log(`top half = the same for the better half of each generation (weak newcomers don't drag it down); seed range is for score`);
   console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${workers} worker${workers > 1 ? "s" : ""})`);
 }

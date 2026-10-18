@@ -12,7 +12,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 |---|---|---|
 | `npm test` | no | Runs the tests, including "behaves exactly like the original browser version" |
 | `npm run lab -- --gens=100 --mutation=0.05,0.15,0.4` | no | Compares settings across seeds without a browser, using all CPU cores. Prints a table and generations/second |
-| `npm run bench` | no | Measures generations/second with 1, 2, 4 ... workers up to your core count, and checks the results are identical |
+| `npm run bench` | no | Measures generations/second with 1, 2, 4 ... workers up to your core count (median of 3 trials), shows the CPU model and worker start-up time, and checks the results are identical. About 3 minutes on 14 cores |
 | `npm run build` | yes | Rebuilds `dist/app.js` and `dist/determinism.js` after you change anything in `src/` |
 | `npm run watch` | yes | Rebuilds on every save |
 | `npm run typecheck` | yes | Checks the TypeScript types |
@@ -21,7 +21,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
-`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, plus `--gens=N`, `--seeds=1,2,3` and `--workers=N` (default: all cores).
+`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone.
 
 ## File dependency tree
 

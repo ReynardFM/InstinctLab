@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { combinations, parseArgs, score } from "../src/cli/run.ts";
+import { combinations, margin95, parseArgs, score } from "../src/cli/run.ts";
 import { runJob, type Job } from "../src/cli/job.ts";
 import { runJobs } from "../src/cli/pool.ts";
-import { workerCounts } from "../src/cli/bench.ts";
+import { median, workerCounts } from "../src/cli/bench.ts";
 import { DEFAULT_RULES } from "../src/engine/world.ts";
 
 test("reads options and lists of values", () => {
@@ -48,4 +48,17 @@ test("bench tries 1, 2, 4 ... workers up to the core count", () => {
   assert.deepEqual(workerCounts(2), [1, 2]);
   assert.deepEqual(workerCounts(6), [1, 2, 4, 6]);
   assert.deepEqual(workerCounts(8), [1, 2, 4, 8]);
+});
+
+test("margin95: zero spread gives 0, one seed gives no margin, more seeds give a narrower range", () => {
+  assert.equal(margin95([5, 5, 5]), 0);
+  assert.ok(Number.isNaN(margin95([5])));
+  assert.ok(Math.abs(margin95([1, 3]) - 12.71) < 1e-9); // sd 1.414, n 2, t 12.71
+  assert.ok(margin95([1, 3, 1, 3, 1, 3, 1]) < margin95([1, 3, 1]));
+  assert.deepEqual(parseArgs([]).seeds, [1, 2, 3, 4, 5, 6, 7]);
+});
+
+test("median", () => {
+  assert.equal(median([3, 1, 2]), 2);
+  assert.equal(median([4, 1, 3, 2]), 2.5);
 });
