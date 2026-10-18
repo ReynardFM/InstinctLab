@@ -1,4 +1,5 @@
 // A tiny neural network. The genome is just its weights and biases, in reading order.
+import { tanh } from "./dmath.ts";
 
 export const IN = 4; // basic senses: food left/right, food ahead, food distance, energy. Extra senses add more.
 export const HID = 6;
@@ -21,12 +22,12 @@ export function think(g: Genome, inputs: number[]): Thought {
   for (let h = 0; h < HID; h++) {
     let s = 0;
     for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
-    hidden.push(Math.tanh(s + g[k++]));
+    hidden.push(tanh(s + g[k++]));
   }
   for (let o = 0; o < OUT; o++) {
     let s = 0;
     for (let h = 0; h < HID; h++) s += hidden[h] * g[k++];
-    out.push(Math.tanh(s + g[k++]));
+    out.push(tanh(s + g[k++]));
   }
   return { hidden, out };
 }

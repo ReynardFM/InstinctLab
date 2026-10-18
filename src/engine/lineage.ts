@@ -218,6 +218,9 @@ export function retire(w: World, fam: Family, lastGeneration: number): void {
 // Root-mean-square difference per weight. 0 = identical brains.
 export function brainDistance(a: Genome, b: Genome): number {
   let s = 0;
-  for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
+  for (let i = 0; i < a.length; i++) {
+    const d = a[i] - b[i];
+    s += d * d; // not ** : its rounding is up to each engine
+  }
   return Math.sqrt(s / a.length);
 }

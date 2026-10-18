@@ -6,22 +6,25 @@ import { think, genomeSize, GENOME } from "../src/engine/brain.ts";
 import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
+import * as dmath from "../src/engine/dmath.ts";
 
-// Recorded runs (see src/check/golden.ts): the original single-file version, plus the current defaults.
+const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
+
+// Recorded runs (see src/check/golden.ts): the basic rules, plus the current defaults.
 import { BASE_RULES, CASES, firstDifference, runCase } from "../src/check/golden.ts";
 // the rules before food layouts, extra senses and newcomers existed
 const ONE = BASE_RULES;
 const golden = JSON.parse(readFileSync(new URL("./golden.json", import.meta.url), "utf8"));
 
-test("matches the original browser version exactly", () => {
+test("basic rules behave exactly as recorded", () => {
   for (const c of CASES.filter((x) => x.name !== "defaults")) {
     assert.equal(firstDifference(runCase(c), golden[c.name]), null, `case ${c.name}`);
   }
 });
 
-test("current default rules behave exactly as recorded (npm run record-defaults after a deliberate change)", () => {
+test("current default rules behave exactly as recorded (npm run record-golden after a deliberate change)", () => {
   const c = CASES.find((x) => x.name === "defaults")!;
-  assert.ok(golden.defaults, "defaults not recorded: run npm run record-defaults");
+  assert.ok(golden.defaults, "defaults not recorded: run npm run record-golden");
   assert.equal(firstDifference(runCase(c), golden.defaults), null);
 });
 
@@ -292,4 +295,29 @@ test("newcomers: a hard-mutated new family each generation, kept alive while pro
   runGenerations(b, 6);
   assert.deepEqual(a.avgHist, b.avgHist, "same seed, same run with newcomers");
   assert.equal(createWorld(6, ONE).newcomerCount, 0);
+});
+
+test("deterministic math: close to Math.*, and pinned to the last bit", () => {
+  const rng = createRng(11);
+  let worst = 0;
+  const bits: number[] = [];
+  for (let i = 0; i < 20000; i++) {
+    const x = (rng.next() * 2 - 1) * 2000;
+    const y = (rng.next() * 2 - 1) * 25;
+    const u = rng.next() + 1e-12;
+    worst = Math.max(worst, Math.abs(dmath.sin(x) - Math.sin(x)), Math.abs(dmath.cos(x) - Math.cos(x)),
+      Math.abs(dmath.tanh(y) - Math.tanh(y)), Math.abs(dmath.log(u) - Math.log(u)) / Math.max(1, Math.abs(Math.log(u))));
+    bits.push(dmath.sin(x), dmath.cos(x), dmath.tanh(y), dmath.log(u));
+  }
+  assert.ok(worst < 1e-14, `largest difference from Math.* was ${worst}`);
+  // a hash of every output bit: any engine that computes even one bit differently fails here
+  const words = new Uint32Array(new Float64Array(bits).buffer);
+  let h = 2166136261;
+  for (const w of words) h = Math.imul(h ^ w, 16777619);
+  assert.equal((h >>> 0).toString(16), DMATH_FINGERPRINT);
+  assert.equal(dmath.sin(0), 0);
+  assert.equal(dmath.cos(0), 1);
+  assert.equal(dmath.tanh(0), 0);
+  assert.equal(dmath.tanh(50), 1);
+  assert.equal(dmath.log(1), 0);
 });

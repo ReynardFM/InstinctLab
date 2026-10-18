@@ -8,19 +8,16 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
 
 ## Current state (2026-10-18)
 - Engine `src/engine` (world, lineage, creature, senses, space, brain, rng), page `src/web`, CLI `src/cli`, checks `src/check` + `scripts`. README has commands and the file tree.
-- `test/golden.json`: "42", "7", "hello", "custom" are from the original single-file version (never re-record). "defaults" pins the current default rules: re-record with `npm run record-defaults` only for a deliberate behaviour change, and say so in the commit.
+- `test/golden.json` pins the basic rules ("42", "7", "hello", "custom") and the current defaults. Re-record with `npm run record-golden` only for a deliberate behaviour change, and say so in the commit. All engine math goes through `src/engine/dmath.ts` (identical bits in every JS engine); never call Math.sin/cos/tan/atan2/exp/log/pow or ** in the engine.
+- Machine: Rey's laptop is an Intel Core Ultra 7 155U (2 P-cores + 8 E-cores + 2 low-power E-cores, 15 W). Parallel efficiency: 100% to 2 workers, 74% at 4, 36% at 14 (unequal cores + power limit; start-up only 201 ms).
 - Before every commit: `npm run check` (types + tests + dist up to date). One commit per reviewed change; message says what changed and what was measured.
-- Baseline, current defaults (2026-10-18, 7 seeds x 100 generations, cloud): score 43.2 ±2.7, top half 47.9, 6.1 families alive, 1.6 champions per 100 generations, about 2.5 generations/s on one cloud thread.
+- Baseline, current defaults with deterministic math (2026-10-18, 7 seeds x 100 generations, cloud): score 42.3 ±2.8, top half 46.8, 6.2 families alive, 1.1 champions per 100 generations, about 2.7 generations/s on one cloud thread.
 - Git author email is the GitHub noreply address (182705433+ReynardFM@users.noreply.github.com), set for this repo only.
 
-## Open decision
-- Determinism across engines (found 2026-10-18): Math.sin/cos differ between Node 22 and Chrome 141, so a seed on the page and the same seed in `npm run lab` are different runs. Fix candidate: our own sin/cos/atan2/tanh/log written with plain arithmetic (identical everywhere), which changes every number and retires the original-version golden runs. Waiting for Rey.
-
 ## Next session
-1. Decide the determinism fix above.
-2. Push to GitHub (author email already noreply).
-3. Rey runs the new `npm run bench` (CPU model, startup time, 3 trials) to explain the drop past 4 workers.
-4. Evolution batch: sparse mutations, Evolution Strategies centre brain.
+1. Push to GitHub (author email already noreply).
+2. Evolution batch: sparse mutations, Evolution Strategies centre brain.
+3. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 
 ## Decision log
 0. Done 2026-10-16: page batch 1 (drifting colours, death marks, worst-to-best band, living-only family count) and speciation by brain difference (`splitDistance`, default 0.6, measured: about 1 split per 3-4 generations, 1-5 families alive). Display-only: golden test unchanged.
@@ -39,6 +36,8 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
    Review 2026-10-18 (all kept): 1 newcomer/gen from a top-8 parent, mutation 0.4, protection = best keeps seat + 1 child for 3 gens, newcomer is its own family at once. Changed: `npm run lab` now also prints a "top half" score (World.topHalfHist), so runs with and without newcomers compare fairly.
    Git 2026-10-18: repo in `evolution-lab/` (branch main, first commit 9e8d5f3 after the email rewrite). One commit per reviewed change, message says what changed and what was measured. `dist/app.js` is committed on purpose (double-click works without npm install). (This file was outside the repo until the 2026-10-18 fixes.)
    Fixes 2026-10-18: commit email switched to GitHub noreply (history rewritten before any push); world.ts split into world/lineage/creature (proved identical); determinism.html + defaults golden + npm run check; lab defaults to 7 seeds with a ±95% column; bench takes the median of 3 trials and prints CPU model and worker start-up time; fresh baseline recorded (champions fire 1.6 per 100 generations, inside the agreed 1-2 target, so no change); this file moved into the repo.
+   Done 2026-10-18 (Rey chose A): deterministic math. dmath.ts gives sin/cos/tanh/log from + - * / only; senses rotate by the heading instead of using atan2; brainDistance uses d*d instead of **. Every number changed, so golden was re-recorded (the original-version link ends here; git has the history). Chrome 141 now matches Node 22 exactly. Score unchanged within noise (42.3 ±2.8 vs 43.2 ±2.7). Speed: default rules unchanged, basic rules 23% slower.
+   Bench 2026-10-18 on Rey's 155U: 1/2/4/8/14 workers = 3.7/7.5/11.0/16.5/18.7 gens/s (100/100/74/55/36%). Explained by hardware: only 2 fast P-cores (4 threads), then E-cores, then low-power cores, all under a 15 W limit. Headline for the resume should use this run with its CPU named.
 1. Evolution: newcomer families done 2026-10-17. Still to do: small sparse mutations; fitness-weighted average "centre" brain (Evolution Strategies style). Compare old vs new with `npm run lab` across seeds.
 2. Senses and world: done 2026-10-17. Uniform grid still waiting for its trigger (creature sense doubled cost per creature-tick).
 3. Game layer: poisonous food (needs a food-type sense), slow food regrowth setting, energy-cost slider, "drop food" power, rule changes applied at the next generation with a change log (replay = seed + log).

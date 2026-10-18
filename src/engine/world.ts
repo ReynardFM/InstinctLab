@@ -2,6 +2,7 @@
 // Same seed + same rules = same run, at any speed, in the browser or in Node.
 import { createRng, type Rng } from "./rng.ts";
 import { genomeSize, think } from "./brain.ts";
+import { cos, sin } from "./dmath.ts";
 import { H, W } from "./space.ts";
 import { inputCount, sense } from "./senses.ts";
 import { newCreature, newFood, type Creature, type Food } from "./creature.ts";
@@ -109,11 +110,11 @@ export function step(w: World): void {
     c.a += out[0] * 0.2;
     if (walls) {
       // walls stop you: slide along them instead of passing through
-      c.x = Math.min(Math.max(c.x + Math.cos(c.a) * speed, 0), W);
-      c.y = Math.min(Math.max(c.y + Math.sin(c.a) * speed, 0), H);
+      c.x = Math.min(Math.max(c.x + cos(c.a) * speed, 0), W);
+      c.y = Math.min(Math.max(c.y + sin(c.a) * speed, 0), H);
     } else {
-      c.x = (c.x + Math.cos(c.a) * speed + W) % W;
-      c.y = (c.y + Math.sin(c.a) * speed + H) % H;
+      c.x = (c.x + cos(c.a) * speed + W) % W;
+      c.y = (c.y + sin(c.a) * speed + H) % H;
     }
     c.energy -= 0.0005 + speed * 0.0004; // moving costs energy; standing still costs a little
     if (seen.food && seen.foodDist < 6) {

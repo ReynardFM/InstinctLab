@@ -1,7 +1,85 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.225, 4.475, 5.275, 11.275, 16, 21.2, 24.825, 27.275, 27.725, 26.575], best: [8, 25, 17, 44, 46, 49, 58, 49, 61, 51] }, "42": { avg: [2.025, 8.525, 15.1, 15.65, 22.5, 23.3, 26.075, 25.75, 29.45, 32.7], best: [32, 43, 42, 38, 69, 54, 61, 71, 58, 61] }, hello: { avg: [2.325, 5.25, 4.375, 10.4, 12.45, 15.95, 21.225, 28, 32.1, 30], best: [11, 15, 21, 32, 50, 50, 57, 55, 59, 53] }, custom: { avg: [0.13333333333333333, 0.06666666666666667, 0.06666666666666667, 0.5333333333333333, 0.13333333333333333, 0.06666666666666667, 1.2666666666666666, 1.3333333333333333, 1.2666666666666666, 2.1333333333333333], best: [1, 1, 1, 5, 1, 1, 9, 10, 9, 11] }, defaults: { avg: [2.3000000000000003, 7.716666666666666, 12.641666666666666], best: [19, 26.333333333333332, 48] } };
+  var golden_default = { "7": { avg: [1.225, 4.475, 5.275, 11.275, 16, 21.2, 24.825, 27.275, 27.725, 26.575], best: [8, 25, 17, 44, 46, 49, 58, 49, 61, 51] }, "42": { avg: [2.025, 8.525, 15.1, 15.65, 22.5, 23.3, 26.075, 25.75, 29.45, 32.7], best: [32, 43, 42, 38, 69, 54, 61, 71, 58, 61] }, hello: { avg: [2.325, 5.25, 4.375, 10.4, 12.45, 15.95, 21.225, 28, 32.1, 30], best: [11, 15, 21, 32, 50, 50, 57, 55, 59, 53] }, custom: { avg: [0.13333333333333333, 0.06666666666666667, 0.06666666666666667, 0.5333333333333333, 0.13333333333333333, 0.06666666666666667, 1.2666666666666666, 1.3333333333333333, 1.2666666666666666, 2.1333333333333333] }, defaults: { avg: [2.216666666666667, 7.766666666666667, 13.575000000000001], best: [17.333333333333332, 20, 29.333333333333332] } };
+
+  // src/engine/dmath.ts
+  var HALF_PI_HI = 1.5707963267341256;
+  var HALF_PI_LO = 6077100506506192e-26;
+  var TWO_OVER_PI = 0.6366197723675814;
+  var LN2_HI = 0.6931471803691238;
+  var LN2_LO = 19082149292705877e-26;
+  var INV_LN2 = 1.4426950408889634;
+  var SQRT_HALF = 0.7071067811865476;
+  var SQRT2 = 1.4142135623730951;
+  var F = [1];
+  for (let n = 1; n <= 20; n++) F.push(F[n - 1] / n);
+  var P2 = new Array(129);
+  P2[64] = 1;
+  for (let i = 1; i <= 64; i++) {
+    P2[64 + i] = P2[63 + i] * 2;
+    P2[64 - i] = P2[65 - i] / 2;
+  }
+  function sinSmall(r) {
+    const r2 = r * r;
+    return r * (F[0] - r2 * (F[3] - r2 * (F[5] - r2 * (F[7] - r2 * (F[9] - r2 * (F[11] - r2 * (F[13] - r2 * (F[15] - r2 * (F[17] - r2 * F[19])))))))));
+  }
+  function cosSmall(r) {
+    const r2 = r * r;
+    return F[0] - r2 * (F[2] - r2 * (F[4] - r2 * (F[6] - r2 * (F[8] - r2 * (F[10] - r2 * (F[12] - r2 * (F[14] - r2 * (F[16] - r2 * F[18]))))))));
+  }
+  function sin(x) {
+    const k = Math.floor(x * TWO_OVER_PI + 0.5);
+    const r = x - k * HALF_PI_HI - k * HALF_PI_LO;
+    const q = (k % 4 + 4) % 4;
+    return q === 0 ? sinSmall(r) : q === 1 ? cosSmall(r) : q === 2 ? -sinSmall(r) : -cosSmall(r);
+  }
+  function cos(x) {
+    const k = Math.floor(x * TWO_OVER_PI + 0.5);
+    const r = x - k * HALF_PI_HI - k * HALF_PI_LO;
+    const q = (k % 4 + 4) % 4;
+    return q === 0 ? cosSmall(r) : q === 1 ? -sinSmall(r) : q === 2 ? -cosSmall(r) : sinSmall(r);
+  }
+  function expSmall(x) {
+    const k = Math.floor(x * INV_LN2 + 0.5);
+    const r = x - k * LN2_HI - k * LN2_LO;
+    let p = F[17];
+    for (let n = 16; n >= 0; n--) p = p * r + F[n];
+    return p * P2[64 + k];
+  }
+  function tanh(x) {
+    if (x !== x) return NaN;
+    const a = x < 0 ? -x : x;
+    let t;
+    if (a >= 20) t = 1;
+    else if (a < 0.05) {
+      const a2 = a * a;
+      t = a * (1 - a2 * (1 / 3 - a2 * (2 / 15 - a2 * (17 / 315 - a2 * (62 / 2835 - a2 * (1382 / 155925))))));
+    } else {
+      const e = expSmall(-2 * a);
+      t = (1 - e) / (1 + e);
+    }
+    return x < 0 ? -t : t;
+  }
+  function log(x) {
+    if (!(x > 0)) return x === 0 ? -Infinity : NaN;
+    if (x === Infinity) return Infinity;
+    let m = x;
+    let e = 0;
+    while (m < SQRT_HALF) {
+      m *= 2;
+      e--;
+    }
+    while (m >= SQRT2) {
+      m /= 2;
+      e++;
+    }
+    const s = (m - 1) / (m + 1);
+    const s2 = s * s;
+    let p = 1 / 23;
+    for (let n = 21; n >= 1; n -= 2) p = p * s2 + 1 / n;
+    return e * LN2_HI + (e * LN2_LO + 2 * s * p);
+  }
 
   // src/engine/rng.ts
   function createRng(seed) {
@@ -16,7 +94,7 @@
     const gauss = () => {
       const u = next() || 1e-9;
       const v = next();
-      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      return Math.sqrt(-2 * log(u)) * cos(2 * Math.PI * v);
     };
     return { next, gauss };
   }
@@ -39,12 +117,12 @@
     for (let h = 0; h < HID; h++) {
       let s = 0;
       for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
-      hidden.push(Math.tanh(s + g[k++]));
+      hidden.push(tanh(s + g[k++]));
     }
     for (let o = 0; o < OUT; o++) {
       let s = 0;
       for (let h = 0; h < HID; h++) s += hidden[h] * g[k++];
-      out.push(Math.tanh(s + g[k++]));
+      out.push(tanh(s + g[k++]));
     }
     return { hidden, out };
   }
@@ -93,14 +171,17 @@
   function inputCount(r) {
     return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.walls ? 1 : 0);
   }
-  function towards(dx, dy, d2, heading) {
-    const rel = Math.atan2(dy, dx) - heading;
-    return [Math.sin(rel), Math.cos(rel), Math.min(Math.sqrt(d2) / 200, 1)];
+  function towards(dx, dy, d2, cosH, sinH) {
+    const d = Math.sqrt(d2);
+    const ok = d > 0 && d !== Infinity;
+    const st = ok ? dy / d : 0;
+    const ct = ok ? dx / d : 1;
+    return [st * cosH - ct * sinH, ct * cosH + st * sinH, Math.min(d / 200, 1)];
   }
   var NOTHING = [0, 0, 1];
   function wallAhead(x, y, heading) {
-    const cx = Math.cos(heading);
-    const cy = Math.sin(heading);
+    const cx = cos(heading);
+    const cy = sin(heading);
     const tx = cx > 0 ? (W - x) / cx : cx < 0 ? -x / cx : Infinity;
     const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
     return Math.min(Math.min(tx, ty) / 200, 1);
@@ -110,15 +191,17 @@
     const walls = r.walls > 0;
     const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1);
     const f = foods[0];
-    const first = f ? towards(f.dx, f.dy, f.d2, c.a) : towards(0, 0, Infinity, c.a);
+    const cosH = cos(c.a);
+    const sinH = sin(c.a);
+    const first = f ? towards(f.dx, f.dy, f.d2, cosH, sinH) : towards(0, 0, Infinity, cosH, sinH);
     const inputs = [...first, c.energy];
     if (r.senseFood2) {
       const s = foods[1];
-      inputs.push(...s ? towards(s.dx, s.dy, s.d2, c.a) : NOTHING);
+      inputs.push(...s ? towards(s.dx, s.dy, s.d2, cosH, sinH) : NOTHING);
     }
     if (r.senseCreature) {
       const n = nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
-      inputs.push(...n ? towards(n.dx, n.dy, n.d2, c.a) : NOTHING);
+      inputs.push(...n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING);
     }
     if (walls) inputs.push(wallAhead(c.x, c.y, c.a));
     return { inputs, food: f ? f.item : null, foodDist: f ? Math.sqrt(f.d2) : Infinity };
@@ -327,7 +410,10 @@
   }
   function brainDistance(a, b) {
     let s = 0;
-    for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
+    for (let i = 0; i < a.length; i++) {
+      const d = a[i] - b[i];
+      s += d * d;
+    }
     return Math.sqrt(s / a.length);
   }
 
@@ -393,11 +479,11 @@
       const speed = (out[1] + 1) / 2 * 3;
       c.a += out[0] * 0.2;
       if (walls) {
-        c.x = Math.min(Math.max(c.x + Math.cos(c.a) * speed, 0), W);
-        c.y = Math.min(Math.max(c.y + Math.sin(c.a) * speed, 0), H);
+        c.x = Math.min(Math.max(c.x + cos(c.a) * speed, 0), W);
+        c.y = Math.min(Math.max(c.y + sin(c.a) * speed, 0), H);
       } else {
-        c.x = (c.x + Math.cos(c.a) * speed + W) % W;
-        c.y = (c.y + Math.sin(c.a) * speed + H) % H;
+        c.x = (c.x + cos(c.a) * speed + W) % W;
+        c.y = (c.y + sin(c.a) * speed + H) % H;
       }
       c.energy -= 5e-4 + speed * 4e-4;
       if (seen.food && seen.foodDist < 6) {

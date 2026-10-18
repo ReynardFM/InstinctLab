@@ -3,6 +3,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
 import { IN } from "./brain.ts";
+import { cos, sin } from "./dmath.ts";
 import { H, W, nearest } from "./space.ts";
 
 export interface SenseRules {
@@ -24,17 +25,22 @@ export function inputLabels(r: SenseRules): string[] {
 }
 
 // Where something is, seen from the creature: left/right (-1..1), ahead (-1..1), distance (0..1, 1 = 200 or more).
-function towards(dx: number, dy: number, d2: number, heading: number): [number, number, number] {
-  const rel = Math.atan2(dy, dx) - heading;
-  return [Math.sin(rel), Math.cos(rel), Math.min(Math.sqrt(d2) / 200, 1)];
+// The direction to the target is (dx, dy) / d; turning it into the creature's frame is a rotation by the
+// heading, so no angle (and no atan2) is needed: sin(t - h) = sin t cos h - cos t sin h, and so on.
+function towards(dx: number, dy: number, d2: number, cosH: number, sinH: number): [number, number, number] {
+  const d = Math.sqrt(d2);
+  const ok = d > 0 && d !== Infinity;
+  const st = ok ? dy / d : 0; // sin and cos of the target's direction; "straight ahead" if unknown
+  const ct = ok ? dx / d : 1;
+  return [st * cosH - ct * sinH, ct * cosH + st * sinH, Math.min(d / 200, 1)];
 }
 
 const NOTHING: [number, number, number] = [0, 0, 1]; // nothing there: straight ahead is unknown, far away
 
 // Distance to the wall straight ahead, 0..1 (1 = 200 or more).
 export function wallAhead(x: number, y: number, heading: number): number {
-  const cx = Math.cos(heading);
-  const cy = Math.sin(heading);
+  const cx = cos(heading);
+  const cy = sin(heading);
   const tx = cx > 0 ? (W - x) / cx : cx < 0 ? -x / cx : Infinity;
   const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
   return Math.min(Math.min(tx, ty) / 200, 1);
@@ -52,15 +58,17 @@ export function sense(w: World, c: Creature): Perception {
   const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1);
   const f = foods[0];
   // no food at all: same numbers as before senses were split out (distance reads as far)
-  const first = f ? towards(f.dx, f.dy, f.d2, c.a) : towards(0, 0, Infinity, c.a);
+  const cosH = cos(c.a);
+  const sinH = sin(c.a);
+  const first = f ? towards(f.dx, f.dy, f.d2, cosH, sinH) : towards(0, 0, Infinity, cosH, sinH);
   const inputs = [...first, c.energy];
   if (r.senseFood2) {
     const s = foods[1];
-    inputs.push(...(s ? towards(s.dx, s.dy, s.d2, c.a) : NOTHING));
+    inputs.push(...(s ? towards(s.dx, s.dy, s.d2, cosH, sinH) : NOTHING));
   }
   if (r.senseCreature) {
     const n = nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
-    inputs.push(...(n ? towards(n.dx, n.dy, n.d2, c.a) : NOTHING));
+    inputs.push(...(n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING));
   }
   if (walls) inputs.push(wallAhead(c.x, c.y, c.a));
   return { inputs, food: f ? f.item : null, foodDist: f ? Math.sqrt(f.d2) : Infinity };

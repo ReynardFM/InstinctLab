@@ -17,7 +17,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run watch` | yes | Rebuilds on every save |
 | `npm run typecheck` | yes | Checks the TypeScript types |
 | `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
-| `npm run record-defaults` | no | Re-records the "current defaults" run in `test/golden.json`. Only after a change that is meant to alter behaviour |
+| `npm run record-golden` | no | Re-records the runs in `test/golden.json`. Only after a change that is meant to alter behaviour |
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
@@ -57,7 +57,10 @@ src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerat
 │   ├─→ src/engine/space.ts   map size, wrap/walls, nearest(): the one lookup all senses use
 │   └─→ src/engine/brain.ts
 ├─→ src/engine/brain.ts   tiny neural network: think(genome, inputs)
+├─→ src/engine/dmath.ts   sin, cos, tanh, log that give identical bits in every JS engine
 └─→ src/engine/rng.ts     seeded random numbers, one per World
+
+brain.ts, rng.ts, senses.ts and world.ts all use dmath.ts instead of Math.sin/cos/tanh/log.
 
 lineage.ts, creature.ts and senses.ts use World only as a type (no import at run time), so there is no
 import loop. Other files import engine things through world.ts.
@@ -70,7 +73,7 @@ src/web/determinism.ts  determinism.html: replays the recorded runs in a browser
 └─→ test/golden.json
 
 scripts/build.ts, check-dist.ts ─→ scripts/bundles.ts (list of browser bundles), esbuild
-scripts/record-defaults.ts      ─→ src/check/golden.ts, test/golden.json
+scripts/record-golden.ts        ─→ src/check/golden.ts, test/golden.json
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
@@ -78,23 +81,24 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 
 | File | Depends on | Used by |
 |---|---|---|
-| `src/engine/rng.ts` | — | `world.ts`, `main.ts`, tests |
-| `src/engine/brain.ts` | — | `world.ts`, `senses.ts`, `main.ts`, tests |
+| `src/engine/rng.ts` | `dmath.ts` | `world.ts`, `main.ts`, tests |
+| `src/engine/dmath.ts` | — | `brain.ts`, `rng.ts`, `senses.ts`, `world.ts`, tests |
+| `src/engine/brain.ts` | `dmath.ts` | `world.ts`, `senses.ts`, `main.ts`, tests |
 | `src/engine/space.ts` | — | `world.ts`, `senses.ts`, `main.ts`, tests |
-| `src/engine/senses.ts` | `space.ts`, `brain.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `creature.ts`, `main.ts`, tests |
+| `src/engine/senses.ts` | `space.ts`, `brain.ts`, `dmath.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `creature.ts`, `main.ts`, tests |
 | `src/engine/creature.ts` | `brain.ts`, `senses.ts`, `space.ts` (`World` type) | `world.ts`, `lineage.ts` |
 | `src/engine/lineage.ts` | `creature.ts` (`World` type) | `world.ts` |
-| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
+| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts`, `dmath.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
 | `src/web/main.ts` | engine | `dist/app.js` (build output) |
 | `src/cli/job.ts` | `world.ts` | `worker.ts`, `pool.ts`, `run.ts`, `bench.ts`, `cli.test.ts` |
 | `src/cli/worker.ts` | `job.ts` | `pool.ts` (started as a thread, not imported) |
 | `src/cli/pool.ts` | `job.ts` (types), `worker.ts` (starts it) | `run.ts`, `bench.ts`, `cli.test.ts` |
 | `src/cli/run.ts` | `world.ts`, `job.ts`, `pool.ts` | `npm run lab`, `cli.test.ts` |
 | `src/cli/bench.ts` | `world.ts`, `job.ts`, `pool.ts` | `npm run bench`, `cli.test.ts` |
-| `src/check/golden.ts` | `world.ts`, `rng.ts` | `engine.test.ts`, `determinism.ts`, `record-defaults.ts` |
+| `src/check/golden.ts` | `world.ts`, `rng.ts` | `engine.test.ts`, `determinism.ts`, `record-golden.ts` |
 | `src/web/determinism.ts` | `golden.ts`, `golden.json` | `dist/determinism.js` (build output) |
-| `scripts/*.ts` | `bundles.ts`, esbuild, `golden.ts` | `npm run build / watch / check / record-defaults` |
-| `test/golden.json` | — | `engine.test.ts`, `determinism.ts`, `record-defaults.ts` |
+| `scripts/*.ts` | `bundles.ts`, esbuild, `golden.ts` | `npm run build / watch / check / record-golden` |
+| `test/golden.json` | — | `engine.test.ts`, `determinism.ts`, `record-golden.ts` |
 
 Design decisions, measurements and next steps: `CLAUDE.md`.
 
@@ -119,5 +123,8 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-17 | Newcomer families, 100 generations, seeds 1-3 (score = everyone / top half, last 10 generations) | none: 44.6 / 48.7, 1.2 families alive. Mutation 1.0 + protect 3: 41.6 / 48.6, 5.3 families, 4 of 300 newcomers lasted 5+ generations past protection. Mutation 0.4 + protect 3: 41.6 / 46.5, 6.1 families, 40 of 300. Mutation 0.4, no protection: 45.0 / 49.1, 3.5 families, 40 of 300 |
 | 2026-10-18 | Math functions, 200,000 random inputs each: Node 22 (V8 12.4) vs headless Chrome 141 | `sin` and `cos` give different last bits; `tanh`, `atan2`, `log`, `exp`, `sqrt` identical. The default-rules run diverges in generation 1, so the page in a new Chrome and `npm run lab` do not replay the same seed identically |
 | 2026-10-18 | **Baseline, current defaults**, 7 seeds x 100 generations | score 43.2 ±2.7 (seeds 40.6..48.5), top half 47.9, 6.1 families alive, 1.6 champions per 100 generations (longest streak 4), 3.1 proven splits per 100 generations, about 2.5 generations/s on one cloud thread |
+| 2026-10-18 | Deterministic math (`dmath.ts`) replaces Math.sin/cos/tanh/log | Max difference from Math.* 2e-16 (1-2 last bits). `determinism.html` in Chrome 141 now matches Node 22 on every recorded run. Speed: basic rules +23% per creature-tick (955 -> 1173 ns), default rules unchanged (1868 -> 1876 ns: dropping atan2 pays for it) |
+| 2026-10-18 | Baseline again after deterministic math, same 7 seeds x 100 generations | score 42.3 ±2.8 (was 43.2 ±2.7: same within noise), top half 46.8, 6.2 families alive, 1.1 champions per 100 generations |
+| 2026-10-18 | `npm run bench` on Rey's machine, new defaults, median of 3 | CPU: Intel Core Ultra 7 155U = 2 fast P-cores (4 threads) + 8 E-cores + 2 low-power E-cores, 15 W base power ([Notebookcheck](https://www.notebookcheck.net/Intel-Core-Ultra-7-155U-Processor-Benchmarks-and-Specs.783345.0.html)). 1/2/4/8/14 workers: 3.7/7.5/11.0/16.5/18.7 gens/s, efficiency 100/100/74/55/36%. Worker start-up 201 ms, so not the cause |
 
 Rows before 2026-10-17 ran with one food layout per generation (`--layouts=1` reproduces them).

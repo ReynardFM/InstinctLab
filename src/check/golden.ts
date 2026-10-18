@@ -1,10 +1,11 @@
 // The recorded runs that pin down behaviour. Used by the tests, by determinism.html (other browsers)
-// and by scripts/record-defaults.ts. Results live in test/golden.json.
+// and by scripts/record-golden.ts. Results live in test/golden.json.
 //
-// "42", "7", "hello", "custom": recorded from the original single-file browser version. Never re-record
-//   these: if they stop matching, the basic simulation changed.
-// "defaults": the current default rules. Re-record (npm run record-defaults) only when a change is
-//   MEANT to alter behaviour, and say so in the commit.
+// "42", "7", "hello", "custom": the basic rules (no layouts, extra senses or newcomers).
+// "defaults": the current default rules.
+// Re-record (npm run record-golden) only when a change is MEANT to alter behaviour, and say so in the
+// commit. History: the basic cases matched the original single-file version until 2026-10-18, when
+// deterministic math (dmath.ts) replaced Math.sin/cos/tanh/log and every number changed.
 import { createWorld, runGenerations, DEFAULT_RULES, type Rules } from "../engine/world.ts";
 import { seedFrom } from "../engine/rng.ts";
 

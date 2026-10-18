@@ -1,4 +1,5 @@
-// Seeded random numbers. Same seed = same sequence, on every machine.
+// Seeded random numbers. Same seed = same sequence, on every machine and in every JS engine.
+import { cos, log } from "./dmath.ts";
 // Each World owns its own Rng, so several worlds can run side by side without interfering.
 
 export interface Rng {
@@ -18,7 +19,7 @@ export function createRng(seed: number): Rng {
   const gauss = () => {
     const u = next() || 1e-9;
     const v = next();
-    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    return Math.sqrt(-2 * log(u)) * cos(2 * Math.PI * v); // Box-Muller, with deterministic log and cos
   };
   return { next, gauss };
 }
