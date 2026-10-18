@@ -96,6 +96,8 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 | `scripts/*.ts` | `bundles.ts`, esbuild, `golden.ts` | `npm run build / watch / check / record-defaults` |
 | `test/golden.json` | — | `engine.test.ts`, `determinism.ts`, `record-defaults.ts` |
 
+Design decisions, measurements and next steps: `CLAUDE.md`.
+
 Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `senses.ts` → `space.ts` → `brain.ts` → `rng.ts` → `job.ts` → `pool.ts` → `run.ts` → `main.ts`.
 
 ## Measurements
@@ -116,5 +118,6 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-17 | Cost per creature per tick, cloud machine, noisy (±20%) | basic ~1.1-1.4 µs (same as before senses), +2nd food ~1.4 µs, +nearest creature ~2.3 µs, everything ~2.4 µs |
 | 2026-10-17 | Newcomer families, 100 generations, seeds 1-3 (score = everyone / top half, last 10 generations) | none: 44.6 / 48.7, 1.2 families alive. Mutation 1.0 + protect 3: 41.6 / 48.6, 5.3 families, 4 of 300 newcomers lasted 5+ generations past protection. Mutation 0.4 + protect 3: 41.6 / 46.5, 6.1 families, 40 of 300. Mutation 0.4, no protection: 45.0 / 49.1, 3.5 families, 40 of 300 |
 | 2026-10-18 | Math functions, 200,000 random inputs each: Node 22 (V8 12.4) vs headless Chrome 141 | `sin` and `cos` give different last bits; `tanh`, `atan2`, `log`, `exp`, `sqrt` identical. The default-rules run diverges in generation 1, so the page in a new Chrome and `npm run lab` do not replay the same seed identically |
+| 2026-10-18 | **Baseline, current defaults**, 7 seeds x 100 generations | score 43.2 ±2.7 (seeds 40.6..48.5), top half 47.9, 6.1 families alive, 1.6 champions per 100 generations (longest streak 4), 3.1 proven splits per 100 generations, about 2.5 generations/s on one cloud thread |
 
 Rows before 2026-10-17 ran with one food layout per generation (`--layouts=1` reproduces them).
