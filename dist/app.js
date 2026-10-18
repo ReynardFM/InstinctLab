@@ -160,6 +160,7 @@
       avgHist: [],
       bestHist: [],
       worstHist: [],
+      topHalfHist: [],
       nextId: 0,
       families: /* @__PURE__ */ new Map(),
       legacy: [],
@@ -233,6 +234,8 @@
     w.avgHist.push(ranked.reduce((s, c) => s + c.eaten, 0) / ranked.length / per);
     w.bestHist.push(ranked[0].eaten / per);
     w.worstHist.push(ranked[ranked.length - 1].eaten / per);
+    const half = ranked.slice(0, Math.ceil(ranked.length / 2));
+    w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
     const elite = Math.min(rules.elite, rules.pop);
     const parents = Math.max(1, Math.min(rules.parents, rules.pop));
     const next = [];
