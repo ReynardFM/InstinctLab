@@ -43,6 +43,12 @@ export function combinations(grid: Options["grid"]): Rules[] {
   return combos;
 }
 
+// Learning speed of one run: average food over ALL its generations (the area under the chart line).
+// Two methods that end on the same plateau still differ here if one got there sooner.
+export function learning(avgHist: number[]): number {
+  return avgHist.length ? avgHist.reduce((s, x) => s + x, 0) / avgHist.length : 0;
+}
+
 // Two-sided 95% t-values by degrees of freedom (n - 1), for the ± column.
 const T95 = [NaN, 12.71, 4.3, 3.18, 2.78, 2.57, 2.45, 2.36, 2.31, 2.26, 2.23, 2.2, 2.18, 2.16, 2.14, 2.13, 2.12, 2.11, 2.1, 2.09, 2.09];
 
@@ -86,16 +92,21 @@ async function main(): Promise<void> {
     const mean = scores.reduce((s, x) => s + x, 0) / scores.length;
     const top = mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / mine.length;
     const m = margin95(scores);
+    const learn = mine.map((r) => learning(r.avgHist));
+    const lm = margin95(learn);
+    const pm = (x: number) => (Number.isNaN(x) ? "-" : `±${x.toFixed(1)}`);
     rows.push([
       ...varied.map((k) => String(rules[k])),
       mean.toFixed(1),
-      Number.isNaN(m) ? "-" : `±${m.toFixed(1)}`,
+      pm(m),
       top.toFixed(1),
+      (learn.reduce((s, x) => s + x, 0) / learn.length).toFixed(1),
+      pm(lm),
       `${Math.min(...scores).toFixed(1)}..${Math.max(...scores).toFixed(1)}`,
     ]);
   }
 
-  const header = [...varied, "score", "±95%", "top half", "seed range"];
+  const header = [...varied, "score", "±95%", "top half", "learning", "±95% ", "seed range"];
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padStart(widths[i])).join("  ");
   console.log(line(header));
@@ -103,6 +114,7 @@ async function main(): Promise<void> {
   console.log(`\nscore = average food eaten per creature per layout, last 10 generations, averaged over seeds`);
   console.log(`±95% = the true score is probably within score ± this; settings whose ranges overlap are not shown to differ`);
   console.log(`top half = the same for the better half of each generation (weak newcomers don't drag it down); seed range is for score`);
+  console.log(`learning = average food over ALL generations, not just the last 10: higher = got there sooner`);
   console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${workers} worker${workers > 1 ? "s" : ""})`);
 }
 

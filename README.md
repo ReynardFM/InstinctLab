@@ -21,7 +21,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
-`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone.
+`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `learning` is the average over all generations: it separates methods that end on the same plateau but get there at different speeds.
 
 ## File dependency tree
 

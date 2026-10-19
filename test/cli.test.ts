@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { combinations, margin95, parseArgs, score } from "../src/cli/run.ts";
+import { combinations, learning, margin95, parseArgs, score } from "../src/cli/run.ts";
 import { runJob, type Job } from "../src/cli/job.ts";
 import { runJobs } from "../src/cli/pool.ts";
 import { median, workerCounts } from "../src/cli/bench.ts";
@@ -61,4 +61,12 @@ test("margin95: zero spread gives 0, one seed gives no margin, more seeds give a
 test("median", () => {
   assert.equal(median([3, 1, 2]), 2);
   assert.equal(median([4, 1, 3, 2]), 2.5);
+});
+
+test("learning speed averages every generation, so a faster climb to the same plateau scores higher", () => {
+  const fast = [10, 30, 40, 40, 40];
+  const slow = [10, 15, 20, 30, 40];
+  assert.equal(learning(fast), 32);
+  assert.ok(learning(fast) > learning(slow));
+  assert.equal(score(fast.slice(-1)), score(slow.slice(-1)), "same plateau");
 });
