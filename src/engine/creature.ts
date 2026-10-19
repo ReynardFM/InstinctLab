@@ -7,6 +7,8 @@ import { H, W } from "./space.ts";
 export interface Food {
   x: number;
   y: number;
+  poison: boolean; // costs energy, worth nothing
+  readyAt: number; // tick it (re)appears at; before that it is gone (rules.regrow)
 }
 
 
@@ -22,7 +24,8 @@ export interface Creature {
   y: number;
   a: number; // heading, radians
   energy: number;
-  eaten: number; // this generation, all layouts so far
+  eaten: number; // good food this generation, all layouts so far (this is the score)
+  poisoned: number; // poison eaten this generation
   alive: boolean;
   diedAt: number | null;
   // last senses and thoughts, kept so the page can show the brain working
@@ -33,7 +36,9 @@ export interface Creature {
 
 
 export function newFood(w: World): Food {
-  return { x: w.env.next() * W, y: w.env.next() * H };
+  const f: Food = { x: w.env.next() * W, y: w.env.next() * H, poison: false, readyAt: 0 };
+  if (w.rules.poison > 0) f.poison = w.env.next() < w.rules.poison; // no extra draw without poison: old runs replay
+  return f;
 }
 
 
@@ -56,6 +61,7 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     a: env.next() * Math.PI * 2,
     energy: 1,
     eaten: 0,
+    poisoned: 0,
     alive: true,
     diedAt: null,
     inputs: new Array(inputCount(w.rules)).fill(0),

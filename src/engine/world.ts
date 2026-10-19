@@ -37,13 +37,20 @@ export interface Rules {
   mutationRate: number; // share of weights nudged in each child; 1 = all of them (dense), 0.2 = sparse
   centreShare: number; // share of children made from the centre brain (Evolution Strategies) instead of one parent
   hidden: number; // middle neurons in each brain (more = can learn more complex behaviour, more weights to evolve)
+  poison: number; // share of food that is poison (costs POISON_HIT energy, worth nothing); 0 = none
+  regrow: number; // ticks before eaten food reappears somewhere new; 0 = at once
+  energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
 }
+
+// Energy a creature loses by eating poison (good food gives +0.3).
+export const POISON_HIT = 0.5;
 
 export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
   mutationRate: 1, centreShare: 0, hidden: 6,
+  poison: 0, regrow: 0, energyCost: 1,
 };
 
 export interface World {
@@ -61,6 +68,7 @@ export interface World {
   bestHist: number[];
   worstHist: number[];
   topHalfHist: number[]; // average of the better half, per layout: not dragged down by weak newcomers
+  poisonHist: number[]; // average poison eaten per creature, per layout
   nextId: number;
   families: Map<number, Family>; // families with living members
   legacy: Family[]; // extinct families, oldest first, at most LEGACY_LIMIT
@@ -86,6 +94,7 @@ export function createWorld(seed: number, rules: Rules): World {
     bestHist: [],
     worstHist: [],
     topHalfHist: [],
+    poisonHist: [],
     nextId: 0,
     families: new Map(),
     legacy: [],
@@ -125,11 +134,17 @@ export function step(w: World): void {
       c.x = (c.x + cos(c.a) * speed + W) % W;
       c.y = (c.y + sin(c.a) * speed + H) % H;
     }
-    c.energy -= 0.0005 + speed * 0.0004; // moving costs energy; standing still costs a little
+    c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost; // moving costs energy; standing still costs a little
     if (seen.food && seen.foodDist < 6) {
-      c.eaten++;
-      c.energy = Math.min(c.energy + 0.3, 1.5);
+      if (seen.food.poison) {
+        c.poisoned++;
+        c.energy -= POISON_HIT;
+      } else {
+        c.eaten++;
+        c.energy = Math.min(c.energy + 0.3, 1.5);
+      }
       Object.assign(seen.food, newFood(w));
+      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
     }
     if (c.energy <= 0) {
       c.alive = false;
@@ -181,6 +196,7 @@ function nextGeneration(w: World): void {
   w.worstHist.push(ranked[ranked.length - 1].eaten / per);
   const half = ranked.slice(0, Math.ceil(ranked.length / 2));
   w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
+  w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
 
   const elite = Math.min(rules.elite, rules.pop);
   const parents = Math.max(1, Math.min(rules.parents, rules.pop));

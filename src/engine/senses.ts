@@ -10,16 +10,18 @@ export interface SenseRules {
   senseFood2: number; // 1 = also sense the second-nearest food
   senseCreature: number; // 1 = sense the nearest other living creature
   walls: number; // 1 = the map has walls instead of wrapping around, and creatures sense the wall ahead
+  poison: number; // share of food that is poison; above 0, creatures also sense the nearest poison
 }
 
 export function inputCount(r: SenseRules): number {
-  return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.walls ? 1 : 0);
+  return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (r.walls ? 1 : 0);
 }
 
 export function inputLabels(r: SenseRules): string[] {
   const labels = ["Food left/right", "Food ahead", "Food distance", "Energy"];
   if (r.senseFood2) labels.push("2nd food left/right", "2nd food ahead", "2nd food distance");
   if (r.senseCreature) labels.push("Neighbour left/right", "Neighbour ahead", "Neighbour distance");
+  if (r.poison > 0) labels.push("Poison left/right", "Poison ahead", "Poison distance");
   if (r.walls) labels.push("Wall distance ahead");
   return labels;
 }
@@ -52,11 +54,23 @@ export interface Perception {
   foodDist: number;
 }
 
+// Which pellets count for each sense. Without poison or regrowth nothing is skipped (and no filter runs).
+export function foodFilters(w: World): { good?: (f: Food) => boolean; poison: (f: Food) => boolean } {
+  const tick = w.tick;
+  if (!(w.rules.poison > 0) && !(w.rules.regrow > 0)) return { poison: () => true };
+  return {
+    good: (f) => f.poison || f.readyAt > tick, // skip poison and food that has not regrown yet
+    poison: (f) => !f.poison || f.readyAt > tick,
+  };
+}
+
 export function sense(w: World, c: Creature): Perception {
   const r = w.rules;
   const walls = r.walls > 0;
-  const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1);
+  const skip = foodFilters(w);
+  const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1, skip.good);
   const f = foods[0];
+  const p = r.poison > 0 ? nearest(w.food, c.x, c.y, walls, 1, skip.poison)[0] : undefined;
   // no food at all: same numbers as before senses were split out (distance reads as far)
   const cosH = cos(c.a);
   const sinH = sin(c.a);
@@ -70,6 +84,9 @@ export function sense(w: World, c: Creature): Perception {
     const n = nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
     inputs.push(...(n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING));
   }
+  if (r.poison > 0) inputs.push(...(p ? towards(p.dx, p.dy, p.d2, cosH, sinH) : NOTHING));
   if (walls) inputs.push(wallAhead(c.x, c.y, c.a));
-  return { inputs, food: f ? f.item : null, foodDist: f ? Math.sqrt(f.d2) : Infinity };
+  // what it would eat: the nearest pellet of either kind (good wins a tie)
+  const eat = p && (!f || p.d2 < f.d2) ? p : f;
+  return { inputs, food: eat ? eat.item : null, foodDist: eat ? Math.sqrt(eat.d2) : Infinity };
 }

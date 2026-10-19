@@ -192,7 +192,7 @@
 
   // src/engine/senses.ts
   function inputCount(r) {
-    return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.walls ? 1 : 0);
+    return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (r.walls ? 1 : 0);
   }
   function towards(dx, dy, d2, cosH, sinH) {
     const d = Math.sqrt(d2);
@@ -209,11 +209,22 @@
     const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
     return Math.min(Math.min(tx, ty) / 200, 1);
   }
+  function foodFilters(w) {
+    const tick = w.tick;
+    if (!(w.rules.poison > 0) && !(w.rules.regrow > 0)) return { poison: () => true };
+    return {
+      good: (f) => f.poison || f.readyAt > tick,
+      // skip poison and food that has not regrown yet
+      poison: (f) => !f.poison || f.readyAt > tick
+    };
+  }
   function sense(w, c) {
     const r = w.rules;
     const walls = r.walls > 0;
-    const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1);
+    const skip = foodFilters(w);
+    const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1, skip.good);
     const f = foods[0];
+    const p = r.poison > 0 ? nearest(w.food, c.x, c.y, walls, 1, skip.poison)[0] : void 0;
     const cosH = cos(c.a);
     const sinH = sin(c.a);
     const first = f ? towards(f.dx, f.dy, f.d2, cosH, sinH) : towards(0, 0, Infinity, cosH, sinH);
@@ -226,13 +237,17 @@
       const n = nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
       inputs.push(...n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING);
     }
+    if (r.poison > 0) inputs.push(...p ? towards(p.dx, p.dy, p.d2, cosH, sinH) : NOTHING);
     if (walls) inputs.push(wallAhead(c.x, c.y, c.a));
-    return { inputs, food: f ? f.item : null, foodDist: f ? Math.sqrt(f.d2) : Infinity };
+    const eat = p && (!f || p.d2 < f.d2) ? p : f;
+    return { inputs, food: eat ? eat.item : null, foodDist: eat ? Math.sqrt(eat.d2) : Infinity };
   }
 
   // src/engine/creature.ts
   function newFood(w) {
-    return { x: w.env.next() * W, y: w.env.next() * H };
+    const f = { x: w.env.next() * W, y: w.env.next() * H, poison: false, readyAt: 0 };
+    if (w.rules.poison > 0) f.poison = w.env.next() < w.rules.poison;
+    return f;
   }
   function newCreature(w, genome, family, elite, parentHue) {
     const { env } = w;
@@ -251,6 +266,7 @@
       a: env.next() * Math.PI * 2,
       energy: 1,
       eaten: 0,
+      poisoned: 0,
       alive: true,
       diedAt: null,
       inputs: new Array(inputCount(w.rules)).fill(0),
@@ -441,6 +457,7 @@
   }
 
   // src/engine/world.ts
+  var POISON_HIT = 0.5;
   var DEFAULT_RULES = {
     pop: 40,
     food: 60,
@@ -460,7 +477,10 @@
     protectGens: 3,
     mutationRate: 1,
     centreShare: 0,
-    hidden: 6
+    hidden: 6,
+    poison: 0,
+    regrow: 0,
+    energyCost: 1
   };
   function createWorld(seed, rules) {
     const w = {
@@ -476,6 +496,7 @@
       bestHist: [],
       worstHist: [],
       topHalfHist: [],
+      poisonHist: [],
       nextId: 0,
       families: /* @__PURE__ */ new Map(),
       legacy: [],
@@ -512,11 +533,17 @@
         c.x = (c.x + cos(c.a) * speed + W) % W;
         c.y = (c.y + sin(c.a) * speed + H) % H;
       }
-      c.energy -= 5e-4 + speed * 4e-4;
+      c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost;
       if (seen.food && seen.foodDist < 6) {
-        c.eaten++;
-        c.energy = Math.min(c.energy + 0.3, 1.5);
+        if (seen.food.poison) {
+          c.poisoned++;
+          c.energy -= POISON_HIT;
+        } else {
+          c.eaten++;
+          c.energy = Math.min(c.energy + 0.3, 1.5);
+        }
         Object.assign(seen.food, newFood(w));
+        if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
       }
       if (c.energy <= 0) {
         c.alive = false;
@@ -560,6 +587,7 @@
     w.worstHist.push(ranked[ranked.length - 1].eaten / per);
     const half = ranked.slice(0, Math.ceil(ranked.length / 2));
     w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
+    w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
     const elite = Math.min(rules.elite, rules.pop);
     const parents = Math.max(1, Math.min(rules.parents, rules.pop));
     const next = [];

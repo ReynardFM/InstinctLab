@@ -19,6 +19,7 @@
     --note: #e2b250;
     --pos: #7fc8d6;    /* positive brain weights */
     --neg: #e58c8c;    /* negative brain weights */
+    --poison: #b48ce0; /* poison food */
   }
   * { box-sizing: border-box; }
   body {
@@ -85,7 +86,7 @@
     <h1>Evolution Lab</h1>
     <p class="intro">Creatures with tiny neural-network brains look for food. Each generation, the ones that ate the most have children with slightly mutated brains.</p>
     <canvas id="world" width="800" height="600" aria-label="The world: creatures and food"></canvas>
-    <p class="hint">Click a creature to see its brain. Red crosses mark where creatures starved on this food layout. Keys: Space pauses, 1 / 2 / 3 change speed.</p>
+    <p class="hint">Click a creature to see its brain. Grey dots are food, purple rings poison (when on). Red crosses mark where creatures starved on this food layout. Keys: Space pauses, 1 / 2 / 3 change speed.</p>
   </main>
 
   <aside>

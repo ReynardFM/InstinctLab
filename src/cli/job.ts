@@ -12,10 +12,11 @@ export interface JobResult {
   avgHist: number[];
   bestHist: number[];
   topHalfHist: number[];
+  poisonHist: number[];
 }
 
 export function runJob(job: Job): JobResult {
   const w = createWorld(job.seed, job.rules);
   runGenerations(w, job.gens);
-  return { avgHist: w.avgHist, bestHist: w.bestHist, topHalfHist: w.topHalfHist };
+  return { avgHist: w.avgHist, bestHist: w.bestHist, topHalfHist: w.topHalfHist, poisonHist: w.poisonHist };
 }

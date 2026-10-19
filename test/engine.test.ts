@@ -240,8 +240,8 @@ test("nearest: closest first, ties keep the earlier item, wraps unless there are
 });
 
 test("senses: each one adds inputs, and the brain grows to match", () => {
-  const none = { senseFood2: 0, senseCreature: 0, walls: 0 };
-  const all = { senseFood2: 1, senseCreature: 1, walls: 1 };
+  const none = { senseFood2: 0, senseCreature: 0, walls: 0, poison: 0 };
+  const all = { senseFood2: 1, senseCreature: 1, walls: 1, poison: 0 };
   assert.equal(inputCount(none), 4);
   assert.equal(inputCount(all), 11);
   assert.equal(inputLabels(all).length, 11);
@@ -347,4 +347,38 @@ test("centre brain: weighted average of the best family's top parents, better ra
   runGenerations(a, 3);
   runGenerations(b, 3);
   assert.deepEqual(a.avgHist, b.avgHist, "same seed, same run with the centre brain");
+});
+
+test("poison: costs energy, scores nothing, and adds a poison sense", () => {
+  const w = createWorld(4, { ...ONE, poison: 1, genTicks: 400 }); // every pellet is poison
+  assert.equal(w.creatures[0].inputs.length, 7, "4 basic + 3 poison inputs");
+  const c = w.creatures[0];
+  c.x = w.food[0].x;
+  c.y = w.food[0].y;
+  const before = c.energy;
+  step(w);
+  assert.equal(c.poisoned, 1);
+  assert.equal(c.eaten, 0, "poison is worth nothing");
+  assert.ok(c.energy < before - 0.4, "and costs energy");
+  runGenerations(w, 1);
+  assert.ok(w.poisonHist[0] > 0);
+  assert.ok(inputLabels({ senseFood2: 0, senseCreature: 0, walls: 0, poison: 0.2 }).includes("Poison distance"));
+});
+
+test("regrowth: an eaten pellet is gone for N ticks; energy cost multiplies", () => {
+  const w = createWorld(5, { ...ONE, regrow: 100, genTicks: 400 });
+  const c = w.creatures[0];
+  c.x = w.food[0].x;
+  c.y = w.food[0].y;
+  step(w);
+  assert.equal(c.eaten, 1);
+  assert.equal(w.food[0].readyAt, 100, "eaten at tick 0, back at tick 100");
+  const a = createWorld(6, { ...ONE, food: 1 });
+  const b = createWorld(6, { ...ONE, food: 1, energyCost: 2 });
+  a.food[0].x = b.food[0].x = 400; // far from everyone's path in one tick
+  step(a);
+  step(b);
+  const dropA = 1 - a.creatures[3].energy;
+  const dropB = 1 - b.creatures[3].energy;
+  assert.ok(Math.abs(dropB - 2 * dropA) < 1e-12, `${dropA} vs ${dropB}`);
 });

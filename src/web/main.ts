@@ -1,7 +1,7 @@
 // The page: drawing and controls. It reads the World but never changes how it evolves.
 import { createWorld, founderHue, step, DEFAULT_RULES, W, H, type Creature, type Rules, type World } from "../engine/world.ts";
 import { OUT } from "../engine/brain.ts";
-import { inputLabels } from "../engine/senses.ts";
+import { foodFilters, inputLabels } from "../engine/senses.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
 
@@ -14,7 +14,7 @@ const brainCtx = ctx2d("brain");
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const C = {
-  field: css("--field"), food: css("--food"), text: css("--text"), muted: css("--muted"),
+  field: css("--field"), food: css("--food"), poison: css("--poison"), text: css("--text"), muted: css("--muted"),
   line: css("--line"), pos: css("--pos"), neg: css("--neg"), panel: css("--panel"),
 };
 const FONT = '"IBM Plex Sans", system-ui, sans-serif';
@@ -57,11 +57,20 @@ function drawWorld(selected: Creature | null): void {
   const ctx = worldCtx;
   ctx.fillStyle = C.field;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = C.food;
+  ctx.lineWidth = 1.5;
   for (const f of world.food) {
+    if (f.readyAt > world.tick) continue; // eaten, not regrown yet
     ctx.beginPath();
-    ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2);
-    ctx.fill();
+    if (f.poison) {
+      // a ring, not a dot: shape tells it apart from food and from any family colour
+      ctx.strokeStyle = C.poison;
+      ctx.arc(f.x, f.y, 3.2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = C.food;
+      ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   // death marks: strong when fresh, fading to faint but staying until the next layout
   ctx.strokeStyle = C.neg;
@@ -122,9 +131,14 @@ function drawSightLines(c: Creature): void {
     ctx.lineTo(c.x + dx, c.y + dy); // may run off the edge when the world wraps: that's the short way round
     ctx.stroke();
   };
-  const foods = nearest(world.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1);
+  const skip = foodFilters(world);
+  const foods = nearest(world.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1, skip.good);
   if (foods[0]) line(foods[0].dx, foods[0].dy, C.food, []);
   if (r.senseFood2 && foods[1]) line(foods[1].dx, foods[1].dy, C.food, [6, 5]);
+  if (r.poison > 0) {
+    const p = nearest(world.food, c.x, c.y, walls, 1, skip.poison)[0];
+    if (p) line(p.dx, p.dy, C.poison, [6, 5]);
+  }
   if (r.senseCreature) {
     const n = nearest(world.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
     if (n) line(n.dx, n.dy, hsl(n.item.hue), [2, 4]);
@@ -351,7 +365,8 @@ function brainCaption(c: Creature | null, picked: boolean): string {
   const ate = world.rules.layouts > 1
     ? `ate ${c.eaten} so far this generation (layout ${world.layout + 1} of ${world.rules.layouts})`
     : `ate ${c.eaten}`;
-  return `${who}. Family ${c.family + 1}${origin}, ${ate}, ${state}.${trial}${streak}${champ}`;
+  const poisoned = world.rules.poison > 0 ? ` (and ${c.poisoned} poison)` : "";
+  return `${who}. Family ${c.family + 1}${origin}, ${ate}${poisoned}, ${state}.${trial}${streak}${champ}`;
 }
 
 // ---------- frame ----------
@@ -373,7 +388,8 @@ function draw(): void {
   $("genText").textContent = `Generation ${world.generation}`;
   const layoutText = many ? `Food layout ${world.layout + 1} of ${world.rules.layouts}. ` : "";
   const last = world.avgHist.length
-    ? ` Last generation: average ${world.avgHist.at(-1)!.toFixed(1)}, best ${food(world.bestHist.at(-1)!)}${many ? " food per layout" : ""}.`
+    ? ` Last generation: average ${world.avgHist.at(-1)!.toFixed(1)}, best ${food(world.bestHist.at(-1)!)}${many ? " food per layout" : ""}` +
+      (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1)!.toFixed(1)} each.` : ".")
     : "";
   $("tickText").textContent = `${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
 }
@@ -446,6 +462,9 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
   ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
   ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
+  ["poison", "Share of food that is poison", 0, 0.5, 0.05, "Purple rings. Cost 0.5 energy, worth nothing. Adds a poison sense."],
+  ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
+  ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
   ["senseFood2", "Sense the second-nearest food", 0, 1, 1, "Adds 3 inputs to the brain."],
   ["senseCreature", "Sense the nearest creature", 0, 1, 1, "Adds 3 inputs to the brain."],
   ["walls", "Walls instead of wrapping around", 0, 1, 1, "Adds a 'wall ahead' sense."],
@@ -477,7 +496,7 @@ function renderRules(): void {
     const input = div.querySelector("input")!;
     const out = div.querySelector("output")!;
     const show = () =>
-      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare"].includes(key) ? Number(input.value).toFixed(2) : input.value);
+      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost"].includes(key) ? Number(input.value).toFixed(2) : input.value);
     input.oninput = () => {
       pendingRules[key] = Number(input.value);
       show();

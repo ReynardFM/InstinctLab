@@ -105,6 +105,14 @@ async function main(): Promise<void> {
   const totalGens = jobs.length * opts.gens;
 
   const rows: string[][] = [];
+  const anyPoison = combos.some((r) => r.poison > 0);
+  // share of everything eaten that was poison, last 10 generations. Eating blindly gives about the
+  // poison share of the map; much lower means creatures learned to avoid it.
+  const poisonShare = (rs: { avgHist: number[]; poisonHist: number[] }[]) => {
+    const p = rs.reduce((s, r) => s + score(r.poisonHist), 0);
+    const g = rs.reduce((s, r) => s + score(r.avgHist), 0);
+    return p + g > 0 ? `${((100 * p) / (p + g)).toFixed(1)}%` : "-";
+  };
   const perCombo = combos.map((_, i) => results.slice(i * opts.seeds.length, (i + 1) * opts.seeds.length));
   const refScores = perCombo[0].map((r) => score(r.avgHist));
   const refLearn = perCombo[0].map((r) => learning(r.avgHist));
@@ -133,11 +141,13 @@ async function main(): Promise<void> {
       pm(lm),
       i === 0 ? "reference" : diffText(scores, refScores),
       i === 0 ? "reference" : diffText(learn, refLearn),
+      ...(anyPoison ? [poisonShare(mine)] : []),
       `${Math.min(...scores).toFixed(1)}..${Math.max(...scores).toFixed(1)}`,
     ]);
   }
 
-  const header = [...varied, "score", "±95%", "top half", "early", "±95% ", "score vs 1st", "early vs 1st", "seed range"];
+  const header = [...varied, "score", "±95%", "top half", "early", "±95% ", "score vs 1st", "early vs 1st",
+    ...(anyPoison ? ["poison eaten"] : []), "seed range"];
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padStart(widths[i])).join("  ");
   console.log(line(header));
@@ -148,6 +158,7 @@ async function main(): Promise<void> {
   console.log(`early = average food over the first ${EARLY} generations: higher = learned faster`);
   console.log(`vs 1st = paired difference from the first row, seed by seed (same seed = same food layouts). * = probably real.`);
   console.log(`  With many rows, expect about 1 in 20 rows to get a * by chance alone.`);
+  if (anyPoison) console.log(`poison eaten = share of everything eaten that was poison (last 10 generations); eating blindly ≈ the poison share`);
   console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${workers} worker${workers > 1 ? "s" : ""})`);
 }
 
