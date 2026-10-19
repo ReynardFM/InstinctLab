@@ -451,6 +451,27 @@ test("learning during life: food strengthens what was just active, poison weaken
   assert.equal(inherited(off, off.creatures[0]), off.creatures[0].g);
 });
 
+test("learned changes fade back toward the inborn brain (forget)", () => {
+  const w = createWorld(9, { ...ONE, food: 1, learnRate: 0.1, forget: 0.01 });
+  w.food[0].x = 400; // nobody eats this tick, so no reward and the usual intake stays 0
+  const c = w.creatures[5];
+  for (let k = 0; k < c.w.length; k++) c.w[k] = c.g[k] + 1; // pretend it learned +1 everywhere
+  step(w);
+  for (let k = 0; k < c.w.length; k++) assert.ok(Math.abs(c.w[k] - c.g[k] - 0.99) < 1e-9, "1% of the learned change faded");
+});
+
+test("relative reward: a meal counts only as better than the usual intake", () => {
+  const w = createWorld(9, { ...ONE, food: 1, learnRate: 0.1 });
+  const c = w.creatures[5];
+  c.usual = 0.5;
+  w.food[0].x = 4000; // no food: a tick of nothing is worse than usual
+  const before = c.w.slice();
+  step(w);
+  step(w);
+  assert.ok(c.usual < 0.5, "the usual intake follows what actually happened");
+  assert.notDeepEqual(c.w, before, "an empty tick taught it something (negative), unlike plain food/poison reward");
+});
+
 test("thinking and learning can cost energy", () => {
   const base = createWorld(9, { ...ONE, food: 1 });
   const thinking = createWorld(9, { ...ONE, food: 1, thinkCost: 0.01 });

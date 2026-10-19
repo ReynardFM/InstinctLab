@@ -23,6 +23,7 @@ export interface Creature {
   w: Genome; // the brain it uses now: the same array as g unless it learns during life (rules.learnRate)
   trace: number[]; // learning: recent activity of each connection (empty when not learning)
   learned: number; // learning: total weight change so far
+  usual: number; // learning: running average reward per tick, the 'usual intake' for relativeReward
   x: number;
   y: number;
   a: number; // heading, radians
@@ -71,6 +72,7 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     w: w.rules.learnRate > 0 ? genome.slice() : genome,
     trace: w.rules.learnRate > 0 ? new Array(genome.length).fill(0) : [],
     learned: 0,
+    usual: 0,
     x: env.next() * W,
     y: env.next() * H,
     a: env.next() * Math.PI * 2,

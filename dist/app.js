@@ -329,6 +329,7 @@
       w: w.rules.learnRate > 0 ? genome.slice() : genome,
       trace: w.rules.learnRate > 0 ? new Array(genome.length).fill(0) : [],
       learned: 0,
+      usual: 0,
       x: env.next() * W,
       y: env.next() * H,
       a: env.next() * Math.PI * 2,
@@ -539,6 +540,7 @@
   // src/engine/life.ts
   var POISON_HIT = 0.5;
   var LEARN_DECAY = 0.9;
+  var USUAL_RATE = 2e-3;
   function live(w, c, costFactor) {
     const walls = w.rules.walls > 0;
     const seen = sense(w, c);
@@ -576,9 +578,16 @@
       c.energy -= r.thinkCost * busy / hidden.length;
     }
     if (r.learnRate > 0) {
-      const change = learn(c.w, c.trace, c.inputs, hidden, out, reward, r.learnRate, LEARN_DECAY);
+      let felt = reward;
+      if (r.relativeReward > 0) {
+        felt = reward - c.usual;
+        c.usual += USUAL_RATE * (reward - c.usual);
+      }
+      const rate = r.energyGate > 0 ? r.learnRate * Math.max(0, Math.min(c.energy / 1.5, 1)) : r.learnRate;
+      const change = learn(c.w, c.trace, c.inputs, hidden, out, felt, rate, LEARN_DECAY);
       c.learned += change;
       c.energy -= r.learnCost * change;
+      if (r.forget > 0) for (let k = 0; k < c.w.length; k++) c.w[k] += r.forget * (c.g[k] - c.w[k]);
     }
     if (c.energy <= 0) {
       c.alive = false;
@@ -730,7 +739,10 @@
     learnRate: 0,
     inheritLearned: 0.75,
     thinkCost: 0,
-    learnCost: 0
+    learnCost: 0,
+    forget: 2e-3,
+    relativeReward: 1,
+    energyGate: 0
   };
   function createWorld(seed, rules) {
     const w = {
@@ -1298,6 +1310,9 @@
     ["inheritLearned", "Share of learning children inherit", 0, 1, 0.05, "0.75 = children start with 75% of what the parent learned."],
     ["thinkCost", "Energy cost of thinking", 0, 5e-3, 5e-4, "Per tick, for a brain firing at full strength."],
     ["learnCost", "Energy cost of learning", 0, 0.1, 5e-3, "Per unit of brain change."],
+    ["forget", "Forgetting", 0, 0.01, 5e-4, "Share of learned change fading back to the inborn brain each tick. 0 = never forget."],
+    ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
+    ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
     ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
     ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
@@ -1338,7 +1353,7 @@
       ${help ? `<small>${help}</small>` : ""}`;
       const input = div.querySelector("input");
       const out = div.querySelector("output");
-      const show = () => out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy", "inheritLearned"].includes(key) ? Number(input.value).toFixed(2) : ["learnRate", "learnCost", "thinkCost"].includes(key) ? Number(input.value).toFixed(4) : input.value;
+      const show = () => out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy", "inheritLearned"].includes(key) ? Number(input.value).toFixed(2) : ["learnRate", "learnCost", "thinkCost", "forget"].includes(key) ? Number(input.value).toFixed(4) : input.value;
       input.oninput = () => {
         pendingRules[key] = Number(input.value);
         show();

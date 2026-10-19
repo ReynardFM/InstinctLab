@@ -29,7 +29,9 @@ Rey's ecosystem calls 2026-10-19: births = split and pairs as a setting; ageing 
 Rey's call 2026-10-19: two-parent births start from an evolved population. Done: `ecoWarmup` (default 20) runs ordinary generations first, then the ecosystem; no extinctions in 3 seeds, pairs sustain 20-46 creatures. Ageing: Rey asked whether B (lifetime brain change that costs energy) and C (thinking costs energy) combine; open.
 Rey's learning calls 2026-10-19: weights change by learning from eating (food +1, poison -1); children inherit 70-80% of what the parent learned (0.75); energy = thinking + learning per tick (no wear; ageing stays the separate ageScale).
    Done 2026-10-19: learning during life (brain.ts learn(): reward-modulated Hebbian with a 0.9 eligibility trace; creature.w = working brain, creature.g = inborn; breed.inherited()), thinkCost, learnCost. All off by default: golden unchanged. Measured: it hurts badly (-17 to -21 food); with 75% inheritance weights blow up 0.4 -> 5-22 (Hebbian growth piling up across generations); without inheritance still about -7 (food is rewarded far more often than poison, so the rule strengthens whatever is active).
-1. Rey: how to stabilise learning (forgetting back toward the inborn brain / reward relative to normal intake / both).
+Rey's call 2026-10-19: both fixes (c), plus his idea of learning less when hungry as an extra option.
+   Done 2026-10-19: forget (0.002/tick toward the inborn brain), relativeReward (reward minus the creature's usual intake, ~500-tick average), energyGate (off). Learning itself still off by default. Measured: weights stay normal; 0.001 = no difference (+1.0 ±1.8), 0.005 = -2.4 *, 0.02 = -11.7 *; energy gate no effect (+0.7 ±3.3).
+1. Rey: next - keep learning as an experiment slider and return to scaling (3b / stage 4), or keep tuning learning.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 

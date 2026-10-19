@@ -54,6 +54,9 @@ export interface Rules {
   inheritLearned: number; // share of the parent's learned changes its children are born with (0.75 = 75%)
   thinkCost: number; // energy per tick for a fully busy brain (scaled by how strongly it fires); 0 = free
   learnCost: number; // energy per unit of weight change from learning; 0 = free
+  forget: number; // learning: share of the learned change that fades back toward the inborn brain each tick (0.002 = about 350 ticks to halve); 0 = never
+  relativeReward: number; // learning: 1 = a meal counts only as better or worse than the creature's usual intake; 0 = food +1, poison -1
+  energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
 }
 
 
@@ -65,6 +68,7 @@ export const DEFAULT_RULES: Rules = {
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
+  forget: 0.002, relativeReward: 1, energyGate: 0,
 };
 
 export interface World {

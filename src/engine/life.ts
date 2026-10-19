@@ -13,6 +13,8 @@ export const POISON_HIT = 0.5;
 
 // Learning: how fast a connection's memory of recent activity fades per tick (0.9 = about 10 ticks).
 export const LEARN_DECAY = 0.9;
+// relativeReward: how fast the 'usual intake' follows recent rewards (0.002 = averages about the last 500 ticks).
+export const USUAL_RATE = 0.002;
 
 // costFactor multiplies the energy cost (ageing in ecosystem mode; 1 otherwise).
 export function live(w: World, c: Creature, costFactor: number): void {
@@ -54,9 +56,16 @@ export function live(w: World, c: Creature, costFactor: number): void {
     c.energy -= (r.thinkCost * busy) / hidden.length; // a brain firing at full strength costs thinkCost per tick
   }
   if (r.learnRate > 0) {
-    const change = learn(c.w, c.trace, c.inputs, hidden, out, reward, r.learnRate, LEARN_DECAY);
+    let felt = reward;
+    if (r.relativeReward > 0) {
+      felt = reward - c.usual; // better or worse than usual; zero on average, so no steady drift
+      c.usual += USUAL_RATE * (reward - c.usual);
+    }
+    const rate = r.energyGate > 0 ? r.learnRate * Math.max(0, Math.min(c.energy / 1.5, 1)) : r.learnRate;
+    const change = learn(c.w, c.trace, c.inputs, hidden, out, felt, rate, LEARN_DECAY);
     c.learned += change;
     c.energy -= r.learnCost * change;
+    if (r.forget > 0) for (let k = 0; k < c.w.length; k++) c.w[k] += r.forget * (c.g[k] - c.w[k]); // fade back toward the inborn brain
   }
   if (c.energy <= 0) {
     c.alive = false;

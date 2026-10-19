@@ -538,6 +538,9 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["inheritLearned", "Share of learning children inherit", 0, 1, 0.05, "0.75 = children start with 75% of what the parent learned."],
   ["thinkCost", "Energy cost of thinking", 0, 0.005, 0.0005, "Per tick, for a brain firing at full strength."],
   ["learnCost", "Energy cost of learning", 0, 0.1, 0.005, "Per unit of brain change."],
+  ["forget", "Forgetting", 0, 0.01, 0.0005, "Share of learned change fading back to the inborn brain each tick. 0 = never forget."],
+  ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
+  ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
@@ -583,7 +586,7 @@ function renderRules(): void {
     const out = div.querySelector("output")!;
     const show = () =>
       (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy", "inheritLearned"].includes(key) ? Number(input.value).toFixed(2)
-        : ["learnRate", "learnCost", "thinkCost"].includes(key) ? Number(input.value).toFixed(4) : input.value);
+        : ["learnRate", "learnCost", "thinkCost", "forget"].includes(key) ? Number(input.value).toFixed(4) : input.value);
     input.oninput = () => {
       pendingRules[key] = Number(input.value);
       show();
