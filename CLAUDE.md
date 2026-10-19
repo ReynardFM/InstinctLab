@@ -11,11 +11,15 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
 - `test/golden.json` pins the basic rules ("42", "7", "hello", "custom") and the current defaults. Re-record with `npm run record-golden` only for a deliberate behaviour change, and say so in the commit. All engine math goes through `src/engine/dmath.ts` (identical bits in every JS engine); never call Math.sin/cos/tan/atan2/exp/log/pow or ** in the engine.
 - Machine: Rey's laptop is an Intel Core Ultra 7 155U (2 P-cores + 8 E-cores + 2 low-power E-cores, 15 W). Parallel efficiency: 100% to 2 workers, 74% at 4, 36% at 14 (unequal cores + power limit; start-up only 201 ms).
 - Before every commit: `npm run check` (types + tests + dist up to date). One commit per reviewed change; message says what changed and what was measured.
-- Baseline, current defaults with deterministic math (2026-10-18, 7 seeds x 100 generations, cloud): score 42.3 ±2.8, top half 46.8, 6.2 families alive, 1.1 champions per 100 generations, about 2.7 generations/s on one cloud thread.
+- Baseline, current defaults (2026-10-19: 30% poison, separate world randomness), Rey's laptop, 14 seeds x 100 generations: score 31.6 ±1.2, top half 35.5, early 21.5, poison 5.0% of intake.
 - Git author email is the GitHub noreply address (182705433+ReynardFM@users.noreply.github.com), set for this repo only.
 
+## Plan check (2026-10-19)
+Goal 1 (watch evolution) on track: poison avoidance is the first visible learned behaviour, now the default. Goal 2 (system design / scaling) stalled: last stage done 2026-10-17 (3a), none in the 17 commits since. Review protocol drifted: ~10 reviews in a row were "all lean", so Rey is approving rather than deciding. Family bookkeeping (lineage.ts, 227 lines) turned out display-only: mild over-build.
+Agreed fixes: (1) next work is a scaling step on a measured trigger: profile one generation, then 3b (one run across cores) or stage 4; Rey's 10-minute grids at 100% CPU are the first sign of the stage 4 trigger. (2) Reviews: for the 1-2 decisions that matter most, Rey writes his call before seeing Claude's lean.
+
 ## Next session
-1. Review the evolution batch (sparse mutation, centre brain): both measured, neither beat the default.
+1. Profile one generation (where does the time go), then pick 3b or stage 4 by the numbers.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
