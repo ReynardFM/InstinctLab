@@ -485,9 +485,10 @@
     mutationRate: 1,
     centreShare: 0,
     hidden: 6,
-    poison: 0,
+    poison: 0.3,
     regrow: 0,
     energyCost: 1
+    // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   };
   function createWorld(seed, rules) {
     const w = {

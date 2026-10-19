@@ -50,7 +50,7 @@ export const DEFAULT_RULES: Rules = {
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
   mutationRate: 1, centreShare: 0, hidden: 6,
-  poison: 0, regrow: 0, energyCost: 1,
+  poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
 };
 
 export interface World {

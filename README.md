@@ -136,6 +136,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | Food rules, first version, Rey's laptop, 14 seeds paired: poison 0/0.3 x regrow 0/200 x energy cost 1/2 | energy x2 alone: -0.7 ±1.9 (energy is not what limits them). Regrow 200: 10.4, every seed 10.2-10.4: capped by supply (60 pellets back every 200 ticks ≈ 12 per creature per layout at most). Poison 0.3: 7.2, but this run had a bug (map filled with poison, see next row) |
 | 2026-10-19 | Poison bug found and fixed | Each new pellet rolled its own kind; creatures ate the good ones and left poison, so the map filled with poison. Now: exact count per layout, eaten pellets come back as the same kind. Greedy brain with 30% poison: 4.7 -> 17.9 good food. Evolving, seed 1: 28 good vs 1.5 poison per layout by generation 30 (5% of intake vs 30% if blind) |
 | 2026-10-19 | Food rules after the poison fix, Rey's laptop, 14 seeds paired | poison 0.15: -7.3 ±1.8, eats 2.5% poison (blind 15%). Poison 0.3: -12.3 ±2.0, 5.0% (blind 30%): they avoid about 5 of every 6 poison pellets. Regrow 50: -17.8 ±1.5, seeds 24.6-27.2. Both: -22.6 / -25.7. 13.3 generations/s (poison runs do more lookups) |
+| 2026-10-19 | **Baseline, new defaults (30% poison)**, from Rey's run: 14 seeds x 100 generations | score 31.6 ±1.2, top half 35.5, early 21.5, poison 5.0% of intake |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

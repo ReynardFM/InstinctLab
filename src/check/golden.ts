@@ -9,9 +9,9 @@
 import { createWorld, runGenerations, DEFAULT_RULES, type Rules } from "../engine/world.ts";
 import { seedFrom } from "../engine/rng.ts";
 
-// The rules before food layouts, extra senses and newcomers existed.
+// The rules before food layouts, extra senses, newcomers and poison existed.
 export const BASE_RULES: Rules = {
-  ...DEFAULT_RULES, layouts: 1, senseFood2: 0, senseCreature: 0, walls: 0, newcomers: 0,
+  ...DEFAULT_RULES, layouts: 1, senseFood2: 0, senseCreature: 0, walls: 0, newcomers: 0, poison: 0,
 };
 
 export interface GoldenCase {
