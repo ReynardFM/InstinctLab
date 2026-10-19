@@ -42,6 +42,12 @@ export interface Creature {
 }
 
 
+// What a pellet looks like: a purple ring (true) or a green dot. Normally poison is the purple ring;
+// with rules.swapKinds the looks swap roles on some food maps. Creatures sense the look, not the truth.
+export function looksPoison(w: World, f: Food): boolean {
+  return f.poison !== w.swapped;
+}
+
 export function newFood(w: World, poison = false): Food {
   return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
 }
@@ -50,6 +56,7 @@ export function newFood(w: World, poison = false): Food {
 // same kind (see step), so the share stays fixed. (A first version rolled the kind for every new pellet:
 // creatures ate the good ones and left the poison, so the map filled up with poison.)
 export function newFoodLayout(w: World): Food[] {
+  w.swapped = w.rules.swapKinds > 0 && w.env.next() < 0.5; // draws nothing when off, so other runs are unchanged
   const poisonCount = Math.round(w.rules.poison * w.rules.food);
   return Array.from({ length: w.rules.food }, (_, i) => newFood(w, i < poisonCount));
 }

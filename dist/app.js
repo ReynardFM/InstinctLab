@@ -267,7 +267,7 @@
         else if (dy < -halfH) dy += H;
       }
       const d2 = dx * dx + dy * dy;
-      if (f.poison) {
+      if (looksPoison(w, f)) {
         if (poison === void 0 || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
         continue;
       }
@@ -307,10 +307,14 @@
   }
 
   // src/engine/creature.ts
+  function looksPoison(w, f) {
+    return f.poison !== w.swapped;
+  }
   function newFood(w, poison = false) {
     return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
   }
   function newFoodLayout(w) {
+    w.swapped = w.rules.swapKinds > 0 && w.env.next() < 0.5;
     const poisonCount = Math.round(w.rules.poison * w.rules.food);
     return Array.from({ length: w.rules.food }, (_, i) => newFood(w, i < poisonCount));
   }
@@ -742,7 +746,8 @@
     learnCost: 0,
     forget: 2e-3,
     relativeReward: 1,
-    energyGate: 0
+    energyGate: 0,
+    swapKinds: 0
   };
   function createWorld(seed, rules) {
     const w = {
@@ -754,6 +759,7 @@
       tick: 0,
       generation: 1,
       layout: 0,
+      swapped: false,
       avgHist: [],
       bestHist: [],
       worstHist: [],
@@ -905,7 +911,7 @@
     for (const f of world.food) {
       if (f.readyAt > world.tick) continue;
       ctx.beginPath();
-      if (f.poison) {
+      if (looksPoison(world, f)) {
         ctx.strokeStyle = C.poison;
         ctx.arc(f.x, f.y, 3.2, 0, Math.PI * 2);
         ctx.stroke();
@@ -1240,7 +1246,8 @@
     $("genText").textContent = world.rules.mode === 1 ? `Warm-up generation ${world.generation} of ${world.rules.ecoWarmup}` : `Generation ${world.generation}`;
     const layoutText = many ? `Food layout ${world.layout + 1} of ${world.rules.layouts}. ` : "";
     const last = world.avgHist.length ? ` Last generation: average ${world.avgHist.at(-1).toFixed(1)}, best ${food(world.bestHist.at(-1))}${many ? " food per layout" : ""}` + (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1).toFixed(1)} each.` : ".") : "";
-    $("tickText").textContent = `${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
+    const swapText = world.swapped ? "This map: purple rings are the food, green dots the poison. " : "";
+    $("tickText").textContent = `${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
   }
   function frame() {
     if (speed === "max") {
@@ -1313,6 +1320,7 @@
     ["forget", "Forgetting", 0, 0.01, 5e-4, "Share of learned change fading back to the inborn brain each tick. 0 = never forget."],
     ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
     ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
+    ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
     ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
     ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],

@@ -56,6 +56,7 @@ export interface Rules {
   learnCost: number; // energy per unit of weight change from learning; 0 = free
   forget: number; // learning: share of the learned change that fades back toward the inborn brain each tick (0.002 = about 350 ticks to halve); 0 = never
   relativeReward: number; // learning: 1 = a meal counts only as better or worse than the creature's usual intake; 0 = food +1, poison -1
+  swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
 }
 
@@ -68,7 +69,7 @@ export const DEFAULT_RULES: Rules = {
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
-  forget: 0.002, relativeReward: 1, energyGate: 0,
+  forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
 };
 
 export interface World {
@@ -82,6 +83,7 @@ export interface World {
   tick: number;
   generation: number;
   layout: number; // which food layout of this generation is running, from 0
+  swapped: boolean; // rules.swapKinds: on this food map, purple rings are the food and green dots the poison
   avgHist: number[]; // average food eaten per layout, one entry per finished generation
   bestHist: number[];
   worstHist: number[];
@@ -119,6 +121,7 @@ export function createWorld(seed: number, rules: Rules): World {
     tick: 0,
     generation: 1,
     layout: 0,
+    swapped: false,
     avgHist: [],
     bestHist: [],
     worstHist: [],

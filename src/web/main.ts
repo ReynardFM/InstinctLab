@@ -6,6 +6,7 @@ import { ECO_SAMPLE } from "../engine/ecosystem.ts";
 import { inEcosystem } from "../engine/mode.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
+import { looksPoison } from "../engine/creature.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const ctx2d = (id: string) => $<HTMLCanvasElement>(id).getContext("2d")!;
@@ -68,7 +69,7 @@ function drawWorld(selected: Creature | null): void {
   for (const f of world.food) {
     if (f.readyAt > world.tick) continue; // eaten, not regrown yet
     ctx.beginPath();
-    if (f.poison) {
+    if (looksPoison(world, f)) {
       // a ring, not a dot: shape tells it apart from food and from any family colour
       ctx.strokeStyle = C.poison;
       ctx.arc(f.x, f.y, 3.2, 0, Math.PI * 2);
@@ -463,7 +464,8 @@ function draw(): void {
     ? ` Last generation: average ${world.avgHist.at(-1)!.toFixed(1)}, best ${food(world.bestHist.at(-1)!)}${many ? " food per layout" : ""}` +
       (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1)!.toFixed(1)} each.` : ".")
     : "";
-  $("tickText").textContent = `${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
+  const swapText = world.swapped ? "This map: purple rings are the food, green dots the poison. " : "";
+  $("tickText").textContent = `${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
 }
 
 function frame(): void {
@@ -541,6 +543,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["forget", "Forgetting", 0, 0.01, 0.0005, "Share of learned change fading back to the inborn brain each tick. 0 = never forget."],
   ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
   ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
+  ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],

@@ -262,7 +262,7 @@
         else if (dy < -halfH) dy += H;
       }
       const d2 = dx * dx + dy * dy;
-      if (f.poison) {
+      if (looksPoison(w, f)) {
         if (poison === void 0 || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
         continue;
       }
@@ -302,10 +302,14 @@
   }
 
   // src/engine/creature.ts
+  function looksPoison(w, f) {
+    return f.poison !== w.swapped;
+  }
   function newFood(w, poison = false) {
     return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
   }
   function newFoodLayout(w) {
+    w.swapped = w.rules.swapKinds > 0 && w.env.next() < 0.5;
     const poisonCount = Math.round(w.rules.poison * w.rules.food);
     return Array.from({ length: w.rules.food }, (_, i) => newFood(w, i < poisonCount));
   }
@@ -737,7 +741,8 @@
     learnCost: 0,
     forget: 2e-3,
     relativeReward: 1,
-    energyGate: 0
+    energyGate: 0,
+    swapKinds: 0
   };
   function createWorld(seed, rules) {
     const w = {
@@ -749,6 +754,7 @@
       tick: 0,
       generation: 1,
       layout: 0,
+      swapped: false,
       avgHist: [],
       bestHist: [],
       worstHist: [],

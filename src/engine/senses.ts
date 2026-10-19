@@ -1,7 +1,7 @@
 // What a creature perceives each tick. Which senses exist is set by the rules; each one adds inputs
 // to the brain, so the brain (and the genome) grows with them.
 import type { World } from "./world.ts"; // types only, no import at run time
-import type { Creature, Food } from "./creature.ts";
+import { looksPoison, type Creature, type Food } from "./creature.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { H, W, nearest, type Near } from "./space.ts";
@@ -55,8 +55,8 @@ export interface Perception {
 }
 
 export interface FoodScan {
-  good: Near<Food>[]; // nearest good food first (1, or 2 with senseFood2)
-  poison: Near<Food> | undefined; // nearest poison
+  good: Near<Food>[]; // nearest pellet(s) that look like food (green dots), nearest first (1, or 2 with senseFood2)
+  poison: Near<Food> | undefined; // nearest pellet that looks like poison (purple ring); see rules.swapKinds
 }
 
 // One pass over the food finds the nearest good pellet(s) and the nearest poison together. (It used to be
@@ -80,7 +80,7 @@ export function scanFood(w: World, x: number, y: number, goodCount: number): Foo
       else if (dy < -halfH) dy += H;
     }
     const d2 = dx * dx + dy * dy;
-    if (f.poison) {
+    if (looksPoison(w, f)) {
       if (poison === undefined || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
       continue;
     }

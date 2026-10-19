@@ -31,7 +31,9 @@ Rey's learning calls 2026-10-19: weights change by learning from eating (food +1
    Done 2026-10-19: learning during life (brain.ts learn(): reward-modulated Hebbian with a 0.9 eligibility trace; creature.w = working brain, creature.g = inborn; breed.inherited()), thinkCost, learnCost. All off by default: golden unchanged. Measured: it hurts badly (-17 to -21 food); with 75% inheritance weights blow up 0.4 -> 5-22 (Hebbian growth piling up across generations); without inheritance still about -7 (food is rewarded far more often than poison, so the rule strengthens whatever is active).
 Rey's call 2026-10-19: both fixes (c), plus his idea of learning less when hungry as an extra option.
    Done 2026-10-19: forget (0.002/tick toward the inborn brain), relativeReward (reward minus the creature's usual intake, ~500-tick average), energyGate (off). Learning itself still off by default. Measured: weights stay normal; 0.001 = no difference (+1.0 ±1.8), 0.005 = -2.4 *, 0.02 = -11.7 *; energy gate no effect (+0.7 ±3.3).
-1. Rey: next - keep learning as an experiment slider and return to scaling (3b / stage 4), or keep tuning learning.
+Rey 2026-10-19: "follow yours" -> give learning a reason first (swap world), then scaling.
+   Done 2026-10-19: swapKinds (coin per food map decides which look is poison; creatures sense the look; off by default). Measured: learning still no gain (0.001 +1.2 ±1.9, 0.02 -5.4 *), also with gentler poison (0.15). The plain reward-modulated Hebbian rule is too weak to switch after one or two lessons.
+1. Rey: evolve how each connection learns (per-connection plasticity in the genome) or stop learning here and go to scaling.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 

@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 import { brainDistance, createWorld, founderHue, hueDrift, retire, runGenerations, runTicks, step, wrapDelta, DEFAULT_RULES, LEGACY_LIMIT } from "../src/engine/world.ts";
 import { think, genomeSize, GENOME } from "../src/engine/brain.ts";
 import { nearest } from "../src/engine/space.ts";
-import { inputCount, inputLabels, wallAhead } from "../src/engine/senses.ts";
+import { inputCount, inputLabels, scanFood, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
 import * as dmath from "../src/engine/dmath.ts";
 import { centre, inherited, mutate } from "../src/engine/breed.ts";
-import type { Creature } from "../src/engine/creature.ts";
+import { looksPoison, type Creature } from "../src/engine/creature.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
 
@@ -470,6 +470,21 @@ test("relative reward: a meal counts only as better than the usual intake", () =
   step(w);
   assert.ok(c.usual < 0.5, "the usual intake follows what actually happened");
   assert.notDeepEqual(c.w, before, "an empty tick taught it something (negative), unlike plain food/poison reward");
+});
+
+test("swapKinds: on some food maps purple rings are the food, and creatures sense the look", () => {
+  const rules = { ...DEFAULT_RULES, poison: 0.5, swapKinds: 1, genTicks: 5 };
+  const w = createWorld(1, rules);
+  const seen = new Set<boolean>();
+  for (let i = 0; i < 40; i++) {
+    seen.add(w.swapped);
+    for (const f of w.food) assert.equal(looksPoison(w, f), f.poison !== w.swapped);
+    const scan = scanFood(w, 400, 300, 1);
+    assert.equal(scan.poison!.item.poison, !w.swapped, "the 'poison' sense points at the purple ring, whatever it really is");
+    runTicks(w, 5); // next food map
+  }
+  assert.deepEqual([...seen].sort(), [false, true], "both ways happen");
+  assert.equal(createWorld(1, DEFAULT_RULES).swapped, false, "off by default");
 });
 
 test("thinking and learning can cost energy", () => {
