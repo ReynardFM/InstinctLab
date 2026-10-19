@@ -104,21 +104,22 @@
   var IN = 4;
   var HID = 6;
   var OUT = 2;
-  var genomeSize = (inputs) => inputs * HID + HID + HID * OUT + OUT;
+  var genomeSize = (inputs, hidden = HID) => inputs * hidden + hidden + hidden * OUT + OUT;
   var GENOME = genomeSize(IN);
   function think(g, inputs) {
     let k = 0;
     const hidden = [];
     const out = [];
     const n = inputs.length;
-    for (let h = 0; h < HID; h++) {
+    const nh = (g.length - OUT) / (n + 1 + OUT);
+    for (let h = 0; h < nh; h++) {
       let s = 0;
       for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
       hidden.push(tanh(s + g[k++]));
     }
     for (let o = 0; o < OUT; o++) {
       let s = 0;
-      for (let h = 0; h < HID; h++) s += hidden[h] * g[k++];
+      for (let h = 0; h < nh; h++) s += hidden[h] * g[k++];
       out.push(tanh(s + g[k++]));
     }
     return { hidden, out };
@@ -235,10 +236,10 @@
 
   // src/engine/creature.ts
   function newFood(w) {
-    return { x: w.rng.next() * W, y: w.rng.next() * H };
+    return { x: w.env.next() * W, y: w.env.next() * H };
   }
   function newCreature(w, genome, family, elite, parentHue) {
-    const { rng } = w;
+    const { env } = w;
     const id = w.nextId++;
     const hue = parentHue === null ? founderHue(family) : elite ? parentHue : (parentHue + hueDrift(id) + 360) % 360;
     return {
@@ -249,15 +250,15 @@
       branch: null,
       streak: 0,
       g: genome,
-      x: rng.next() * W,
-      y: rng.next() * H,
-      a: rng.next() * Math.PI * 2,
+      x: env.next() * W,
+      y: env.next() * H,
+      a: env.next() * Math.PI * 2,
       energy: 1,
       eaten: 0,
       alive: true,
       diedAt: null,
       inputs: new Array(inputCount(w.rules)).fill(0),
-      hidden: new Array(HID).fill(0),
+      hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
     };
   }
@@ -462,12 +463,14 @@
     newcomerMutation: 0.4,
     protectGens: 3,
     mutationRate: 1,
-    centreShare: 0
+    centreShare: 0,
+    hidden: 6
   };
   function createWorld(seed, rules) {
     const w = {
       rules: { ...rules },
       rng: createRng(seed),
+      env: createRng(envSeed(seed)),
       creatures: [],
       food: [],
       tick: 0,
@@ -488,7 +491,7 @@
       newcomerCount: 0
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = Array.from({ length: genomeSize(inputCount(rules)) }, () => w.rng.gauss() * 0.5);
+      const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
@@ -533,15 +536,20 @@
   function nextLayout(w) {
     w.layout++;
     for (const c of w.creatures) {
-      c.x = w.rng.next() * W;
-      c.y = w.rng.next() * H;
-      c.a = w.rng.next() * Math.PI * 2;
+      c.x = w.env.next() * W;
+      c.y = w.env.next() * H;
+      c.a = w.env.next() * Math.PI * 2;
       c.energy = 1;
       c.alive = true;
       c.diedAt = null;
     }
     w.food = Array.from({ length: w.rules.food }, () => newFood(w));
     w.tick = 0;
+  }
+  function envSeed(seed) {
+    let h = Math.imul((seed | 0) ^ 1540483477, 668265261);
+    h ^= h >>> 15;
+    return Math.imul(h, 374761393) | 0;
   }
   function nextGeneration(w) {
     const { rules, rng } = w;
@@ -802,7 +810,7 @@
   var OUT_LABELS = ["Turn", "Speed"];
   function drawBrain(c) {
     const ctx = brainCtx;
-    const h = c && c.inputs.length > 7 ? 600 : 440;
+    const h = c && (c.inputs.length > 7 || c.hidden.length > 8) ? 600 : 440;
     if (ctx.canvas.height !== h) ctx.canvas.height = h;
     const w = 680;
     ctx.fillStyle = C.panel;
@@ -815,6 +823,7 @@
       return;
     }
     const nIn = c.inputs.length;
+    const nHid = c.hidden.length;
     const inLabels = inputLabels(world.rules);
     const rowY = (n, i) => 30 + (i + 0.5) * ((h - 60) / n);
     const radius = Math.min(15, (h - 60) / nIn * 0.38);
@@ -822,7 +831,7 @@
     ctx.font = `${nIn > 7 ? 20 : 22}px ${FONT}`;
     const layers = [
       c.inputs.map((v, i) => ({ x: xs[0], y: rowY(nIn, i), v })),
-      c.hidden.map((v, i) => ({ x: xs[1], y: rowY(HID, i), v })),
+      c.hidden.map((v, i) => ({ x: xs[1], y: rowY(nHid, i), v })),
       c.out.map((v, i) => ({ x: xs[2], y: rowY(OUT, i), v }))
     ];
     let k = 0;
@@ -835,17 +844,17 @@
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
     };
-    for (let hI = 0; hI < HID; hI++) {
+    for (let hI = 0; hI < nHid; hI++) {
       for (let i = 0; i < nIn; i++) edge(layers[0][i], layers[1][hI], c.g[k++]);
       k++;
     }
     for (let o = 0; o < OUT; o++) {
-      for (let hI = 0; hI < HID; hI++) edge(layers[1][hI], layers[2][o], c.g[k++]);
+      for (let hI = 0; hI < nHid; hI++) edge(layers[1][hI], layers[2][o], c.g[k++]);
       k++;
     }
     ctx.globalAlpha = 1;
     for (const [li, layer] of layers.entries()) {
-      const rad = li === 0 ? radius : 15;
+      const rad = li === 0 ? radius : li === 1 ? Math.min(15, (h - 60) / nHid * 0.38) : 15;
       for (const node of layer) {
         const v = Math.max(-1, Math.min(1, node.v));
         ctx.fillStyle = C.field;
@@ -960,6 +969,7 @@
     ["splitProof", "Branch must out-eat its family N generations in a row", 0, 10, 1, "Before it counts as a new family. 0 = new family right away."],
     ["championStreak", "Champion after N generations on top", 0, 10, 1, "Its brain becomes the family's main brain. 0 = never."],
     ["layouts", "Food layouts per generation", 1, 5, 1, "Each brain is scored on this many maps. More = fairer scores, slower generations."],
+    ["hidden", "Middle neurons per brain", 2, 16, 1, "More = can learn more complex behaviour, but more weights to evolve."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
     ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
     ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],

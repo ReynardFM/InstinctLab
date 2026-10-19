@@ -36,18 +36,22 @@ export interface Rules {
   protectGens: number; // generations a newcomer family keeps 2 seats (its best + one child) whatever its rank
   mutationRate: number; // share of weights nudged in each child; 1 = all of them (dense), 0.2 = sparse
   centreShare: number; // share of children made from the centre brain (Evolution Strategies) instead of one parent
+  hidden: number; // middle neurons in each brain (more = can learn more complex behaviour, more weights to evolve)
 }
 
 export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
-  mutationRate: 1, centreShare: 0,
+  mutationRate: 1, centreShare: 0, hidden: 6,
 };
 
 export interface World {
   rules: Rules;
-  rng: Rng;
+  rng: Rng; // evolution's random numbers: starting brains, mutation, which parents breed
+  env: Rng; // the world's random numbers: food positions and starting spots. Kept separate so that two
+  // settings run with the same seed get the same food layouts, and comparing them seed by seed cancels
+  // that luck (common random numbers).
   creatures: Creature[];
   food: Food[];
   tick: number;
@@ -72,6 +76,7 @@ export function createWorld(seed: number, rules: Rules): World {
   const w: World = {
     rules: { ...rules },
     rng: createRng(seed),
+    env: createRng(envSeed(seed)),
     creatures: [],
     food: [],
     tick: 0,
@@ -92,7 +97,7 @@ export function createWorld(seed: number, rules: Rules): World {
     newcomerCount: 0,
   };
   for (let i = 0; i < rules.pop; i++) {
-    const genome = Array.from({ length: genomeSize(inputCount(rules)) }, () => w.rng.gauss() * 0.5);
+    const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }
@@ -143,15 +148,22 @@ export function step(w: World): void {
 function nextLayout(w: World): void {
   w.layout++;
   for (const c of w.creatures) {
-    c.x = w.rng.next() * W;
-    c.y = w.rng.next() * H;
-    c.a = w.rng.next() * Math.PI * 2;
+    c.x = w.env.next() * W;
+    c.y = w.env.next() * H;
+    c.a = w.env.next() * Math.PI * 2;
     c.energy = 1;
     c.alive = true;
     c.diedAt = null;
   }
   w.food = Array.from({ length: w.rules.food }, () => newFood(w));
   w.tick = 0;
+}
+
+// A second seed for the world's random numbers, derived from the run's seed (integer hash).
+export function envSeed(seed: number): number {
+  let h = Math.imul((seed | 0) ^ 0x5bd1e995, 0x27d4eb2d);
+  h ^= h >>> 15;
+  return Math.imul(h, 0x165667b1) | 0;
 }
 
 // Runs until `generations` more generations have finished.

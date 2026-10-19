@@ -21,7 +21,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
-`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `learning` is the average over all generations: it separates methods that end on the same plateau but get there at different speeds.
+`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, `hidden`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `early` is the average over the first 30 generations (how fast it learns). `vs 1st` compares each row with the first row seed by seed: the same seed gives the same food layouts in every setting, so that luck cancels and a `*` marks a difference that is probably real. Seeds take ranges: `--seeds=1-14`.
 
 ## File dependency tree
 
@@ -131,5 +131,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | Sparse mutation (`mutationRate`) x size (`mutation`), 7 seeds x 100 generations | rate 1: 42.3 ±2.8 (0.15), 45.4 ±3.4 (0.3). Rate 0.3: 42.4 ±2.4, 43.5 ±1.4. Rate 0.1: 40.6 ±1.8, 41.6 ±1.4. None shown to differ from the default |
 | 2026-10-19 | Centre brain (`centreShare`), same setup | 0: 42.3 ±2.8, 0.5: 43.0 ±2.1, 1: 40.4 ±1.2. Not shown to differ |
 | 2026-10-19 | Re-comparison with learning speed, Rey's laptop (Windows), 14 workers, 7 seeds x 100 generations | learning ±95%: default 37.3 ±1.2; dense 0.3: 38.5 ±1.5; sparse 0.3 x 0.3: 38.0 ±0.6; centre 0.5: 37.4 ±1.5; sparse 0.3 x 0.15 + centre 0.5: 34.3 ±1.8 (the only one likely worse). Scores match the cloud (Linux) runs to every digit. 15.6 generations/s |
+
+Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 
 Rows before 2026-10-17 ran with one food layout per generation (`--layouts=1` reproduces them).

@@ -23,10 +23,10 @@ export function parseArgs(argv: string[]): Options {
     const m = /^--(\w+)=(.+)$/.exec(arg);
     if (!m) throw new Error(`Can't read "${arg}". Use --name=value or --name=a,b,c`);
     const [, key, raw] = m;
-    const values = raw.split(",").map(Number);
+    const values = key === "seeds" ? seedList(raw) : raw.split(",").map(Number);
     if (values.some((v) => !Number.isFinite(v))) throw new Error(`--${key} needs numbers, got "${raw}"`);
     if (key === "gens") opts.gens = values[0];
-    else if (key === "seeds") opts.seeds = values;
+    else if (key === "seeds") opts.seeds = seedList(raw);
     else if (key === "workers") opts.workers = Math.max(1, Math.floor(values[0]));
     else if (key in DEFAULT_RULES) opts.grid[key as keyof Rules] = values;
     else throw new Error(`Unknown option --${key}. Rules: ${Object.keys(DEFAULT_RULES).join(", ")}`);
@@ -43,10 +43,29 @@ export function combinations(grid: Options["grid"]): Rules[] {
   return combos;
 }
 
-// Learning speed of one run: average food over ALL its generations (the area under the chart line).
-// Two methods that end on the same plateau still differ here if one got there sooner.
+// "1,2,5" or "1-14" or "1-7,20" -> list of seeds
+export function seedList(raw: string): number[] {
+  return raw.split(",").flatMap((part) => {
+    const m = /^(\d+)-(\d+)$/.exec(part.trim());
+    if (!m) return [Number(part)];
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    return Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
+  });
+}
+
+// Early learning of one run: average food over its first EARLY generations. The plateau that every
+// method reaches later is left out, so a faster climb shows up clearly.
+export const EARLY = 30;
 export function learning(avgHist: number[]): number {
-  return avgHist.length ? avgHist.reduce((s, x) => s + x, 0) / avgHist.length : 0;
+  const early = avgHist.slice(0, EARLY);
+  return early.length ? early.reduce((s, x) => s + x, 0) / early.length : 0;
+}
+
+// Paired comparison: per seed, this setting minus the reference setting; mean and ±95% of those
+// differences. Same seed = same food layouts and starting spots (World.env), so that luck cancels out.
+export function pairedDiff(xs: number[], ref: number[]): { mean: number; margin: number } {
+  const d = xs.map((x, i) => x - ref[i]);
+  return { mean: d.reduce((s, x) => s + x, 0) / d.length, margin: margin95(d) };
 }
 
 // Two-sided 95% t-values by degrees of freedom (n - 1), for the ± column.
@@ -86,8 +105,18 @@ async function main(): Promise<void> {
   const totalGens = jobs.length * opts.gens;
 
   const rows: string[][] = [];
+  const perCombo = combos.map((_, i) => results.slice(i * opts.seeds.length, (i + 1) * opts.seeds.length));
+  const refScores = perCombo[0].map((r) => score(r.avgHist));
+  const refLearn = perCombo[0].map((r) => learning(r.avgHist));
+  // "+2.1 ±1.3 *": the * means the whole range is on one side of 0, so the difference is probably real
+  const diffText = (xs: number[], ref: number[]) => {
+    const { mean, margin } = pairedDiff(xs, ref);
+    if (Number.isNaN(margin)) return "-";
+    const sure = Math.abs(mean) > margin ? " *" : "";
+    return `${mean >= 0 ? "+" : ""}${mean.toFixed(1)} ±${margin.toFixed(1)}${sure}`;
+  };
   for (const [i, rules] of combos.entries()) {
-    const mine = results.slice(i * opts.seeds.length, (i + 1) * opts.seeds.length);
+    const mine = perCombo[i];
     const scores = mine.map((r) => score(r.avgHist));
     const mean = scores.reduce((s, x) => s + x, 0) / scores.length;
     const top = mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / mine.length;
@@ -102,11 +131,13 @@ async function main(): Promise<void> {
       top.toFixed(1),
       (learn.reduce((s, x) => s + x, 0) / learn.length).toFixed(1),
       pm(lm),
+      i === 0 ? "reference" : diffText(scores, refScores),
+      i === 0 ? "reference" : diffText(learn, refLearn),
       `${Math.min(...scores).toFixed(1)}..${Math.max(...scores).toFixed(1)}`,
     ]);
   }
 
-  const header = [...varied, "score", "±95%", "top half", "learning", "±95% ", "seed range"];
+  const header = [...varied, "score", "±95%", "top half", "early", "±95% ", "score vs 1st", "early vs 1st", "seed range"];
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padStart(widths[i])).join("  ");
   console.log(line(header));
@@ -114,7 +145,9 @@ async function main(): Promise<void> {
   console.log(`\nscore = average food eaten per creature per layout, last 10 generations, averaged over seeds`);
   console.log(`±95% = the true score is probably within score ± this; settings whose ranges overlap are not shown to differ`);
   console.log(`top half = the same for the better half of each generation (weak newcomers don't drag it down); seed range is for score`);
-  console.log(`learning = average food over ALL generations, not just the last 10: higher = got there sooner`);
+  console.log(`early = average food over the first ${EARLY} generations: higher = learned faster`);
+  console.log(`vs 1st = paired difference from the first row, seed by seed (same seed = same food layouts). * = probably real.`);
+  console.log(`  With many rows, expect about 1 in 20 rows to get a * by chance alone.`);
   console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${workers} worker${workers > 1 ? "s" : ""})`);
 }
 

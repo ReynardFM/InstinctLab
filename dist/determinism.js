@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.225, 4.475, 5.275, 11.275, 16, 21.2, 24.825, 27.275, 27.725, 26.575], best: [8, 25, 17, 44, 46, 49, 58, 49, 61, 51] }, "42": { avg: [2.025, 8.525, 15.1, 15.65, 22.5, 23.3, 26.075, 25.75, 29.45, 32.7], best: [32, 43, 42, 38, 69, 54, 61, 71, 58, 61] }, hello: { avg: [2.325, 5.25, 4.375, 10.4, 12.45, 15.95, 21.225, 28, 32.1, 30], best: [11, 15, 21, 32, 50, 50, 57, 55, 59, 53] }, custom: { avg: [0.13333333333333333, 0.06666666666666667, 0.06666666666666667, 0.5333333333333333, 0.13333333333333333, 0.06666666666666667, 1.2666666666666666, 1.3333333333333333, 1.2666666666666666, 2.1333333333333333] }, defaults: { avg: [2.216666666666667, 7.766666666666667, 13.575000000000001], best: [17.333333333333332, 20, 29.333333333333332] } };
+  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [2.9499999999999997, 7.583333333333333, 10.9], best: [15.333333333333334, 23.666666666666668, 22.333333333333332] } };
 
   // src/engine/dmath.ts
   var HALF_PI_HI = 1.5707963267341256;
@@ -107,21 +107,22 @@
   var IN = 4;
   var HID = 6;
   var OUT = 2;
-  var genomeSize = (inputs) => inputs * HID + HID + HID * OUT + OUT;
+  var genomeSize = (inputs, hidden = HID) => inputs * hidden + hidden + hidden * OUT + OUT;
   var GENOME = genomeSize(IN);
   function think(g, inputs) {
     let k = 0;
     const hidden = [];
     const out = [];
     const n = inputs.length;
-    for (let h = 0; h < HID; h++) {
+    const nh = (g.length - OUT) / (n + 1 + OUT);
+    for (let h = 0; h < nh; h++) {
       let s = 0;
       for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
       hidden.push(tanh(s + g[k++]));
     }
     for (let o = 0; o < OUT; o++) {
       let s = 0;
-      for (let h = 0; h < HID; h++) s += hidden[h] * g[k++];
+      for (let h = 0; h < nh; h++) s += hidden[h] * g[k++];
       out.push(tanh(s + g[k++]));
     }
     return { hidden, out };
@@ -231,10 +232,10 @@
 
   // src/engine/creature.ts
   function newFood(w) {
-    return { x: w.rng.next() * W, y: w.rng.next() * H };
+    return { x: w.env.next() * W, y: w.env.next() * H };
   }
   function newCreature(w, genome, family, elite, parentHue) {
-    const { rng } = w;
+    const { env } = w;
     const id = w.nextId++;
     const hue = parentHue === null ? founderHue(family) : elite ? parentHue : (parentHue + hueDrift(id) + 360) % 360;
     return {
@@ -245,15 +246,15 @@
       branch: null,
       streak: 0,
       g: genome,
-      x: rng.next() * W,
-      y: rng.next() * H,
-      a: rng.next() * Math.PI * 2,
+      x: env.next() * W,
+      y: env.next() * H,
+      a: env.next() * Math.PI * 2,
       energy: 1,
       eaten: 0,
       alive: true,
       diedAt: null,
       inputs: new Array(inputCount(w.rules)).fill(0),
-      hidden: new Array(HID).fill(0),
+      hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
     };
   }
@@ -458,12 +459,14 @@
     newcomerMutation: 0.4,
     protectGens: 3,
     mutationRate: 1,
-    centreShare: 0
+    centreShare: 0,
+    hidden: 6
   };
   function createWorld(seed, rules) {
     const w = {
       rules: { ...rules },
       rng: createRng(seed),
+      env: createRng(envSeed(seed)),
       creatures: [],
       food: [],
       tick: 0,
@@ -484,7 +487,7 @@
       newcomerCount: 0
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = Array.from({ length: genomeSize(inputCount(rules)) }, () => w.rng.gauss() * 0.5);
+      const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
@@ -529,15 +532,20 @@
   function nextLayout(w) {
     w.layout++;
     for (const c of w.creatures) {
-      c.x = w.rng.next() * W;
-      c.y = w.rng.next() * H;
-      c.a = w.rng.next() * Math.PI * 2;
+      c.x = w.env.next() * W;
+      c.y = w.env.next() * H;
+      c.a = w.env.next() * Math.PI * 2;
       c.energy = 1;
       c.alive = true;
       c.diedAt = null;
     }
     w.food = Array.from({ length: w.rules.food }, () => newFood(w));
     w.tick = 0;
+  }
+  function envSeed(seed) {
+    let h = Math.imul((seed | 0) ^ 1540483477, 668265261);
+    h ^= h >>> 15;
+    return Math.imul(h, 374761393) | 0;
   }
   function runGenerations(w, generations) {
     const target = w.generation + generations;

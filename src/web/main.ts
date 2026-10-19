@@ -1,6 +1,6 @@
 // The page: drawing and controls. It reads the World but never changes how it evolves.
 import { createWorld, founderHue, step, DEFAULT_RULES, W, H, type Creature, type Rules, type World } from "../engine/world.ts";
-import { HID, OUT } from "../engine/brain.ts";
+import { OUT } from "../engine/brain.ts";
 import { inputLabels } from "../engine/senses.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
@@ -260,7 +260,7 @@ const OUT_LABELS = ["Turn", "Speed"];
 function drawBrain(c: Creature | null): void {
   const ctx = brainCtx;
   // taller canvas when there are many senses, so the labels stay readable
-  const h = c && c.inputs.length > 7 ? 600 : 440;
+  const h = c && (c.inputs.length > 7 || c.hidden.length > 8) ? 600 : 440;
   if (ctx.canvas.height !== h) ctx.canvas.height = h;
   const w = 680;
   ctx.fillStyle = C.panel;
@@ -273,6 +273,7 @@ function drawBrain(c: Creature | null): void {
     return;
   }
   const nIn = c.inputs.length;
+  const nHid = c.hidden.length;
   const inLabels = inputLabels(world.rules);
   const rowY = (n: number, i: number) => 30 + (i + 0.5) * ((h - 60) / n);
   const radius = Math.min(15, ((h - 60) / nIn) * 0.38); // more senses = smaller input circles
@@ -280,7 +281,7 @@ function drawBrain(c: Creature | null): void {
   ctx.font = `${nIn > 7 ? 20 : 22}px ${FONT}`;
   const layers = [
     c.inputs.map((v, i) => ({ x: xs[0], y: rowY(nIn, i), v })),
-    c.hidden.map((v, i) => ({ x: xs[1], y: rowY(HID, i), v })),
+    c.hidden.map((v, i) => ({ x: xs[1], y: rowY(nHid, i), v })),
     c.out.map((v, i) => ({ x: xs[2], y: rowY(OUT, i), v })),
   ];
   // weights, in the same order think() reads them
@@ -294,19 +295,19 @@ function drawBrain(c: Creature | null): void {
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
   };
-  for (let hI = 0; hI < HID; hI++) {
+  for (let hI = 0; hI < nHid; hI++) {
     for (let i = 0; i < nIn; i++) edge(layers[0][i], layers[1][hI], c.g[k++]);
     k++; // bias
   }
   for (let o = 0; o < OUT; o++) {
-    for (let hI = 0; hI < HID; hI++) edge(layers[1][hI], layers[2][o], c.g[k++]);
+    for (let hI = 0; hI < nHid; hI++) edge(layers[1][hI], layers[2][o], c.g[k++]);
     k++; // bias
   }
   ctx.globalAlpha = 1;
 
   // neurons: fill shows how strongly each one is firing right now
   for (const [li, layer] of layers.entries()) {
-    const rad = li === 0 ? radius : 15;
+    const rad = li === 0 ? radius : li === 1 ? Math.min(15, ((h - 60) / nHid) * 0.38) : 15;
     for (const node of layer) {
       const v = Math.max(-1, Math.min(1, node.v));
       ctx.fillStyle = C.field;
@@ -439,6 +440,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["splitProof", "Branch must out-eat its family N generations in a row", 0, 10, 1, "Before it counts as a new family. 0 = new family right away."],
   ["championStreak", "Champion after N generations on top", 0, 10, 1, "Its brain becomes the family's main brain. 0 = never."],
   ["layouts", "Food layouts per generation", 1, 5, 1, "Each brain is scored on this many maps. More = fairer scores, slower generations."],
+  ["hidden", "Middle neurons per brain", 2, 16, 1, "More = can learn more complex behaviour, but more weights to evolve."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],

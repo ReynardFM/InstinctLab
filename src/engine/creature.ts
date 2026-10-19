@@ -1,6 +1,6 @@
 // Creatures and food: what they are and how a new one is made.
 import type { World } from "./world.ts"; // types only, no import at run time
-import { HID, type Genome } from "./brain.ts";
+import type { Genome } from "./brain.ts";
 import { inputCount } from "./senses.ts";
 import { H, W } from "./space.ts";
 
@@ -33,13 +33,13 @@ export interface Creature {
 
 
 export function newFood(w: World): Food {
-  return { x: w.rng.next() * W, y: w.rng.next() * H };
+  return { x: w.env.next() * W, y: w.env.next() * H };
 }
 
 
 // parentHue: null for founders. Elites keep their colour exactly; children drift a little.
 export function newCreature(w: World, genome: Genome, family: number, elite: boolean, parentHue: number | null): Creature {
-  const { rng } = w;
+  const { env } = w; // where it starts is the world's luck, not evolution's
   const id = w.nextId++;
   const hue =
     parentHue === null ? founderHue(family) : elite ? parentHue : (parentHue + hueDrift(id) + 360) % 360;
@@ -51,15 +51,15 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     branch: null,
     streak: 0,
     g: genome,
-    x: rng.next() * W,
-    y: rng.next() * H,
-    a: rng.next() * Math.PI * 2,
+    x: env.next() * W,
+    y: env.next() * H,
+    a: env.next() * Math.PI * 2,
     energy: 1,
     eaten: 0,
     alive: true,
     diedAt: null,
     inputs: new Array(inputCount(w.rules)).fill(0),
-    hidden: new Array(HID).fill(0),
+    hidden: new Array(w.rules.hidden).fill(0),
     out: [0, 0],
   };
 }

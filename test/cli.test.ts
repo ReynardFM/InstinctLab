@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { combinations, learning, margin95, parseArgs, score } from "../src/cli/run.ts";
+import { combinations, learning, margin95, pairedDiff, parseArgs, score, seedList } from "../src/cli/run.ts";
 import { runJob, type Job } from "../src/cli/job.ts";
 import { runJobs } from "../src/cli/pool.ts";
 import { median, workerCounts } from "../src/cli/bench.ts";
@@ -63,10 +63,21 @@ test("median", () => {
   assert.equal(median([4, 1, 3, 2]), 2.5);
 });
 
-test("learning speed averages every generation, so a faster climb to the same plateau scores higher", () => {
-  const fast = [10, 30, 40, 40, 40];
-  const slow = [10, 15, 20, 30, 40];
-  assert.equal(learning(fast), 32);
+test("early learning averages the first 30 generations, so a faster climb to the same plateau scores higher", () => {
+  const fast = [10, 30, ...new Array(98).fill(40)];
+  const slow = [10, 15, 20, 30, ...new Array(96).fill(40)];
   assert.ok(learning(fast) > learning(slow));
-  assert.equal(score(fast.slice(-1)), score(slow.slice(-1)), "same plateau");
+  assert.equal(learning([10, 20]), 15);
+  assert.equal(score(fast), score(slow), "same plateau");
+});
+
+test("paired differences cancel shared luck; seed ranges expand", () => {
+  // big seed-to-seed swings, but this setting is always exactly 1 better
+  const ref = [10, 30, 20, 50, 40];
+  const better = ref.map((x) => x + 1);
+  const d = pairedDiff(better, ref);
+  assert.equal(d.mean, 1);
+  assert.equal(d.margin, 0);
+  assert.deepEqual(seedList("1-4,9"), [1, 2, 3, 4, 9]);
+  assert.deepEqual(parseArgs(["--seeds=1-3"]).seeds, [1, 2, 3]);
 });

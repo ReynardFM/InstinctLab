@@ -2,9 +2,9 @@
 import { tanh } from "./dmath.ts";
 
 export const IN = 4; // basic senses: food left/right, food ahead, food distance, energy. Extra senses add more.
-export const HID = 6;
+export const HID = 6; // middle neurons in the default brain (rules.hidden changes it)
 export const OUT = 2; // turn, speed
-export const genomeSize = (inputs: number) => inputs * HID + HID + HID * OUT + OUT;
+export const genomeSize = (inputs: number, hidden = HID) => inputs * hidden + hidden + hidden * OUT + OUT;
 export const GENOME = genomeSize(IN); // the basic brain
 
 export type Genome = number[];
@@ -19,14 +19,15 @@ export function think(g: Genome, inputs: number[]): Thought {
   const hidden: number[] = [];
   const out: number[] = [];
   const n = inputs.length;
-  for (let h = 0; h < HID; h++) {
+  const nh = (g.length - OUT) / (n + 1 + OUT); // middle neurons, read from the genome's length
+  for (let h = 0; h < nh; h++) {
     let s = 0;
     for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
     hidden.push(tanh(s + g[k++]));
   }
   for (let o = 0; o < OUT; o++) {
     let s = 0;
-    for (let h = 0; h < HID; h++) s += hidden[h] * g[k++];
+    for (let h = 0; h < nh; h++) s += hidden[h] * g[k++];
     out.push(tanh(s + g[k++]));
   }
   return { hidden, out };
