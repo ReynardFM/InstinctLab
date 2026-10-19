@@ -131,6 +131,8 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | Sparse mutation (`mutationRate`) x size (`mutation`), 7 seeds x 100 generations | rate 1: 42.3 ±2.8 (0.15), 45.4 ±3.4 (0.3). Rate 0.3: 42.4 ±2.4, 43.5 ±1.4. Rate 0.1: 40.6 ±1.8, 41.6 ±1.4. None shown to differ from the default |
 | 2026-10-19 | Centre brain (`centreShare`), same setup | 0: 42.3 ±2.8, 0.5: 43.0 ±2.1, 1: 40.4 ±1.2. Not shown to differ |
 | 2026-10-19 | Re-comparison with learning speed, Rey's laptop (Windows), 14 workers, 7 seeds x 100 generations | learning ±95%: default 37.3 ±1.2; dense 0.3: 38.5 ±1.5; sparse 0.3 x 0.3: 38.0 ±0.6; centre 0.5: 37.4 ±1.5; sparse 0.3 x 0.15 + centre 0.5: 34.3 ±1.8 (the only one likely worse). Scores match the cloud (Linux) runs to every digit. 15.6 generations/s |
+| 2026-10-19 | **Paired**, Rey's laptop, 14 seeds x 100 generations: step 0.15/0.3 x middle neurons 6/12 (vs step 0.15, 6) | score: 12 neurons -0.3 ±1.6, step 0.3 +0.8 ±1.6, both +0.4 ±1.7; early: -0.0 ±1.7, -0.3 ±1.0, +0.5 ±1.3. No difference; effects bigger than about 2 food are ruled out. Baseline 43.9 ±1.2 |
+| 2026-10-19 | Hand-made greedy brain (turn to nearest food, full speed), everyone, 7 seeds | 24.3 per layout, vs 42-47 evolved |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 
