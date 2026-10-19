@@ -35,10 +35,16 @@ export interface Creature {
 }
 
 
-export function newFood(w: World): Food {
-  const f: Food = { x: w.env.next() * W, y: w.env.next() * H, poison: false, readyAt: 0 };
-  if (w.rules.poison > 0) f.poison = w.env.next() < w.rules.poison; // no extra draw without poison: old runs replay
-  return f;
+export function newFood(w: World, poison = false): Food {
+  return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
+}
+
+// A fresh map: exactly round(poison share x food) pellets are poison, and an eaten pellet comes back as the
+// same kind (see step), so the share stays fixed. (A first version rolled the kind for every new pellet:
+// creatures ate the good ones and left the poison, so the map filled up with poison.)
+export function newFoodLayout(w: World): Food[] {
+  const poisonCount = Math.round(w.rules.poison * w.rules.food);
+  return Array.from({ length: w.rules.food }, (_, i) => newFood(w, i < poisonCount));
 }
 
 

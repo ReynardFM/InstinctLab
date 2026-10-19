@@ -6,7 +6,7 @@ import { cos, sin } from "./dmath.ts";
 import { centre, mutate } from "./breed.ts";
 import { H, W } from "./space.ts";
 import { inputCount, sense } from "./senses.ts";
-import { newCreature, newFood, type Creature, type Food } from "./creature.ts";
+import { newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
 import {
   addNewcomer, crownChampions, judgeBranches, maybeSplit, newFamily, protectNewcomers, recordFamilyStats,
   settleLineage, type Branch, type Family,
@@ -110,7 +110,7 @@ export function createWorld(seed: number, rules: Rules): World {
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }
-  w.food = Array.from({ length: rules.food }, () => newFood(w));
+  w.food = newFoodLayout(w);
   return w;
 }
 
@@ -143,7 +143,7 @@ export function step(w: World): void {
         c.eaten++;
         c.energy = Math.min(c.energy + 0.3, 1.5);
       }
-      Object.assign(seen.food, newFood(w));
+      Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new
       if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
     }
     if (c.energy <= 0) {
@@ -170,7 +170,7 @@ function nextLayout(w: World): void {
     c.alive = true;
     c.diedAt = null;
   }
-  w.food = Array.from({ length: w.rules.food }, () => newFood(w));
+  w.food = newFoodLayout(w);
   w.tick = 0;
 }
 
@@ -224,7 +224,7 @@ function nextGeneration(w: World): void {
   }
   w.creatures = next;
   settleLineage(w, proven);
-  w.food = Array.from({ length: rules.food }, () => newFood(w));
+  w.food = newFoodLayout(w);
   w.tick = 0;
   w.layout = 0;
   w.generation++;

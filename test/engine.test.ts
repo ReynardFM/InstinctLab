@@ -382,3 +382,13 @@ test("regrowth: an eaten pellet is gone for N ticks; energy cost multiplies", ()
   const dropB = 1 - b.creatures[3].energy;
   assert.ok(Math.abs(dropB - 2 * dropA) < 1e-12, `${dropA} vs ${dropB}`);
 });
+
+test("poison share stays fixed: exact count per layout, eaten pellets come back as the same kind", () => {
+  const w = createWorld(7, { ...ONE, poison: 0.25, food: 40, genTicks: 300 });
+  const count = () => w.food.filter((f) => f.poison).length;
+  assert.equal(count(), 10);
+  for (let i = 0; i < 300; i++) {
+    step(w);
+    assert.equal(count(), 10, `tick ${i}`);
+  }
+});

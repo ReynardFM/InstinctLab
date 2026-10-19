@@ -244,10 +244,12 @@
   }
 
   // src/engine/creature.ts
-  function newFood(w) {
-    const f = { x: w.env.next() * W, y: w.env.next() * H, poison: false, readyAt: 0 };
-    if (w.rules.poison > 0) f.poison = w.env.next() < w.rules.poison;
-    return f;
+  function newFood(w, poison = false) {
+    return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
+  }
+  function newFoodLayout(w) {
+    const poisonCount = Math.round(w.rules.poison * w.rules.food);
+    return Array.from({ length: w.rules.food }, (_, i) => newFood(w, i < poisonCount));
   }
   function newCreature(w, genome, family, elite, parentHue) {
     const { env } = w;
@@ -512,7 +514,7 @@
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
-    w.food = Array.from({ length: rules.food }, () => newFood(w));
+    w.food = newFoodLayout(w);
     return w;
   }
   function step(w) {
@@ -542,7 +544,7 @@
           c.eaten++;
           c.energy = Math.min(c.energy + 0.3, 1.5);
         }
-        Object.assign(seen.food, newFood(w));
+        Object.assign(seen.food, newFood(w, seen.food.poison));
         if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
       }
       if (c.energy <= 0) {
@@ -566,7 +568,7 @@
       c.alive = true;
       c.diedAt = null;
     }
-    w.food = Array.from({ length: w.rules.food }, () => newFood(w));
+    w.food = newFoodLayout(w);
     w.tick = 0;
   }
   function envSeed(seed) {
@@ -613,7 +615,7 @@
     }
     w.creatures = next;
     settleLineage(w, proven);
-    w.food = Array.from({ length: rules.food }, () => newFood(w));
+    w.food = newFoodLayout(w);
     w.tick = 0;
     w.layout = 0;
     w.generation++;
