@@ -18,8 +18,10 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
 Goal 1 (watch evolution) on track: poison avoidance is the first visible learned behaviour, now the default. Goal 2 (system design / scaling) stalled: last stage done 2026-10-17 (3a), none in the 17 commits since. Review protocol drifted: ~10 reviews in a row were "all lean", so Rey is approving rather than deciding. Family bookkeeping (lineage.ts, 227 lines) turned out display-only: mild over-build.
 Agreed fixes: (1) next work is a scaling step on a measured trigger: profile one generation, then 3b (one run across cores) or stage 4; Rey's 10-minute grids at 100% CPU are the first sign of the stage 4 trigger. (2) Reviews: for the 1-2 decisions that matter most, Rey writes his call before seeing Claude's lean.
 
+Profile 2026-10-19 (default rules, 6 generations, Node CPU profile, self time): senses about 2/3 (nearest() 33%, sense 25% incl. inlined parts, food filters 8%), brain think() 13%, garbage collection 5%, family bookkeeping under 1%. Rey guessed the brain; it is the senses, because they run for every creature every tick and scan all 60 pellets twice (good, poison) plus all 40 creatures, while mutation/selection runs once per generation.
+
 ## Next session
-1. Profile one generation (where does the time go), then pick 3b or stage 4 by the numbers.
+1. Decide how to speed up the senses (one-pass scan / uniform grid / skip to 3b or stage 4), then measure with npm run bench.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
@@ -69,6 +71,7 @@ Agreed fixes: (1) next work is a scaling step on a measured trigger: profile one
 Headline scaling metric: generations per hour vs number of workers.
 
 ## Review protocol (every change)
+Format (Rey 2026-10-19, "make decisions easier to digest"): at most 3 decisions per review, the rest listed as "small, done my way". One line each: what is decided, the other option, what changes for Rey. For the 1-2 that matter most, Rey gives his call before seeing Claude's lean.
 1. Claude implements best-effort code (no deliberately planted bugs) and tests it.
 2. Claude lists the design decisions in the change as a table: `# | Decision | ✓ Keep it (what happens) | ✗ Change it (the alternative and what happens)`.
    When the decisions interact or get complex, Claude first gives one short concrete scenario (named creatures, generation numbers) and the table explains each decision through that scenario.
