@@ -138,6 +138,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | Food rules after the poison fix, Rey's laptop, 14 seeds paired | poison 0.15: -7.3 ±1.8, eats 2.5% poison (blind 15%). Poison 0.3: -12.3 ±2.0, 5.0% (blind 30%): they avoid about 5 of every 6 poison pellets. Regrow 50: -17.8 ±1.5, seeds 24.6-27.2. Both: -22.6 / -25.7. 13.3 generations/s (poison runs do more lookups) |
 | 2026-10-19 | **Baseline, new defaults (30% poison)**, from Rey's run: 14 seeds x 100 generations | score 31.6 ±1.2, top half 35.5, early 21.5, poison 5.0% of intake |
 | 2026-10-19 | Poison world (new defaults), quick check, cloud, 7 seeds x 60 generations, paired | 12 middle neurons -0.2 ±1.4, step 0.3 +0.8 ±2.4, both +0.3 ±2.0. No difference here either |
+| 2026-10-19 | One-pass food scan (good + poison together), default rules, cloud, best of 4 | 3163 -> 1814 ns per creature-tick (1.74x). Every recorded run identical |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

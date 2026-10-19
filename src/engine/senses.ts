@@ -4,7 +4,7 @@ import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { H, W, nearest } from "./space.ts";
+import { H, W, nearest, type Near } from "./space.ts";
 
 export interface SenseRules {
   senseFood2: number; // 1 = also sense the second-nearest food
@@ -54,23 +54,54 @@ export interface Perception {
   foodDist: number;
 }
 
-// Which pellets count for each sense. Without poison or regrowth nothing is skipped (and no filter runs).
-export function foodFilters(w: World): { good?: (f: Food) => boolean; poison: (f: Food) => boolean } {
+export interface FoodScan {
+  good: Near<Food>[]; // nearest good food first (1, or 2 with senseFood2)
+  poison: Near<Food> | undefined; // nearest poison
+}
+
+// One pass over the food finds the nearest good pellet(s) and the nearest poison together. (It used to be
+// one nearest() call per kind, each scanning every pellet: the senses were 2/3 of all run time.)
+// Pellets that have not regrown yet are skipped. Same answers as nearest(): ties keep the earlier pellet.
+export function scanFood(w: World, x: number, y: number, goodCount: number): FoodScan {
+  const walls = w.rules.walls > 0;
   const tick = w.tick;
-  if (!(w.rules.poison > 0) && !(w.rules.regrow > 0)) return { poison: () => true };
-  return {
-    good: (f) => f.poison || f.readyAt > tick, // skip poison and food that has not regrown yet
-    poison: (f) => !f.poison || f.readyAt > tick,
-  };
+  const halfW = W / 2;
+  const halfH = H / 2;
+  const good: Near<Food>[] = [];
+  let poison: Near<Food> | undefined;
+  for (const f of w.food) {
+    if (f.readyAt > tick) continue;
+    let dx = f.x - x;
+    let dy = f.y - y;
+    if (!walls) {
+      if (dx > halfW) dx -= W;
+      else if (dx < -halfW) dx += W;
+      if (dy > halfH) dy -= H;
+      else if (dy < -halfH) dy += H;
+    }
+    const d2 = dx * dx + dy * dy;
+    if (f.poison) {
+      if (poison === undefined || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
+      continue;
+    }
+    if (good.length === goodCount && d2 >= good[goodCount - 1].d2) continue;
+    let i = good.length === goodCount ? goodCount - 1 : good.length;
+    while (i > 0 && d2 < good[i - 1].d2) {
+      good[i] = good[i - 1];
+      i--;
+    }
+    good[i] = { item: f, dx, dy, d2 };
+  }
+  return { good, poison };
 }
 
 export function sense(w: World, c: Creature): Perception {
   const r = w.rules;
   const walls = r.walls > 0;
-  const skip = foodFilters(w);
-  const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1, skip.good);
+  const scan = scanFood(w, c.x, c.y, r.senseFood2 ? 2 : 1);
+  const foods = scan.good;
   const f = foods[0];
-  const p = r.poison > 0 ? nearest(w.food, c.x, c.y, walls, 1, skip.poison)[0] : undefined;
+  const p = scan.poison;
   // no food at all: same numbers as before senses were split out (distance reads as far)
   const cosH = cos(c.a);
   const sinH = sin(c.a);

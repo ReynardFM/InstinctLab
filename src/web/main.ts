@@ -1,7 +1,7 @@
 // The page: drawing and controls. It reads the World but never changes how it evolves.
 import { createWorld, founderHue, step, DEFAULT_RULES, W, H, type Creature, type Rules, type World } from "../engine/world.ts";
 import { OUT } from "../engine/brain.ts";
-import { foodFilters, inputLabels } from "../engine/senses.ts";
+import { inputLabels, scanFood } from "../engine/senses.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
 
@@ -131,14 +131,11 @@ function drawSightLines(c: Creature): void {
     ctx.lineTo(c.x + dx, c.y + dy); // may run off the edge when the world wraps: that's the short way round
     ctx.stroke();
   };
-  const skip = foodFilters(world);
-  const foods = nearest(world.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1, skip.good);
+  const scan = scanFood(world, c.x, c.y, r.senseFood2 ? 2 : 1);
+  const foods = scan.good;
   if (foods[0]) line(foods[0].dx, foods[0].dy, C.food, []);
   if (r.senseFood2 && foods[1]) line(foods[1].dx, foods[1].dy, C.food, [6, 5]);
-  if (r.poison > 0) {
-    const p = nearest(world.food, c.x, c.y, walls, 1, skip.poison)[0];
-    if (p) line(p.dx, p.dy, C.poison, [6, 5]);
-  }
+  if (scan.poison) line(scan.poison.dx, scan.poison.dy, C.poison, [6, 5]);
   if (r.senseCreature) {
     const n = nearest(world.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
     if (n) line(n.dx, n.dy, hsl(n.item.hue), [2, 4]);

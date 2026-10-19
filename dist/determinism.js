@@ -209,22 +209,45 @@
     const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
     return Math.min(Math.min(tx, ty) / 200, 1);
   }
-  function foodFilters(w) {
+  function scanFood(w, x, y, goodCount) {
+    const walls = w.rules.walls > 0;
     const tick = w.tick;
-    if (!(w.rules.poison > 0) && !(w.rules.regrow > 0)) return { poison: () => true };
-    return {
-      good: (f) => f.poison || f.readyAt > tick,
-      // skip poison and food that has not regrown yet
-      poison: (f) => !f.poison || f.readyAt > tick
-    };
+    const halfW = W / 2;
+    const halfH = H / 2;
+    const good = [];
+    let poison;
+    for (const f of w.food) {
+      if (f.readyAt > tick) continue;
+      let dx = f.x - x;
+      let dy = f.y - y;
+      if (!walls) {
+        if (dx > halfW) dx -= W;
+        else if (dx < -halfW) dx += W;
+        if (dy > halfH) dy -= H;
+        else if (dy < -halfH) dy += H;
+      }
+      const d2 = dx * dx + dy * dy;
+      if (f.poison) {
+        if (poison === void 0 || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
+        continue;
+      }
+      if (good.length === goodCount && d2 >= good[goodCount - 1].d2) continue;
+      let i = good.length === goodCount ? goodCount - 1 : good.length;
+      while (i > 0 && d2 < good[i - 1].d2) {
+        good[i] = good[i - 1];
+        i--;
+      }
+      good[i] = { item: f, dx, dy, d2 };
+    }
+    return { good, poison };
   }
   function sense(w, c) {
     const r = w.rules;
     const walls = r.walls > 0;
-    const skip = foodFilters(w);
-    const foods = nearest(w.food, c.x, c.y, walls, r.senseFood2 ? 2 : 1, skip.good);
+    const scan = scanFood(w, c.x, c.y, r.senseFood2 ? 2 : 1);
+    const foods = scan.good;
     const f = foods[0];
-    const p = r.poison > 0 ? nearest(w.food, c.x, c.y, walls, 1, skip.poison)[0] : void 0;
+    const p = scan.poison;
     const cosH = cos(c.a);
     const sinH = sin(c.a);
     const first = f ? towards(f.dx, f.dy, f.d2, cosH, sinH) : towards(0, 0, Infinity, cosH, sinH);

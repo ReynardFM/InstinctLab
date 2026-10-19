@@ -20,8 +20,10 @@ Agreed fixes: (1) next work is a scaling step on a measured trigger: profile one
 
 Profile 2026-10-19 (default rules, 6 generations, Node CPU profile, self time): senses about 2/3 (nearest() 33%, sense 25% incl. inlined parts, food filters 8%), brain think() 13%, garbage collection 5%, family bookkeeping under 1%. Rey guessed the brain; it is the senses, because they run for every creature every tick and scan all 60 pellets twice (good, poison) plus all 40 creatures, while mutation/selection runs once per generation.
 
+Rey's calls 2026-10-19: (1) senses speed-up = one-pass food scan (done: 1.74x per creature-tick, identical results); (2) age = B, an "ecosystem" mode alongside the generations (no generations; creatures eat, have children at full energy, age and die; population rises and falls).
+
 ## Next session
-1. Decide how to speed up the senses (one-pass scan / uniform grid / skip to 3b or stage 4), then measure with npm run bench.
+1. Ecosystem mode: Rey decides the 2-3 key rules first (how a child is made, what kills, population limits), then build.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
