@@ -359,11 +359,11 @@ function drawBrain(c: Creature | null): void {
     ctx.stroke();
   };
   for (let hI = 0; hI < nHid; hI++) {
-    for (let i = 0; i < nIn; i++) edge(layers[0][i], layers[1][hI], c.g[k++]);
+    for (let i = 0; i < nIn; i++) edge(layers[0][i], layers[1][hI], c.w[k++]);
     k++; // bias
   }
   for (let o = 0; o < OUT; o++) {
-    for (let hI = 0; hI < nHid; hI++) edge(layers[1][hI], layers[2][o], c.g[k++]);
+    for (let hI = 0; hI < nHid; hI++) edge(layers[1][hI], layers[2][o], c.w[k++]);
     k++; // bias
   }
   ctx.globalAlpha = 1;
@@ -404,7 +404,8 @@ function brainCaption(c: Creature | null, picked: boolean): string {
     const fromE = famE && famE.parent !== null ? ` (split from family ${famE.parent + 1} ${famE.bornInTicks ? "at tick" : "in generation"} ${famE.bornGeneration})` : "";
     return `${who}. Family ${c.family + 1}${fromE}, age ${c.age}, ${c.depth} generation${c.depth === 1 ? "" : "s"} from its founder, ` +
       `${c.children} child${c.children === 1 ? "" : "ren"}, ate ${c.eaten}` +
-      (world.rules.poison > 0 ? ` (and ${c.poisoned} poison)` : "") + `, energy ${c.energy.toFixed(2)}.`;
+      (world.rules.poison > 0 ? ` (and ${c.poisoned} poison)` : "") + `, energy ${c.energy.toFixed(2)}.` +
+      (world.rules.learnRate > 0 ? ` Learned during life: ${c.learned.toFixed(2)} total weight change.` : "");
   }
   const who = picked ? "Your pick" : "Last generation's best, copied unchanged";
   const state = c.alive ? `energy ${c.energy.toFixed(2)}` : `starved at tick ${c.diedAt}`;
@@ -423,7 +424,8 @@ function brainCaption(c: Creature | null, picked: boolean): string {
     ? `ate ${c.eaten} so far this generation (layout ${world.layout + 1} of ${world.rules.layouts})`
     : `ate ${c.eaten}`;
   const poisoned = world.rules.poison > 0 ? ` (and ${c.poisoned} poison)` : "";
-  return `${who}. Family ${c.family + 1}${origin}, ${ate}${poisoned}, ${state}.${trial}${streak}${champ}`;
+  const learnedText = world.rules.learnRate > 0 ? ` Learned during life: ${c.learned.toFixed(2)} total weight change.` : "";
+  return `${who}. Family ${c.family + 1}${origin}, ${ate}${poisoned}, ${state}.${trial}${streak}${champ}${learnedText}`;
 }
 
 // ---------- frame ----------
@@ -532,6 +534,10 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["championStreak", "Champion after N generations on top", 0, 10, 1, "Its brain becomes the family's main brain. 0 = never."],
   ["layouts", "Food layouts per generation", 1, 5, 1, "Each brain is scored on this many maps. More = fairer scores, slower generations."],
   ["hidden", "Middle neurons per brain", 2, 16, 1, "More = can learn more complex behaviour, but more weights to evolve."],
+  ["learnRate", "Learning during life", 0, 0.05, 0.001, "Food strengthens connections that were just active, poison weakens them. 0 = brains fixed for life."],
+  ["inheritLearned", "Share of learning children inherit", 0, 1, 0.05, "0.75 = children start with 75% of what the parent learned."],
+  ["thinkCost", "Energy cost of thinking", 0, 0.005, 0.0005, "Per tick, for a brain firing at full strength."],
+  ["learnCost", "Energy cost of learning", 0, 0.1, 0.005, "Per unit of brain change."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
@@ -576,7 +582,8 @@ function renderRules(): void {
     const input = div.querySelector("input")!;
     const out = div.querySelector("output")!;
     const show = () =>
-      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy"].includes(key) ? Number(input.value).toFixed(2) : input.value);
+      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy", "inheritLearned"].includes(key) ? Number(input.value).toFixed(2)
+        : ["learnRate", "learnCost", "thinkCost"].includes(key) ? Number(input.value).toFixed(4) : input.value);
     input.oninput = () => {
       pendingRules[key] = Number(input.value);
       show();

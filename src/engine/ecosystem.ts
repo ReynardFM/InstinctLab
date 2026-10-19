@@ -4,7 +4,7 @@ import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { genomeSize, type Genome } from "./brain.ts";
 import { newCreature } from "./creature.ts";
-import { mutate } from "./breed.ts";
+import { inherited, mutate } from "./breed.ts";
 import { maybeSplit, newFamily, retire } from "./lineage.ts";
 import { inputCount } from "./senses.ts";
 import { live } from "./life.ts";
@@ -52,7 +52,9 @@ export function stepEcosystem(w: World): void {
       used.add(a);
       used.add(partner);
       const p = partner;
-      const mixed = a.g.map((x, k) => (w.rng.next() < 0.5 ? x : p.g[k])); // each weight from one parent
+      const ga = inherited(w, a);
+      const gb = inherited(w, p);
+      const mixed = ga.map((x, k) => (w.rng.next() < 0.5 ? x : gb[k])); // each weight from one parent
       const fromA = a.energy / 3; // each parent gives a third of its energy
       const fromB = p.energy / 3;
       a.energy -= fromA;
@@ -67,7 +69,7 @@ export function stepEcosystem(w: World): void {
       if (!ready(a)) continue;
       const half = a.energy / 2;
       a.energy -= half;
-      born.push(makeChild(w, a, mutate(w, a.g, rules.mutation), half));
+      born.push(makeChild(w, a, mutate(w, inherited(w, a), rules.mutation), half));
     }
   }
 

@@ -3,7 +3,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Genome } from "./brain.ts";
 import { founderHue, newCreature, type Creature } from "./creature.ts";
-import { mutate } from "./breed.ts";
+import { inherited, mutate } from "./breed.ts";
 import { inEcosystem } from "./mode.ts";
 
 // Most recent extinct families kept in the legacy record.
@@ -142,7 +142,7 @@ export function newFamily(id: number, genome: Genome, parent: number | null, bor
 export function addNewcomer(w: World, ranked: Creature[], next: Creature[], parents: number): void {
   const { rules, rng } = w;
   const p = ranked[Math.floor(rng.next() * parents)];
-  const genome = p.g.map((x) => x + rng.gauss() * rules.newcomerMutation);
+  const genome = inherited(w, p).map((x) => x + rng.gauss() * rules.newcomerMutation);
   const id = w.nextFamilyId++;
   const born = w.generation + 1;
   const fam = newFamily(id, genome, p.family, born);
@@ -163,13 +163,13 @@ export function protectNewcomers(w: World, ranked: Creature[], next: Creature[],
     if (i < 0) continue;
     const best = ranked[i];
     if (i >= elite && next.length < rules.pop) {
-      const keep = newCreature(w, best.g.slice(), fam.id, true, best.hue);
+      const keep = newCreature(w, inherited(w, best).slice(), fam.id, true, best.hue);
       keep.elite = false; // not one of the overall best: it keeps its seat only because it is protected
       keep.branch = best.branch;
       next.push(keep);
     }
     if (next.length < rules.pop) {
-      const child = newCreature(w, mutate(w, best.g, rules.mutation), fam.id, false, best.hue);
+      const child = newCreature(w, mutate(w, inherited(w, best), rules.mutation), fam.id, false, best.hue);
       child.branch = best.branch;
       maybeSplit(w, child);
       next.push(child);

@@ -19,7 +19,10 @@ export interface Creature {
   hue: number; // display colour, inherited with a small drift so branches of a family show up
   elite: boolean; // copied unchanged from last generation
   streak: number; // generations in a row this brain has been copied unchanged as an elite
-  g: Genome;
+  g: Genome; // the brain it was born with (inherited)
+  w: Genome; // the brain it uses now: the same array as g unless it learns during life (rules.learnRate)
+  trace: number[]; // learning: recent activity of each connection (empty when not learning)
+  learned: number; // learning: total weight change so far
   x: number;
   y: number;
   a: number; // heading, radians
@@ -65,6 +68,9 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     branch: null,
     streak: 0,
     g: genome,
+    w: w.rules.learnRate > 0 ? genome.slice() : genome,
+    trace: w.rules.learnRate > 0 ? new Array(genome.length).fill(0) : [],
+    learned: 0,
     x: env.next() * W,
     y: env.next() * H,
     a: env.next() * Math.PI * 2,

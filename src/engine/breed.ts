@@ -18,7 +18,15 @@ export function mutate(w: World, g: Genome, size: number): Genome {
 // better-ranked parents counting more (weights ln(n + 0.5) - ln(rank), as in CMA-ES).
 // Only parents from the best creature's family take part: averaging unrelated brains tends to give
 // nonsense, because two networks can solve the task with their neurons in a different order.
-export function centre(ranked: Creature[], parents: number): Genome {
+// The brain a child starts from: the parent's inherited brain plus rules.inheritLearned of what the parent
+// learned during its life. Without learning that is exactly the parent's genome (x + 0 = x).
+export function inherited(w: World, c: Creature): Genome {
+  if (c.w === c.g) return c.g;
+  const share = w.rules.inheritLearned;
+  return c.g.map((x, k) => x + share * (c.w[k] - x));
+}
+
+export function centre(w: World, ranked: Creature[], parents: number): Genome {
   const fam = ranked[0].family;
   const chosen = ranked.slice(0, parents).filter((c) => c.family === fam);
   const n = chosen.length;
@@ -27,7 +35,7 @@ export function centre(ranked: Creature[], parents: number): Genome {
   const out = new Array(chosen[0].g.length).fill(0);
   for (let i = 0; i < n; i++) {
     const wt = weights[i] / total;
-    const g = chosen[i].g;
+    const g = inherited(w, chosen[i]);
     for (let k = 0; k < out.length; k++) out[k] += wt * g[k];
   }
   return out;

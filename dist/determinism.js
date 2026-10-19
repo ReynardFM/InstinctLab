@@ -127,6 +127,28 @@
     }
     return { hidden, out };
   }
+  function learn(weights, trace, inputs, hidden, out, reward, rate, decay) {
+    let k = 0;
+    let change = 0;
+    const step2 = (pre, post) => {
+      trace[k] = decay * trace[k] + pre * post;
+      if (reward !== 0) {
+        const d = rate * reward * trace[k];
+        weights[k] += d;
+        change += d < 0 ? -d : d;
+      }
+      k++;
+    };
+    for (let h = 0; h < hidden.length; h++) {
+      for (let i = 0; i < inputs.length; i++) step2(inputs[i], hidden[h]);
+      step2(1, hidden[h]);
+    }
+    for (let o = 0; o < out.length; o++) {
+      for (let h = 0; h < hidden.length; h++) step2(hidden[h], out[o]);
+      step2(1, out[o]);
+    }
+    return change;
+  }
 
   // src/engine/breed.ts
   function mutate(w, g, size) {
@@ -135,7 +157,12 @@
     if (rate >= 1) return g.map((x) => x + rng.gauss() * size);
     return g.map((x) => rng.next() < rate ? x + rng.gauss() * size : x);
   }
-  function centre(ranked, parents) {
+  function inherited(w, c) {
+    if (c.w === c.g) return c.g;
+    const share = w.rules.inheritLearned;
+    return c.g.map((x, k) => x + share * (c.w[k] - x));
+  }
+  function centre(w, ranked, parents) {
     const fam = ranked[0].family;
     const chosen = ranked.slice(0, parents).filter((c) => c.family === fam);
     const n = chosen.length;
@@ -144,7 +171,7 @@
     const out = new Array(chosen[0].g.length).fill(0);
     for (let i = 0; i < n; i++) {
       const wt = weights[i] / total;
-      const g = chosen[i].g;
+      const g = inherited(w, chosen[i]);
       for (let k = 0; k < out.length; k++) out[k] += wt * g[k];
     }
     return out;
@@ -294,6 +321,9 @@
       branch: null,
       streak: 0,
       g: genome,
+      w: w.rules.learnRate > 0 ? genome.slice() : genome,
+      trace: w.rules.learnRate > 0 ? new Array(genome.length).fill(0) : [],
+      learned: 0,
       x: env.next() * W,
       y: env.next() * H,
       a: env.next() * Math.PI * 2,
@@ -425,7 +455,7 @@
   function addNewcomer(w, ranked, next, parents) {
     const { rules, rng } = w;
     const p = ranked[Math.floor(rng.next() * parents)];
-    const genome = p.g.map((x) => x + rng.gauss() * rules.newcomerMutation);
+    const genome = inherited(w, p).map((x) => x + rng.gauss() * rules.newcomerMutation);
     const id = w.nextFamilyId++;
     const born = w.generation + 1;
     const fam = newFamily(id, genome, p.family, born);
@@ -443,13 +473,13 @@
       if (i < 0) continue;
       const best = ranked[i];
       if (i >= elite && next.length < rules.pop) {
-        const keep = newCreature(w, best.g.slice(), fam.id, true, best.hue);
+        const keep = newCreature(w, inherited(w, best).slice(), fam.id, true, best.hue);
         keep.elite = false;
         keep.branch = best.branch;
         next.push(keep);
       }
       if (next.length < rules.pop) {
-        const child = newCreature(w, mutate(w, best.g, rules.mutation), fam.id, false, best.hue);
+        const child = newCreature(w, mutate(w, inherited(w, best), rules.mutation), fam.id, false, best.hue);
         child.branch = best.branch;
         maybeSplit(w, child);
         next.push(child);
@@ -503,11 +533,12 @@
 
   // src/engine/life.ts
   var POISON_HIT = 0.5;
+  var LEARN_DECAY = 0.9;
   function live(w, c, costFactor) {
     const walls = w.rules.walls > 0;
     const seen = sense(w, c);
     c.inputs = seen.inputs;
-    const { hidden, out } = think(c.g, c.inputs);
+    const { hidden, out } = think(c.w, c.inputs);
     c.hidden = hidden;
     c.out = out;
     const speed = (out[1] + 1) / 2 * 3;
@@ -520,7 +551,9 @@
       c.y = (c.y + sin(c.a) * speed + H) % H;
     }
     c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost * costFactor;
+    let reward = 0;
     if (seen.food && seen.foodDist < 6) {
+      reward = seen.food.poison ? -1 : 1;
       if (seen.food.poison) {
         c.poisoned++;
         c.energy -= POISON_HIT;
@@ -530,6 +563,17 @@
       }
       Object.assign(seen.food, newFood(w, seen.food.poison));
       if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+    }
+    const r = w.rules;
+    if (r.thinkCost > 0) {
+      let busy = 0;
+      for (const v of hidden) busy += v < 0 ? -v : v;
+      c.energy -= r.thinkCost * busy / hidden.length;
+    }
+    if (r.learnRate > 0) {
+      const change = learn(c.w, c.trace, c.inputs, hidden, out, reward, r.learnRate, LEARN_DECAY);
+      c.learned += change;
+      c.energy -= r.learnCost * change;
     }
     if (c.energy <= 0) {
       c.alive = false;
@@ -576,7 +620,9 @@
         used.add(a);
         used.add(partner);
         const p = partner;
-        const mixed = a.g.map((x, k) => w.rng.next() < 0.5 ? x : p.g[k]);
+        const ga = inherited(w, a);
+        const gb = inherited(w, p);
+        const mixed = ga.map((x, k) => w.rng.next() < 0.5 ? x : gb[k]);
         const fromA = a.energy / 3;
         const fromB = p.energy / 3;
         a.energy -= fromA;
@@ -590,7 +636,7 @@
         if (!ready(a)) continue;
         const half = a.energy / 2;
         a.energy -= half;
-        born.push(makeChild(w, a, mutate(w, a.g, rules.mutation), half));
+        born.push(makeChild(w, a, mutate(w, inherited(w, a), rules.mutation), half));
       }
     }
     const alive = [];
@@ -675,7 +721,11 @@
     birth: 0,
     birthEnergy: 1.2,
     ageScale: 3e3,
-    ecoWarmup: 20
+    ecoWarmup: 20,
+    learnRate: 0,
+    inheritLearned: 0.75,
+    thinkCost: 0,
+    learnCost: 0
   };
   function createWorld(seed, rules) {
     const w = {
@@ -764,7 +814,7 @@
     recordFamilyStats(w, ranked, per);
     const proven = judgeBranches(w, ranked);
     for (let i = 0; i < elite; i++) {
-      const copy = newCreature(w, ranked[i].g.slice(), ranked[i].family, true, ranked[i].hue);
+      const copy = newCreature(w, inherited(w, ranked[i]).slice(), ranked[i].family, true, ranked[i].hue);
       copy.streak = ranked[i].streak + 1;
       copy.branch = ranked[i].branch;
       next.push(copy);
@@ -772,11 +822,11 @@
     crownChampions(w, next);
     protectNewcomers(w, ranked, next, elite);
     for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
-    const centreBrain = rules.centreShare > 0 ? centre(ranked, parents) : null;
+    const centreBrain = rules.centreShare > 0 ? centre(w, ranked, parents) : null;
     while (next.length < rules.pop) {
       const fromCentre = centreBrain !== null && (rules.centreShare >= 1 || rng.next() < rules.centreShare);
       const p = fromCentre ? ranked[0] : ranked[Math.floor(rng.next() * parents)];
-      const child = newCreature(w, mutate(w, fromCentre ? centreBrain : p.g, rules.mutation), p.family, false, p.hue);
+      const child = newCreature(w, mutate(w, fromCentre ? centreBrain : inherited(w, p), rules.mutation), p.family, false, p.hue);
       child.branch = p.branch;
       maybeSplit(w, child);
       next.push(child);

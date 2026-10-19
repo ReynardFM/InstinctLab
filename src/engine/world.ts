@@ -3,7 +3,7 @@
 import { createRng, type Rng } from "./rng.ts";
 import { genomeSize, think } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { centre, mutate } from "./breed.ts";
+import { centre, inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
 import { live } from "./life.ts";
 import { inEcosystem } from "./mode.ts";
@@ -50,6 +50,10 @@ export interface Rules {
   birthEnergy: number; // ecosystem: energy needed to have a child (the most a creature can hold is 1.5)
   ageScale: number; // ecosystem: at this age living costs double, at twice it triple...; 0 = no ageing
   ecoWarmup: number; // ecosystem: ordinary generations first, so it starts with brains that can already eat
+  learnRate: number; // learning during life: how much a reward changes recently active connections; 0 = off
+  inheritLearned: number; // share of the parent's learned changes its children are born with (0.75 = 75%)
+  thinkCost: number; // energy per tick for a fully busy brain (scaled by how strongly it fires); 0 = free
+  learnCost: number; // energy per unit of weight change from learning; 0 = free
 }
 
 
@@ -60,6 +64,7 @@ export const DEFAULT_RULES: Rules = {
   mutationRate: 1, centreShare: 0, hidden: 6,
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
+  learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
 };
 
 export interface World {
@@ -199,7 +204,7 @@ function nextGeneration(w: World): void {
   recordFamilyStats(w, ranked, per);
   const proven = judgeBranches(w, ranked);
   for (let i = 0; i < elite; i++) {
-    const copy = newCreature(w, ranked[i].g.slice(), ranked[i].family, true, ranked[i].hue);
+    const copy = newCreature(w, inherited(w, ranked[i]).slice(), ranked[i].family, true, ranked[i].hue);
     copy.streak = ranked[i].streak + 1;
     copy.branch = ranked[i].branch;
     next.push(copy);
@@ -207,12 +212,12 @@ function nextGeneration(w: World): void {
   crownChampions(w, next);
   protectNewcomers(w, ranked, next, elite);
   for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
-  const centreBrain = rules.centreShare > 0 ? centre(ranked, parents) : null;
+  const centreBrain = rules.centreShare > 0 ? centre(w, ranked, parents) : null;
   while (next.length < rules.pop) {
     // a share of children come from the centre brain; the family, colour and branch of the best go with it
     const fromCentre = centreBrain !== null && (rules.centreShare >= 1 || rng.next() < rules.centreShare);
     const p = fromCentre ? ranked[0] : ranked[Math.floor(rng.next() * parents)];
-    const child = newCreature(w, mutate(w, fromCentre ? centreBrain : p.g, rules.mutation), p.family, false, p.hue);
+    const child = newCreature(w, mutate(w, fromCentre ? centreBrain : inherited(w, p), rules.mutation), p.family, false, p.hue);
     child.branch = p.branch;
     maybeSplit(w, child);
     next.push(child);

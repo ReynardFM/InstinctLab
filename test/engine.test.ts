@@ -7,7 +7,7 @@ import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
 import * as dmath from "../src/engine/dmath.ts";
-import { centre, mutate } from "../src/engine/breed.ts";
+import { centre, inherited, mutate } from "../src/engine/breed.ts";
 import type { Creature } from "../src/engine/creature.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
@@ -336,10 +336,11 @@ test("sparse mutation nudges about the given share of weights; rate 1 nudges all
 });
 
 test("centre brain: weighted average of the best family's top parents, better ranks count more", () => {
-  const fake = (family: number, g: number[]) => ({ family, g }) as unknown as Creature;
-  const same = centre([fake(1, [2, 4]), fake(1, [2, 4]), fake(1, [2, 4])], 3);
+  const fake = (family: number, g: number[]) => ({ family, g, w: g }) as unknown as Creature;
+  const anyWorld = createWorld(1, ONE);
+  const same = centre(anyWorld, [fake(1, [2, 4]), fake(1, [2, 4]), fake(1, [2, 4])], 3);
   assert.ok(Math.abs(same[0] - 2) < 1e-12 && Math.abs(same[1] - 4) < 1e-12, "identical parents: the same brain");
-  const c = centre([fake(1, [1]), fake(2, [100]), fake(1, [0])], 3);
+  const c = centre(anyWorld, [fake(1, [1]), fake(2, [100]), fake(1, [0])], 3);
   assert.ok(c[0] > 0.5 && c[0] < 1, `other families left out, the best counts more: ${c[0]}`);
   const rules = { ...ONE, centreShare: 1, genTicks: 400, elite: 0 };
   const a = createWorld(5, rules);
@@ -432,4 +433,29 @@ test("ecosystem: when everyone dies, fresh founders are put in", () => {
   assert.equal(w.eco.rescues, 1);
   assert.equal(w.creatures.length, 40);
   assert.ok(w.legacy.length >= 40, "the old families moved to legacy");
+});
+
+test("learning during life: food strengthens what was just active, poison weakens it; children inherit a share", () => {
+  const rules = { ...ONE, learnRate: 0.1, genTicks: 3000 };
+  const w = createWorld(9, rules);
+  assert.notEqual(w.creatures[0].w, w.creatures[0].g, "a learning creature has its own working brain");
+  for (let i = 0; i < 2000 && !w.creatures.some((x) => x.learned > 0); i++) step(w);
+  const c = w.creatures.find((x) => x.learned > 0)!;
+  assert.ok(c, "someone ate something and learned");
+  assert.notDeepEqual(c.w, c.g, "the working brain changed; the inborn one did not");
+  // children start from the inborn brain plus 75% of what was learned
+  const expect = c.g.map((x, k) => x + 0.75 * (c.w[k] - x));
+  assert.deepEqual(inherited(w, c), expect);
+  // without learning, inherited() is the genome itself
+  const off = createWorld(9, ONE);
+  assert.equal(inherited(off, off.creatures[0]), off.creatures[0].g);
+});
+
+test("thinking and learning can cost energy", () => {
+  const base = createWorld(9, { ...ONE, food: 1 });
+  const thinking = createWorld(9, { ...ONE, food: 1, thinkCost: 0.01 });
+  base.food[0].x = thinking.food[0].x = 400;
+  step(base);
+  step(thinking);
+  assert.ok(thinking.creatures[5].energy < base.creatures[5].energy, "a firing brain costs energy");
 });

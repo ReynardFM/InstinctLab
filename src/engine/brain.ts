@@ -32,3 +32,33 @@ export function think(g: Genome, inputs: number[]): Thought {
   }
   return { hidden, out };
 }
+
+// Learning during life: connections that were active shortly before a reward get stronger (food,
+// reward +1) or weaker (poison, reward -1). "Shortly before" is an eligibility trace: every tick each
+// connection remembers pre x post activity, fading by `decay`. Updates `weights` and `trace` in place
+// and returns the total size of the change (what learning costs in energy). Same layout as think().
+export function learn(
+  weights: number[], trace: number[], inputs: number[], hidden: number[], out: number[],
+  reward: number, rate: number, decay: number,
+): number {
+  let k = 0;
+  let change = 0;
+  const step = (pre: number, post: number) => {
+    trace[k] = decay * trace[k] + pre * post;
+    if (reward !== 0) {
+      const d = rate * reward * trace[k];
+      weights[k] += d;
+      change += d < 0 ? -d : d;
+    }
+    k++;
+  };
+  for (let h = 0; h < hidden.length; h++) {
+    for (let i = 0; i < inputs.length; i++) step(inputs[i], hidden[h]);
+    step(1, hidden[h]); // bias
+  }
+  for (let o = 0; o < out.length; o++) {
+    for (let h = 0; h < hidden.length; h++) step(hidden[h], out[o]);
+    step(1, out[o]); // bias
+  }
+  return change;
+}
