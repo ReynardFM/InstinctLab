@@ -124,6 +124,28 @@
     return { hidden, out };
   }
 
+  // src/engine/breed.ts
+  function mutate(w, g, size) {
+    const { rng } = w;
+    const rate = w.rules.mutationRate;
+    if (rate >= 1) return g.map((x) => x + rng.gauss() * size);
+    return g.map((x) => rng.next() < rate ? x + rng.gauss() * size : x);
+  }
+  function centre(ranked, parents) {
+    const fam = ranked[0].family;
+    const chosen = ranked.slice(0, parents).filter((c) => c.family === fam);
+    const n = chosen.length;
+    const weights = chosen.map((_, i) => log(n + 0.5) - log(i + 1));
+    const total = weights.reduce((s, x) => s + x, 0);
+    const out = new Array(chosen[0].g.length).fill(0);
+    for (let i = 0; i < n; i++) {
+      const wt = weights[i] / total;
+      const g = chosen[i].g;
+      for (let k = 0; k < out.length; k++) out[k] += wt * g[k];
+    }
+    return out;
+  }
+
   // src/engine/space.ts
   var W = 800;
   var H = 600;
@@ -357,7 +379,7 @@
     next.push(newCreature(w, genome, id, false, null));
   }
   function protectNewcomers(w, ranked, next, elite) {
-    const { rules, rng } = w;
+    const { rules } = w;
     for (const fam of w.families.values()) {
       if (!fam.newcomer || w.generation >= fam.protectedUntil) continue;
       const i = ranked.findIndex((c) => c.family === fam.id);
@@ -370,7 +392,7 @@
         next.push(keep);
       }
       if (next.length < rules.pop) {
-        const child = newCreature(w, best.g.map((x) => x + rng.gauss() * rules.mutation), fam.id, false, best.hue);
+        const child = newCreature(w, mutate(w, best.g, rules.mutation), fam.id, false, best.hue);
         child.branch = best.branch;
         maybeSplit(w, child);
         next.push(child);
@@ -438,7 +460,9 @@
     walls: 0,
     newcomers: 1,
     newcomerMutation: 0.4,
-    protectGens: 3
+    protectGens: 3,
+    mutationRate: 1,
+    centreShare: 0
   };
   function createWorld(seed, rules) {
     const w = {
@@ -542,9 +566,11 @@
     crownChampions(w, next);
     protectNewcomers(w, ranked, next, elite);
     for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
+    const centreBrain = rules.centreShare > 0 ? centre(ranked, parents) : null;
     while (next.length < rules.pop) {
-      const p = ranked[Math.floor(rng.next() * parents)];
-      const child = newCreature(w, p.g.map((x) => x + rng.gauss() * rules.mutation), p.family, false, p.hue);
+      const fromCentre = centreBrain !== null && (rules.centreShare >= 1 || rng.next() < rules.centreShare);
+      const p = fromCentre ? ranked[0] : ranked[Math.floor(rng.next() * parents)];
+      const child = newCreature(w, mutate(w, fromCentre ? centreBrain : p.g, rules.mutation), p.family, false, p.hue);
       child.branch = p.branch;
       maybeSplit(w, child);
       next.push(child);
@@ -934,6 +960,8 @@
     ["splitProof", "Branch must out-eat its family N generations in a row", 0, 10, 1, "Before it counts as a new family. 0 = new family right away."],
     ["championStreak", "Champion after N generations on top", 0, 10, 1, "Its brain becomes the family's main brain. 0 = never."],
     ["layouts", "Food layouts per generation", 1, 5, 1, "Each brain is scored on this many maps. More = fairer scores, slower generations."],
+    ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
+    ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
     ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
     ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
     ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
@@ -965,7 +993,7 @@
       ${help ? `<small>${help}</small>` : ""}`;
       const input = div.querySelector("input");
       const out = div.querySelector("output");
-      const show = () => out.textContent = key === "mutation" || key === "splitDistance" || key === "newcomerMutation" ? Number(input.value).toFixed(2) : input.value;
+      const show = () => out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare"].includes(key) ? Number(input.value).toFixed(2) : input.value;
       input.oninput = () => {
         pendingRules[key] = Number(input.value);
         show();

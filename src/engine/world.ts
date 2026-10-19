@@ -3,6 +3,7 @@
 import { createRng, type Rng } from "./rng.ts";
 import { genomeSize, think } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
+import { centre, mutate } from "./breed.ts";
 import { H, W } from "./space.ts";
 import { inputCount, sense } from "./senses.ts";
 import { newCreature, newFood, type Creature, type Food } from "./creature.ts";
@@ -33,12 +34,15 @@ export interface Rules {
   newcomers: number; // new families per generation, made by mutating a good parent very hard; 0 = none
   newcomerMutation: number; // how hard: the size of the random nudge per weight for a newcomer
   protectGens: number; // generations a newcomer family keeps 2 seats (its best + one child) whatever its rank
+  mutationRate: number; // share of weights nudged in each child; 1 = all of them (dense), 0.2 = sparse
+  centreShare: number; // share of children made from the centre brain (Evolution Strategies) instead of one parent
 }
 
 export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
+  mutationRate: 1, centreShare: 0,
 };
 
 export interface World {
@@ -180,9 +184,12 @@ function nextGeneration(w: World): void {
   crownChampions(w, next);
   protectNewcomers(w, ranked, next, elite);
   for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
+  const centreBrain = rules.centreShare > 0 ? centre(ranked, parents) : null;
   while (next.length < rules.pop) {
-    const p = ranked[Math.floor(rng.next() * parents)];
-    const child = newCreature(w, p.g.map((x) => x + rng.gauss() * rules.mutation), p.family, false, p.hue);
+    // a share of children come from the centre brain; the family, colour and branch of the best go with it
+    const fromCentre = centreBrain !== null && (rules.centreShare >= 1 || rng.next() < rules.centreShare);
+    const p = fromCentre ? ranked[0] : ranked[Math.floor(rng.next() * parents)];
+    const child = newCreature(w, mutate(w, fromCentre ? centreBrain : p.g, rules.mutation), p.family, false, p.hue);
     child.branch = p.branch;
     maybeSplit(w, child);
     next.push(child);

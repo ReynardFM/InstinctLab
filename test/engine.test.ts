@@ -7,6 +7,8 @@ import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
 import * as dmath from "../src/engine/dmath.ts";
+import { centre, mutate } from "../src/engine/breed.ts";
+import type { Creature } from "../src/engine/creature.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
 
@@ -320,4 +322,29 @@ test("deterministic math: close to Math.*, and pinned to the last bit", () => {
   assert.equal(dmath.tanh(0), 0);
   assert.equal(dmath.tanh(50), 1);
   assert.equal(dmath.log(1), 0);
+});
+
+test("sparse mutation nudges about the given share of weights; rate 1 nudges all", () => {
+  const zeros = new Array(2000).fill(0);
+  const w = createWorld(3, { ...ONE, mutationRate: 0.25 });
+  const changed = mutate(w, zeros, 0.15).filter((x) => x !== 0).length;
+  assert.ok(changed > 400 && changed < 600, `${changed} of 2000 changed`);
+  const dense = createWorld(3, ONE);
+  assert.equal(mutate(dense, zeros, 0.15).filter((x) => x !== 0).length, 2000);
+  const again = createWorld(3, { ...ONE, mutationRate: 0.25 });
+  assert.deepEqual(mutate(again, zeros, 0.15).filter((x) => x !== 0).length, changed, "deterministic");
+});
+
+test("centre brain: weighted average of the best family's top parents, better ranks count more", () => {
+  const fake = (family: number, g: number[]) => ({ family, g }) as unknown as Creature;
+  const same = centre([fake(1, [2, 4]), fake(1, [2, 4]), fake(1, [2, 4])], 3);
+  assert.ok(Math.abs(same[0] - 2) < 1e-12 && Math.abs(same[1] - 4) < 1e-12, "identical parents: the same brain");
+  const c = centre([fake(1, [1]), fake(2, [100]), fake(1, [0])], 3);
+  assert.ok(c[0] > 0.5 && c[0] < 1, `other families left out, the best counts more: ${c[0]}`);
+  const rules = { ...ONE, centreShare: 1, genTicks: 400, elite: 0 };
+  const a = createWorld(5, rules);
+  const b = createWorld(5, rules);
+  runGenerations(a, 3);
+  runGenerations(b, 3);
+  assert.deepEqual(a.avgHist, b.avgHist, "same seed, same run with the centre brain");
 });

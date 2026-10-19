@@ -3,6 +3,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Genome } from "./brain.ts";
 import { founderHue, newCreature, type Creature } from "./creature.ts";
+import { mutate } from "./breed.ts";
 
 // Most recent extinct families kept in the legacy record.
 export const LEGACY_LIMIT = 500;
@@ -149,7 +150,7 @@ export function addNewcomer(w: World, ranked: Creature[], next: Creature[], pare
 // While protected, a newcomer family's best member keeps its seat and has one child, whatever its rank:
 // a tiny evolution of its own. If that member is already an elite, only the child is added.
 export function protectNewcomers(w: World, ranked: Creature[], next: Creature[], elite: number): void {
-  const { rules, rng } = w;
+  const { rules } = w;
   for (const fam of w.families.values()) {
     if (!fam.newcomer || w.generation >= fam.protectedUntil) continue;
     const i = ranked.findIndex((c) => c.family === fam.id);
@@ -162,7 +163,7 @@ export function protectNewcomers(w: World, ranked: Creature[], next: Creature[],
       next.push(keep);
     }
     if (next.length < rules.pop) {
-      const child = newCreature(w, best.g.map((x) => x + rng.gauss() * rules.mutation), fam.id, false, best.hue);
+      const child = newCreature(w, mutate(w, best.g, rules.mutation), fam.id, false, best.hue);
       child.branch = best.branch;
       maybeSplit(w, child);
       next.push(child);

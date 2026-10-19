@@ -21,7 +21,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
-`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone.
+`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone.
 
 ## File dependency tree
 
@@ -56,6 +56,7 @@ src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerat
 ├─→ src/engine/senses.ts  what a creature perceives each tick
 │   ├─→ src/engine/space.ts   map size, wrap/walls, nearest(): the one lookup all senses use
 │   └─→ src/engine/brain.ts
+├─→ src/engine/breed.ts   how a child's brain is made: mutate (dense or sparse), centre brain
 ├─→ src/engine/brain.ts   tiny neural network: think(genome, inputs)
 ├─→ src/engine/dmath.ts   sin, cos, tanh, log that give identical bits in every JS engine
 └─→ src/engine/rng.ts     seeded random numbers, one per World
@@ -82,13 +83,14 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 | File | Depends on | Used by |
 |---|---|---|
 | `src/engine/rng.ts` | `dmath.ts` | `world.ts`, `main.ts`, tests |
-| `src/engine/dmath.ts` | — | `brain.ts`, `rng.ts`, `senses.ts`, `world.ts`, tests |
+| `src/engine/breed.ts` | `dmath.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `lineage.ts`, tests |
+| `src/engine/dmath.ts` | — | `brain.ts`, `rng.ts`, `senses.ts`, `world.ts`, `breed.ts`, tests |
 | `src/engine/brain.ts` | `dmath.ts` | `world.ts`, `senses.ts`, `main.ts`, tests |
 | `src/engine/space.ts` | — | `world.ts`, `senses.ts`, `main.ts`, tests |
 | `src/engine/senses.ts` | `space.ts`, `brain.ts`, `dmath.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `creature.ts`, `main.ts`, tests |
 | `src/engine/creature.ts` | `brain.ts`, `senses.ts`, `space.ts` (`World` type) | `world.ts`, `lineage.ts` |
-| `src/engine/lineage.ts` | `creature.ts` (`World` type) | `world.ts` |
-| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts`, `dmath.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
+| `src/engine/lineage.ts` | `creature.ts`, `breed.ts` (`World` type) | `world.ts` |
+| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts`, `breed.ts`, `dmath.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
 | `src/web/main.ts` | engine | `dist/app.js` (build output) |
 | `src/cli/job.ts` | `world.ts` | `worker.ts`, `pool.ts`, `run.ts`, `bench.ts`, `cli.test.ts` |
 | `src/cli/worker.ts` | `job.ts` | `pool.ts` (started as a thread, not imported) |
@@ -126,5 +128,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-18 | Deterministic math (`dmath.ts`) replaces Math.sin/cos/tanh/log | Max difference from Math.* 2e-16 (1-2 last bits). `determinism.html` in Chrome 141 now matches Node 22 on every recorded run. Speed: basic rules +23% per creature-tick (955 -> 1173 ns), default rules unchanged (1868 -> 1876 ns: dropping atan2 pays for it) |
 | 2026-10-18 | Baseline again after deterministic math, same 7 seeds x 100 generations | score 42.3 ±2.8 (was 43.2 ±2.7: same within noise), top half 46.8, 6.2 families alive, 1.1 champions per 100 generations |
 | 2026-10-18 | `npm run bench` on Rey's machine, new defaults, median of 3 | CPU: Intel Core Ultra 7 155U = 2 fast P-cores (4 threads) + 8 E-cores + 2 low-power E-cores, 15 W base power ([Notebookcheck](https://www.notebookcheck.net/Intel-Core-Ultra-7-155U-Processor-Benchmarks-and-Specs.783345.0.html)). 1/2/4/8/14 workers: 3.7/7.5/11.0/16.5/18.7 gens/s, efficiency 100/100/74/55/36%. Worker start-up 201 ms, so not the cause |
+| 2026-10-19 | Sparse mutation (`mutationRate`) x size (`mutation`), 7 seeds x 100 generations | rate 1: 42.3 ±2.8 (0.15), 45.4 ±3.4 (0.3). Rate 0.3: 42.4 ±2.4, 43.5 ±1.4. Rate 0.1: 40.6 ±1.8, 41.6 ±1.4. None shown to differ from the default |
+| 2026-10-19 | Centre brain (`centreShare`), same setup | 0: 42.3 ±2.8, 0.5: 43.0 ±2.1, 1: 40.4 ±1.2. Not shown to differ |
 
 Rows before 2026-10-17 ran with one food layout per generation (`--layouts=1` reproduces them).

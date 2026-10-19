@@ -439,6 +439,8 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["splitProof", "Branch must out-eat its family N generations in a row", 0, 10, 1, "Before it counts as a new family. 0 = new family right away."],
   ["championStreak", "Champion after N generations on top", 0, 10, 1, "Its brain becomes the family's main brain. 0 = never."],
   ["layouts", "Food layouts per generation", 1, 5, 1, "Each brain is scored on this many maps. More = fairer scores, slower generations."],
+  ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
+  ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
   ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
   ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
@@ -473,7 +475,7 @@ function renderRules(): void {
     const input = div.querySelector("input")!;
     const out = div.querySelector("output")!;
     const show = () =>
-      (out.textContent = key === "mutation" || key === "splitDistance" || key === "newcomerMutation" ? Number(input.value).toFixed(2) : input.value);
+      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare"].includes(key) ? Number(input.value).toFixed(2) : input.value);
     input.oninput = () => {
       pendingRules[key] = Number(input.value);
       show();

@@ -15,9 +15,9 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
 - Git author email is the GitHub noreply address (182705433+ReynardFM@users.noreply.github.com), set for this repo only.
 
 ## Next session
-1. Push to GitHub (author email already noreply).
-2. Evolution batch: sparse mutations, Evolution Strategies centre brain.
-3. Optional: open determinism.html in Edge and Firefox to confirm they match too.
+1. Review the evolution batch (sparse mutation, centre brain): both measured, neither beat the default.
+2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
+3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
 ## Decision log
 0. Done 2026-10-16: page batch 1 (drifting colours, death marks, worst-to-best band, living-only family count) and speciation by brain difference (`splitDistance`, default 0.6, measured: about 1 split per 3-4 generations, 1-5 families alive). Display-only: golden test unchanged.
@@ -38,7 +38,8 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
    Fixes 2026-10-18: commit email switched to GitHub noreply (history rewritten before any push); world.ts split into world/lineage/creature (proved identical); determinism.html + defaults golden + npm run check; lab defaults to 7 seeds with a ±95% column; bench takes the median of 3 trials and prints CPU model and worker start-up time; fresh baseline recorded (champions fire 1.6 per 100 generations, inside the agreed 1-2 target, so no change); this file moved into the repo.
    Done 2026-10-18 (Rey chose A): deterministic math. dmath.ts gives sin/cos/tanh/log from + - * / only; senses rotate by the heading instead of using atan2; brainDistance uses d*d instead of **. Every number changed, so golden was re-recorded (the original-version link ends here; git has the history). Chrome 141 now matches Node 22 exactly. Score unchanged within noise (42.3 ±2.8 vs 43.2 ±2.7). Speed: default rules unchanged, basic rules 23% slower.
    Bench 2026-10-18 on Rey's 155U: 1/2/4/8/14 workers = 3.7/7.5/11.0/16.5/18.7 gens/s (100/100/74/55/36%). Explained by hardware: only 2 fast P-cores (4 threads), then E-cores, then low-power cores, all under a 15 W limit. Headline for the resume should use this run with its CPU named.
-1. Evolution: newcomer families done 2026-10-17. Still to do: small sparse mutations; fitness-weighted average "centre" brain (Evolution Strategies style). Compare old vs new with `npm run lab` across seeds.
+   Done 2026-10-19: evolution batch. `mutationRate` (share of weights nudged per child, sparse below 1; at 1 it draws the same random numbers as before) and `centreShare` (share of children from a CMA-style weighted average of the best family's top parents). New file breed.ts. Defaults unchanged (1 and 0), so golden is unchanged. Measured (7 seeds x 100 gens): sparse 0.3 / 0.1 and centre 0.5 / 1 all within noise of the default (40.4..43.5 vs 42.3 ±2.8); mutation 0.3 dense 45.4 ±3.4 (not shown better). Finding: every method lands on the same plateau by generation 100, so final score cannot tell search methods apart. Idea: measure learning speed (average over all generations) instead.
+1. Evolution: newcomer families done 2026-10-17; sparse mutation and centre brain done 2026-10-19 (neither beat the default).
 2. Senses and world: done 2026-10-17. Uniform grid still waiting for its trigger (creature sense doubled cost per creature-tick).
 3. Game layer: poisonous food (needs a food-type sense), slow food regrowth setting, energy-cost slider, "drop food" power, rule changes applied at the next generation with a change log (replay = seed + log).
 4. Page: done 2026-10-16 (drifting colours, death marks, worst-to-best band, living-only family count).
