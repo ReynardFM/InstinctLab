@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] }, ecosystem: { avg: [43, 44, 42, 36, 31, 29, 27, 22, 18, 13, 11, 10, 9, 7, 5, 4, 4, 3, 3, 3, 2, 3, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 44, 45, 45, 43, 38, 33, 30, 28], best: [15, 67] } };
+  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] }, ecosystem: { avg: [52, 49, 49, 51, 48, 46, 40, 37, 36, 33, 28, 23, 23, 17, 18, 15, 14, 15, 14, 13, 14, 15, 15, 15, 12, 14, 15, 16, 16, 18, 19, 19, 18, 15, 17, 17, 18, 19, 19, 21], best: [72, 91] } };
 
   // src/engine/dmath.ts
   var HALF_PI_HI = 1.5707963267341256;
@@ -321,6 +321,11 @@
     return (h >>> 0) / 4294967296 * 16 - 8;
   }
 
+  // src/engine/mode.ts
+  function inEcosystem(w) {
+    return w.rules.mode === 1 && w.generation > w.rules.ecoWarmup;
+  }
+
   // src/engine/lineage.ts
   var LEGACY_LIMIT = 500;
   function settleLineage(w, proven) {
@@ -360,7 +365,8 @@
       return;
     }
     const id = w.nextFamilyId++;
-    w.families.set(id, newFamily(id, child.g, child.family, w.rules.mode === 1 ? w.tick : w.generation + 1));
+    const eco = inEcosystem(w);
+    w.families.set(id, newFamily(id, child.g, child.family, eco ? w.tick : w.generation + 1, eco));
     child.family = id;
     child.hue = founderHue(id);
     w.splits++;
@@ -398,7 +404,7 @@
       }
     }
   }
-  function newFamily(id, genome, parent, bornGeneration) {
+  function newFamily(id, genome, parent, bornGeneration, bornInTicks = false) {
     return {
       id,
       ref: genome.slice(),
@@ -411,7 +417,9 @@
       bestEaten: 0,
       avgHist: [],
       newcomer: false,
-      protectedUntil: 0
+      protectedUntil: 0,
+      bornInTicks,
+      diedInTicks: false
     };
   }
   function addNewcomer(w, ranked, next, parents) {
@@ -479,6 +487,7 @@
   }
   function retire(w, fam, lastGeneration) {
     fam.diedGeneration = lastGeneration;
+    fam.diedInTicks = inEcosystem(w);
     w.families.delete(fam.id);
     w.legacy.push(fam);
     if (w.legacy.length > LEGACY_LIMIT) w.legacy.splice(0, w.legacy.length - LEGACY_LIMIT);
@@ -620,7 +629,7 @@
     for (let i = 0; i < RESCUE; i++) {
       const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
       const id = w.nextFamilyId++;
-      w.families.set(id, newFamily(id, genome, null, w.tick));
+      w.families.set(id, newFamily(id, genome, null, w.tick, true));
       w.creatures.push(newCreature(w, genome, id, false, null));
     }
     w.eco.rescues++;
@@ -665,7 +674,8 @@
     mode: 0,
     birth: 0,
     birthEnergy: 1.2,
-    ageScale: 3e3
+    ageScale: 3e3,
+    ecoWarmup: 20
   };
   function createWorld(seed, rules) {
     const w = {
@@ -702,7 +712,7 @@
     return w;
   }
   function step(w) {
-    if (w.rules.mode === 1) {
+    if (inEcosystem(w)) {
       stepEcosystem(w);
       return;
     }
@@ -800,7 +810,8 @@
     },
     { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true },
     // ecosystem: avg = population every 100 ticks, best = [births, deaths]
-    { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100 }, gens: 0, ticks: 4e3, checkBest: true }
+    // (2 warm-up generations, 3 layouts x 1500 ticks each = 9000 ticks, then 4000 ticks of ecosystem)
+    { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100, ecoWarmup: 2 }, gens: 0, ticks: 13e3, checkBest: true }
   ];
   function runCase(c) {
     const w = createWorld(c.seed, c.rules);

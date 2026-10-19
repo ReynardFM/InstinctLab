@@ -26,7 +26,8 @@ Rey's ecosystem calls 2026-10-19: births = split and pairs as a setting; ageing 
    Done 2026-10-19: ecosystem mode (`mode` 1) built alongside generations: life.ts (one tick of one creature, shared), ecosystem.ts (births, ageing as placeholder A via `ageScale`, deaths, rescue of 40 founders, population samples). Golden has an "ecosystem" case; generation runs unchanged. Found: instant regrowth = unlimited food (population explodes), so switching ecosystem on in the page sets regrow 100 (stable ~40 after 1-2 extinctions). Two-parent births barely happen (3-29 per 30,000 ticks): random brains rarely get full near each other, so the population cannot get started.
 
 ## Next session
-1. Rey: ageing A/B/C, and how to make two-parent births work (start from an evolved population / lower energy bar for pairs / split until the population is established).
+Rey's call 2026-10-19: two-parent births start from an evolved population. Done: `ecoWarmup` (default 20) runs ordinary generations first, then the ecosystem; no extinctions in 3 seeds, pairs sustain 20-46 creatures. Ageing: Rey asked whether B (lifetime brain change that costs energy) and C (thinking costs energy) combine; open.
+1. Rey: lifetime brain change design (how weights change, whether children inherit it, how energy is charged).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 

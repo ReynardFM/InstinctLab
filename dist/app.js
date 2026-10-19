@@ -326,6 +326,11 @@
     return (h >>> 0) / 4294967296 * 16 - 8;
   }
 
+  // src/engine/mode.ts
+  function inEcosystem(w) {
+    return w.rules.mode === 1 && w.generation > w.rules.ecoWarmup;
+  }
+
   // src/engine/lineage.ts
   var LEGACY_LIMIT = 500;
   function settleLineage(w, proven) {
@@ -365,7 +370,8 @@
       return;
     }
     const id = w.nextFamilyId++;
-    w.families.set(id, newFamily(id, child.g, child.family, w.rules.mode === 1 ? w.tick : w.generation + 1));
+    const eco = inEcosystem(w);
+    w.families.set(id, newFamily(id, child.g, child.family, eco ? w.tick : w.generation + 1, eco));
     child.family = id;
     child.hue = founderHue(id);
     w.splits++;
@@ -403,7 +409,7 @@
       }
     }
   }
-  function newFamily(id, genome, parent, bornGeneration) {
+  function newFamily(id, genome, parent, bornGeneration, bornInTicks = false) {
     return {
       id,
       ref: genome.slice(),
@@ -416,7 +422,9 @@
       bestEaten: 0,
       avgHist: [],
       newcomer: false,
-      protectedUntil: 0
+      protectedUntil: 0,
+      bornInTicks,
+      diedInTicks: false
     };
   }
   function addNewcomer(w, ranked, next, parents) {
@@ -484,6 +492,7 @@
   }
   function retire(w, fam, lastGeneration) {
     fam.diedGeneration = lastGeneration;
+    fam.diedInTicks = inEcosystem(w);
     w.families.delete(fam.id);
     w.legacy.push(fam);
     if (w.legacy.length > LEGACY_LIMIT) w.legacy.splice(0, w.legacy.length - LEGACY_LIMIT);
@@ -625,7 +634,7 @@
     for (let i = 0; i < RESCUE; i++) {
       const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
       const id = w.nextFamilyId++;
-      w.families.set(id, newFamily(id, genome, null, w.tick));
+      w.families.set(id, newFamily(id, genome, null, w.tick, true));
       w.creatures.push(newCreature(w, genome, id, false, null));
     }
     w.eco.rescues++;
@@ -670,7 +679,8 @@
     mode: 0,
     birth: 0,
     birthEnergy: 1.2,
-    ageScale: 3e3
+    ageScale: 3e3,
+    ecoWarmup: 20
   };
   function createWorld(seed, rules) {
     const w = {
@@ -707,7 +717,7 @@
     return w;
   }
   function step(w) {
-    if (w.rules.mode === 1) {
+    if (inEcosystem(w)) {
       stepEcosystem(w);
       return;
     }
@@ -808,7 +818,7 @@
   var mean = (xs) => xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0;
   var food = (v) => Number.isInteger(v) ? String(v) : v.toFixed(1);
   function updateMarks() {
-    if (world.rules.mode === 1) {
+    if (inEcosystem(world)) {
       marks = world.eco.recentDeaths;
       return;
     }
@@ -846,7 +856,7 @@
     ctx.strokeStyle = C.neg;
     ctx.lineWidth = 1.5;
     for (const m of marks) {
-      if (world.rules.mode === 1 && world.tick - m.tick > 600) continue;
+      if (inEcosystem(world) && world.tick - m.tick > 600) continue;
       ctx.globalAlpha = Math.max(0.15, 0.7 - (world.tick - m.tick) / 600);
       ctx.beginPath();
       ctx.moveTo(m.x - 3.5, m.y - 3.5);
@@ -912,10 +922,10 @@
     ctx.globalAlpha = 1;
   }
   function drawChart() {
-    $("chartTitle").textContent = world.rules.mode === 1 ? "Population over time" : "Food eaten per layout, each generation";
-    $("bandLegend").style.display = world.rules.mode === 1 ? "none" : "";
-    $("lineLegend").textContent = world.rules.mode === 1 ? "Creatures alive" : "Average";
-    if (world.rules.mode === 1) return drawPopulationChart();
+    $("chartTitle").textContent = inEcosystem(world) ? "Population over time" : "Food eaten per layout, each generation";
+    $("bandLegend").style.display = inEcosystem(world) ? "none" : "";
+    $("lineLegend").textContent = inEcosystem(world) ? "Creatures alive" : "Average";
+    if (inEcosystem(world)) return drawPopulationChart();
     const ctx = chartCtx;
     const w = 680, h = 300;
     const pad = { l: 44, r: 10, t: 12, b: 30 };
@@ -1027,7 +1037,7 @@
     const trials = [...world.branches.values()];
     const proof = world.rules.splitProof;
     const trialText = proof > 0 ? ` ${trials.length ? `${trials.length} branch${trials.length > 1 ? "es are" : " is"} on trial (best: family ${trials.reduce((a, b) => b.wins > a.wins ? b : a).family + 1}'s, ${Math.max(...trials.map((b) => b.wins))} of ${proof} wins)` : "No branch is on trial"}; ${world.failedBranches} failed so far.` : "";
-    $("familyText").textContent = (sorted.length === 1 ? "1 family has" : `${sorted.length} families have`) + ` living members. The biggest is ${Math.round(lead[1] / living.length * 100)}% of the living. ` + (world.splits === 1 ? "1 new family has" : `${world.splits} new families have`) + " split off this run" + (newest ? `; the newest is family ${newest.id + 1}, from family ${newest.parent + 1} ${world.rules.mode === 1 ? "at tick" : "in generation"} ${newest.bornGeneration}.` : ".") + (world.rules.mode === 1 ? "" : trialText + newcomerText() + crownText);
+    $("familyText").textContent = (sorted.length === 1 ? "1 family has" : `${sorted.length} families have`) + ` living members. The biggest is ${Math.round(lead[1] / living.length * 100)}% of the living. ` + (world.splits === 1 ? "1 new family has" : `${world.splits} new families have`) + " split off this run" + (newest ? `; the newest is family ${newest.id + 1}, from family ${newest.parent + 1} ${newest.bornInTicks ? "at tick" : "in generation"} ${newest.bornGeneration}.` : ".") + (inEcosystem(world) ? "" : trialText + newcomerText() + crownText);
   }
   function newcomerText() {
     if (!world.rules.newcomers && !world.newcomerCount) return "";
@@ -1045,7 +1055,7 @@
       const li = document.createElement("li");
       const from = f.parent === null ? "an original founder" : f.newcomer ? `a newcomer from family ${f.parent + 1}` : `from family ${f.parent + 1}`;
       const champs = f.champions.length ? `, ${f.champions.length} champion${f.champions.length > 1 ? "s" : ""}` : "";
-      li.innerHTML = `<span class="dot" style="background:${hsl(founderHue(f.id))}"></span>Family ${f.id + 1}, ${from}: ${world.rules.mode === 1 ? "ticks" : "generations"} ${f.bornGeneration}&ndash;${f.diedGeneration}, peak ${f.peakSize} creature${f.peakSize === 1 ? "" : "s"}` + (world.rules.mode === 1 ? "" : `, average ${mean(f.avgHist).toFixed(1)}, best ${food(f.bestEaten)} food${champs}`);
+      li.innerHTML = `<span class="dot" style="background:${hsl(founderHue(f.id))}"></span>Family ${f.id + 1}, ${from}: ${f.bornInTicks ? "tick" : "generation"} ${f.bornGeneration} to ${f.diedInTicks ? "tick" : "generation"} ${f.diedGeneration}, peak ${f.peakSize} creature${f.peakSize === 1 ? "" : "s"}` + (inEcosystem(world) ? "" : `, average ${mean(f.avgHist).toFixed(1)}, best ${food(f.bestEaten)} food${champs}`);
       list.append(li);
     }
     $("legacyText").textContent = world.legacy.length ? `${world.legacy.length} families have died out this run. Newest first.` : "No family has died out yet.";
@@ -1124,10 +1134,10 @@
   }
   function brainCaption(c, picked) {
     if (!c) return "";
-    if (world.rules.mode === 1) {
+    if (inEcosystem(world)) {
       const who2 = picked ? "Your pick" : "The oldest creature";
       const famE = world.families.get(c.family);
-      const fromE = famE && famE.parent !== null ? ` (split from family ${famE.parent + 1} at tick ${famE.bornGeneration})` : "";
+      const fromE = famE && famE.parent !== null ? ` (split from family ${famE.parent + 1} ${famE.bornInTicks ? "at tick" : "in generation"} ${famE.bornGeneration})` : "";
       return `${who2}. Family ${c.family + 1}${fromE}, age ${c.age}, ${c.depth} generation${c.depth === 1 ? "" : "s"} from its founder, ${c.children} child${c.children === 1 ? "" : "ren"}, ate ${c.eaten}` + (world.rules.poison > 0 ? ` (and ${c.poisoned} poison)` : "") + `, energy ${c.energy.toFixed(2)}.`;
     }
     const who = picked ? "Your pick" : "Last generation's best, copied unchanged";
@@ -1147,7 +1157,7 @@
     let sel = world.creatures.find((c) => c.id === selectedId) ?? null;
     const picked = sel !== null;
     if (!sel) {
-      sel = world.rules.mode === 1 ? world.creatures.reduce((a, c) => !a || c.age > a.age ? c : a, null) : world.creatures.find((c) => c.elite) ?? null;
+      sel = inEcosystem(world) ? world.creatures.reduce((a, c) => !a || c.age > a.age ? c : a, null) : world.creatures.find((c) => c.elite) ?? null;
     }
     drawWorld(sel);
     drawChart();
@@ -1156,7 +1166,7 @@
     drawBrain(sel);
     $("brainText").textContent = brainCaption(sel, picked);
     $("brainTitle").textContent = sel ? "Brain, live" : "Brain";
-    if (world.rules.mode === 1) {
+    if (inEcosystem(world)) {
       const e = world.eco;
       $("genText").textContent = `Tick ${world.tick}`;
       $("tickText").textContent = `Population ${world.creatures.length}. ${e.births} born, ${e.deaths} died (${e.oldAge} of old age).` + (e.rescues ? ` Everyone died ${e.rescues} time${e.rescues === 1 ? "" : "s"}; fresh founders were put in.` : "");
@@ -1164,7 +1174,7 @@
     }
     const alive = world.creatures.filter((c) => c.alive).length;
     const many = world.rules.layouts > 1;
-    $("genText").textContent = `Generation ${world.generation}`;
+    $("genText").textContent = world.rules.mode === 1 ? `Warm-up generation ${world.generation} of ${world.rules.ecoWarmup}` : `Generation ${world.generation}`;
     const layoutText = many ? `Food layout ${world.layout + 1} of ${world.rules.layouts}. ` : "";
     const last = world.avgHist.length ? ` Last generation: average ${world.avgHist.at(-1).toFixed(1)}, best ${food(world.bestHist.at(-1))}${many ? " food per layout" : ""}` + (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1).toFixed(1)} each.` : ".") : "";
     $("tickText").textContent = `${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
@@ -1221,6 +1231,7 @@
     ["birth", "Children need two parents", 0, 1, 1, "Ecosystem: two full creatures within 30 px. Off = a full creature splits in two."],
     ["birthEnergy", "Energy needed for a child", 0.8, 1.5, 0.05, "Ecosystem. The most a creature can hold is 1.5."],
     ["ageScale", "Age at which living costs double", 0, 1e4, 500, "Ecosystem. 0 = no ageing."],
+    ["ecoWarmup", "Warm-up generations before the ecosystem", 0, 50, 1, "Ecosystem starts with brains that can already eat. 0 = random brains (often die out)."],
     ["pop", "Creatures per generation", 10, 200, 1, ""],
     ["food", "Food on the map", 5, 200, 1, "Fewer = scarcer, harder to find."],
     ["genTicks", "Generation length (ticks)", 300, 5e3, 100, ""],

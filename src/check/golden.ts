@@ -31,7 +31,8 @@ export const CASES: GoldenCase[] = [
   },
   { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true },
   // ecosystem: avg = population every 100 ticks, best = [births, deaths]
-  { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100 }, gens: 0, ticks: 4000, checkBest: true },
+  // (2 warm-up generations, 3 layouts x 1500 ticks each = 9000 ticks, then 4000 ticks of ecosystem)
+  { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100, ecoWarmup: 2 }, gens: 0, ticks: 13000, checkBest: true },
 ];
 
 export interface GoldenResult {

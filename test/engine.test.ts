@@ -400,7 +400,7 @@ test("ecosystem: runs exactly as recorded", () => {
 
 test("ecosystem: a full creature splits its energy with a child next to it", () => {
   // only the parent can reach 1.45: the others start at 1 and one pellet gives 0.3
-  const w = createWorld(3, { ...ONE, mode: 1, regrow: 100, ageScale: 0, birthEnergy: 1.45 });
+  const w = createWorld(3, { ...ONE, mode: 1, ecoWarmup: 0, regrow: 100, ageScale: 0, birthEnergy: 1.45 });
   const parent = w.creatures[0];
   parent.energy = 1.5;
   step(w);
@@ -414,7 +414,7 @@ test("ecosystem: a full creature splits its energy with a child next to it", () 
 });
 
 test("ecosystem: two full creatures that meet have one child together", () => {
-  const w = createWorld(3, { ...ONE, mode: 1, birth: 1, regrow: 100, ageScale: 0, birthEnergy: 1.45 });
+  const w = createWorld(3, { ...ONE, mode: 1, ecoWarmup: 0, birth: 1, regrow: 100, ageScale: 0, birthEnergy: 1.45 });
   const [a, b] = w.creatures;
   a.energy = b.energy = 1.5;
   b.x = a.x + 3;
@@ -426,7 +426,7 @@ test("ecosystem: two full creatures that meet have one child together", () => {
 });
 
 test("ecosystem: when everyone dies, fresh founders are put in", () => {
-  const w = createWorld(3, { ...ONE, mode: 1, regrow: 100 });
+  const w = createWorld(3, { ...ONE, mode: 1, ecoWarmup: 0, regrow: 100 });
   for (const c of w.creatures) c.energy = -1; // even a pellet this tick can't save them
   runTicks(w, 1); // all die this tick, so the founders arrive at its end
   assert.equal(w.eco.rescues, 1);

@@ -115,7 +115,7 @@ function rescue(w: World): void {
   for (let i = 0; i < RESCUE; i++) {
     const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
     const id = w.nextFamilyId++;
-    w.families.set(id, newFamily(id, genome, null, w.tick));
+    w.families.set(id, newFamily(id, genome, null, w.tick, true));
     w.creatures.push(newCreature(w, genome, id, false, null));
   }
   w.eco.rescues++;

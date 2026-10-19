@@ -6,6 +6,8 @@ import { cos, sin } from "./dmath.ts";
 import { centre, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
 import { live } from "./life.ts";
+import { inEcosystem } from "./mode.ts";
+export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
 import { H, W } from "./space.ts";
 import { inputCount, sense } from "./senses.ts";
@@ -47,6 +49,7 @@ export interface Rules {
   birth: number; // ecosystem: 0 = a full creature splits off a child; 1 = two full creatures that meet have one
   birthEnergy: number; // ecosystem: energy needed to have a child (the most a creature can hold is 1.5)
   ageScale: number; // ecosystem: at this age living costs double, at twice it triple...; 0 = no ageing
+  ecoWarmup: number; // ecosystem: ordinary generations first, so it starts with brains that can already eat
 }
 
 
@@ -56,7 +59,7 @@ export const DEFAULT_RULES: Rules = {
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
   mutationRate: 1, centreShare: 0, hidden: 6,
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
-  mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000,
+  mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
 };
 
 export interface World {
@@ -133,7 +136,7 @@ export function createWorld(seed: number, rules: Rules): World {
 }
 
 export function step(w: World): void {
-  if (w.rules.mode === 1) {
+  if (inEcosystem(w)) {
     stepEcosystem(w);
     return;
   }

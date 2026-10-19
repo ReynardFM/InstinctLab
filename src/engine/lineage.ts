@@ -4,6 +4,7 @@ import type { World } from "./world.ts"; // types only, no import at run time
 import type { Genome } from "./brain.ts";
 import { founderHue, newCreature, type Creature } from "./creature.ts";
 import { mutate } from "./breed.ts";
+import { inEcosystem } from "./mode.ts";
 
 // Most recent extinct families kept in the legacy record.
 export const LEGACY_LIMIT = 500;
@@ -21,6 +22,8 @@ export interface Family {
   avgHist: number[]; // members' average food per layout, one entry per generation it had members
   newcomer: boolean; // started as a newcomer (a hard-mutated copy of a parent from family `parent`)
   protectedUntil: number; // its seats are guaranteed in generations before this one; 0 = never protected
+  bornInTicks: boolean; // ecosystem mode: bornGeneration is a tick, not a generation
+  diedInTicks: boolean; // the same for diedGeneration
 }
 
 
@@ -80,7 +83,8 @@ export function maybeSplit(w: World, child: Creature, instant = false): void {
   }
   const id = w.nextFamilyId++;
   // ecosystem mode has no generations: families are stamped with the tick instead
-  w.families.set(id, newFamily(id, child.g, child.family, w.rules.mode === 1 ? w.tick : w.generation + 1));
+  const eco = inEcosystem(w);
+  w.families.set(id, newFamily(id, child.g, child.family, eco ? w.tick : w.generation + 1, eco));
   child.family = id;
   child.hue = founderHue(id);
   w.splits++;
@@ -125,10 +129,11 @@ export function promote(w: World, b: Branch): void {
   }
 }
 
-export function newFamily(id: number, genome: Genome, parent: number | null, bornGeneration: number): Family {
+export function newFamily(id: number, genome: Genome, parent: number | null, bornGeneration: number, bornInTicks = false): Family {
   return {
     id, ref: genome.slice(), founderRef: genome.slice(), champions: [], parent, bornGeneration,
     diedGeneration: null, peakSize: 0, bestEaten: 0, avgHist: [], newcomer: false, protectedUntil: 0,
+    bornInTicks, diedInTicks: false,
   };
 }
 
@@ -212,6 +217,7 @@ export function crownChampions(w: World, elites: Creature[]): void {
 // Moves an extinct family into the legacy record, keeping only the most recent LEGACY_LIMIT.
 export function retire(w: World, fam: Family, lastGeneration: number): void {
   fam.diedGeneration = lastGeneration;
+  fam.diedInTicks = inEcosystem(w);
   w.families.delete(fam.id);
   w.legacy.push(fam);
   if (w.legacy.length > LEGACY_LIMIT) w.legacy.splice(0, w.legacy.length - LEGACY_LIMIT);
