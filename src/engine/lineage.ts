@@ -53,7 +53,7 @@ export function settleLineage(w: World, proven: Branch[]): void {
 // Speciation: a child that has drifted far enough from its family's main brain starts a branch on trial
 // (or, with splitProof 0, a new family at once). Pure bookkeeping: families and branches never affect
 // who breeds, so evolution plays out the same either way.
-export function maybeSplit(w: World, child: Creature): void {
+export function maybeSplit(w: World, child: Creature, instant = false): void {
   const limit = w.rules.splitDistance;
   if (child.branch !== null) return; // already on trial: its brain is judged by the branch's results
   const fam = w.families.get(child.family);
@@ -66,7 +66,7 @@ export function maybeSplit(w: World, child: Creature): void {
       return;
     }
   }
-  if (w.rules.splitProof > 0) {
+  if (w.rules.splitProof > 0 && !instant) {
     for (const b of w.branches.values()) {
       if (b.family === child.family && brainDistance(child.g, b.ref) <= limit) {
         child.branch = b.id;
@@ -79,7 +79,8 @@ export function maybeSplit(w: World, child: Creature): void {
     return;
   }
   const id = w.nextFamilyId++;
-  w.families.set(id, newFamily(id, child.g, child.family, w.generation + 1));
+  // ecosystem mode has no generations: families are stamped with the tick instead
+  w.families.set(id, newFamily(id, child.g, child.family, w.rules.mode === 1 ? w.tick : w.generation + 1));
   child.family = id;
   child.hue = founderHue(id);
   w.splits++;

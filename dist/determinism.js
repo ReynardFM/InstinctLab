@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] } };
+  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] }, ecosystem: { avg: [43, 44, 42, 36, 31, 29, 27, 22, 18, 13, 11, 10, 9, 7, 5, 4, 4, 3, 3, 3, 2, 3, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 44, 45, 45, 43, 38, 33, 30, 28], best: [15, 67] } };
 
   // src/engine/dmath.ts
   var HALF_PI_HI = 1.5707963267341256;
@@ -153,6 +153,14 @@
   // src/engine/space.ts
   var W = 800;
   var H = 600;
+  function wrapDelta(d, size) {
+    if (d > size / 2) return d - size;
+    if (d < -size / 2) return d + size;
+    return d;
+  }
+  function offset(d, size, walls) {
+    return walls ? d : wrapDelta(d, size);
+  }
   function nearest(items, x, y, walls, count, skip) {
     const found = [];
     const fdx = [];
@@ -294,6 +302,9 @@
       poisoned: 0,
       alive: true,
       diedAt: null,
+      age: 0,
+      depth: 0,
+      children: 0,
       inputs: new Array(inputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
@@ -324,7 +335,7 @@
     const alive = new Set(w.creatures.map((c) => c.family));
     for (const fam of [...w.families.values()]) if (!alive.has(fam.id)) retire(w, fam, w.generation);
   }
-  function maybeSplit(w, child) {
+  function maybeSplit(w, child, instant = false) {
     const limit = w.rules.splitDistance;
     if (child.branch !== null) return;
     const fam = w.families.get(child.family);
@@ -336,7 +347,7 @@
         return;
       }
     }
-    if (w.rules.splitProof > 0) {
+    if (w.rules.splitProof > 0 && !instant) {
       for (const b of w.branches.values()) {
         if (b.family === child.family && brainDistance(child.g, b.ref) <= limit) {
           child.branch = b.id;
@@ -349,7 +360,7 @@
       return;
     }
     const id = w.nextFamilyId++;
-    w.families.set(id, newFamily(id, child.g, child.family, w.generation + 1));
+    w.families.set(id, newFamily(id, child.g, child.family, w.rules.mode === 1 ? w.tick : w.generation + 1));
     child.family = id;
     child.hue = founderHue(id);
     w.splits++;
@@ -481,8 +492,152 @@
     return Math.sqrt(s / a.length);
   }
 
-  // src/engine/world.ts
+  // src/engine/life.ts
   var POISON_HIT = 0.5;
+  function live(w, c, costFactor) {
+    const walls = w.rules.walls > 0;
+    const seen = sense(w, c);
+    c.inputs = seen.inputs;
+    const { hidden, out } = think(c.g, c.inputs);
+    c.hidden = hidden;
+    c.out = out;
+    const speed = (out[1] + 1) / 2 * 3;
+    c.a += out[0] * 0.2;
+    if (walls) {
+      c.x = Math.min(Math.max(c.x + cos(c.a) * speed, 0), W);
+      c.y = Math.min(Math.max(c.y + sin(c.a) * speed, 0), H);
+    } else {
+      c.x = (c.x + cos(c.a) * speed + W) % W;
+      c.y = (c.y + sin(c.a) * speed + H) % H;
+    }
+    c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost * costFactor;
+    if (seen.food && seen.foodDist < 6) {
+      if (seen.food.poison) {
+        c.poisoned++;
+        c.energy -= POISON_HIT;
+      } else {
+        c.eaten++;
+        c.energy = Math.min(c.energy + 0.3, 1.5);
+      }
+      Object.assign(seen.food, newFood(w, seen.food.poison));
+      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+    }
+    if (c.energy <= 0) {
+      c.alive = false;
+      c.diedAt = w.tick;
+    }
+  }
+
+  // src/engine/ecosystem.ts
+  var ECO_SAMPLE = 100;
+  var RESCUE = 40;
+  var MAX_POP = 1e3;
+  var PAIR_RANGE = 30;
+  var KEEP_DEATHS = 200;
+  function stepEcosystem(w) {
+    const { rules } = w;
+    const scale = rules.ageScale;
+    for (const c of w.creatures) {
+      if (!c.alive) continue;
+      live(w, c, scale > 0 ? 1 + c.age / scale : 1);
+      c.age++;
+    }
+    const born = [];
+    const room = () => w.creatures.length + born.length < MAX_POP;
+    const ready = (c) => c.alive && c.energy >= rules.birthEnergy;
+    if (rules.birth === 1) {
+      const walls = rules.walls > 0;
+      const used = /* @__PURE__ */ new Set();
+      for (const a of w.creatures) {
+        if (!room()) break;
+        if (used.has(a) || !ready(a)) continue;
+        let partner = null;
+        let best = PAIR_RANGE * PAIR_RANGE;
+        for (const b of w.creatures) {
+          if (b === a || used.has(b) || !ready(b)) continue;
+          const dx = offset(b.x - a.x, W, walls);
+          const dy = offset(b.y - a.y, H, walls);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < best) {
+            best = d2;
+            partner = b;
+          }
+        }
+        if (!partner) continue;
+        used.add(a);
+        used.add(partner);
+        const p = partner;
+        const mixed = a.g.map((x, k) => w.rng.next() < 0.5 ? x : p.g[k]);
+        const fromA = a.energy / 3;
+        const fromB = p.energy / 3;
+        a.energy -= fromA;
+        p.energy -= fromB;
+        p.children++;
+        born.push(makeChild(w, a, mutate(w, mixed, rules.mutation), fromA + fromB));
+      }
+    } else {
+      for (const a of w.creatures) {
+        if (!room()) break;
+        if (!ready(a)) continue;
+        const half = a.energy / 2;
+        a.energy -= half;
+        born.push(makeChild(w, a, mutate(w, a.g, rules.mutation), half));
+      }
+    }
+    const alive = [];
+    for (const c of w.creatures) {
+      if (c.alive) {
+        alive.push(c);
+        continue;
+      }
+      w.eco.deaths++;
+      if (scale > 0 && c.age >= scale) w.eco.oldAge++;
+      w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
+    }
+    if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
+    w.creatures = alive.concat(born);
+    if (w.creatures.length === 0) rescue(w);
+    const present = new Set(w.creatures.map((c) => c.family));
+    for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
+    w.tick++;
+    if (w.tick % ECO_SAMPLE === 0) sample(w);
+  }
+  function makeChild(w, parent, genome, energy) {
+    const child = newCreature(w, genome, parent.family, false, parent.hue);
+    const walls = w.rules.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    child.x = place(parent.x + (w.env.next() - 0.5) * 10, W);
+    child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
+    child.energy = energy;
+    child.depth = parent.depth + 1;
+    parent.children++;
+    maybeSplit(w, child, true);
+    w.eco.births++;
+    return child;
+  }
+  function rescue(w) {
+    const { rules } = w;
+    for (let i = 0; i < RESCUE; i++) {
+      const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
+      const id = w.nextFamilyId++;
+      w.families.set(id, newFamily(id, genome, null, w.tick));
+      w.creatures.push(newCreature(w, genome, id, false, null));
+    }
+    w.eco.rescues++;
+  }
+  function sample(w) {
+    const n = w.creatures.length;
+    w.eco.popHist.push(n);
+    w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
+    const sizes = /* @__PURE__ */ new Map();
+    for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
+    for (const [id, size] of sizes) {
+      const fam = w.families.get(id);
+      if (fam && size > fam.peakSize) fam.peakSize = size;
+    }
+  }
+
+  // src/engine/world.ts
   var DEFAULT_RULES = {
     pop: 40,
     food: 60,
@@ -505,8 +660,12 @@
     hidden: 6,
     poison: 0.3,
     regrow: 0,
-    energyCost: 1
+    energyCost: 1,
     // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
+    mode: 0,
+    birth: 0,
+    birthEnergy: 1.2,
+    ageScale: 3e3
   };
   function createWorld(seed, rules) {
     const w = {
@@ -531,7 +690,8 @@
       branches: /* @__PURE__ */ new Map(),
       nextBranchId: 0,
       failedBranches: 0,
-      newcomerCount: 0
+      newcomerCount: 0,
+      eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
       const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
@@ -542,45 +702,19 @@
     return w;
   }
   function step(w) {
-    const walls = w.rules.walls > 0;
-    for (const c of w.creatures) {
-      if (!c.alive) continue;
-      const seen = sense(w, c);
-      c.inputs = seen.inputs;
-      const { hidden, out } = think(c.g, c.inputs);
-      c.hidden = hidden;
-      c.out = out;
-      const speed = (out[1] + 1) / 2 * 3;
-      c.a += out[0] * 0.2;
-      if (walls) {
-        c.x = Math.min(Math.max(c.x + cos(c.a) * speed, 0), W);
-        c.y = Math.min(Math.max(c.y + sin(c.a) * speed, 0), H);
-      } else {
-        c.x = (c.x + cos(c.a) * speed + W) % W;
-        c.y = (c.y + sin(c.a) * speed + H) % H;
-      }
-      c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost;
-      if (seen.food && seen.foodDist < 6) {
-        if (seen.food.poison) {
-          c.poisoned++;
-          c.energy -= POISON_HIT;
-        } else {
-          c.eaten++;
-          c.energy = Math.min(c.energy + 0.3, 1.5);
-        }
-        Object.assign(seen.food, newFood(w, seen.food.poison));
-        if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
-      }
-      if (c.energy <= 0) {
-        c.alive = false;
-        c.diedAt = w.tick;
-      }
+    if (w.rules.mode === 1) {
+      stepEcosystem(w);
+      return;
     }
+    for (const c of w.creatures) if (c.alive) live(w, c, 1);
     w.tick++;
     if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
       if (w.layout + 1 < w.rules.layouts) nextLayout(w);
       else nextGeneration(w);
     }
+  }
+  function runTicks(w, ticks) {
+    for (let i = 0; i < ticks; i++) step(w);
   }
   function nextLayout(w) {
     w.layout++;
@@ -664,10 +798,16 @@
       checkBest: false,
       rules: { ...BASE_RULES, pop: 15, food: 20, elite: 0, parents: 50, mutation: 0.4, genTicks: 400 }
     },
-    { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true }
+    { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true },
+    // ecosystem: avg = population every 100 ticks, best = [births, deaths]
+    { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100 }, gens: 0, ticks: 4e3, checkBest: true }
   ];
   function runCase(c) {
     const w = createWorld(c.seed, c.rules);
+    if (c.ticks) {
+      runTicks(w, c.ticks);
+      return { avg: w.eco.popHist, best: [w.eco.births, w.eco.deaths] };
+    }
     runGenerations(w, c.gens);
     return c.checkBest ? { avg: w.avgHist, best: w.bestHist } : { avg: w.avgHist };
   }

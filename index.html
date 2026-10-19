@@ -111,11 +111,11 @@
     </section>
 
     <section>
-      <h2>Food eaten per layout, each generation</h2>
+      <h2 id="chartTitle">Food eaten per layout, each generation</h2>
       <canvas class="small" id="chart" width="680" height="300"></canvas>
       <div class="legend">
-        <span><span class="swatch" style="background:var(--pos);opacity:.35;height:10px"></span>Worst to best</span>
-        <span><span class="swatch" style="background:var(--pos)"></span>Average</span>
+        <span id="bandLegend"><span class="swatch" style="background:var(--pos);opacity:.35;height:10px"></span>Worst to best</span>
+        <span><span class="swatch" style="background:var(--pos)"></span><span id="lineLegend">Average</span></span>
       </div>
     </section>
 

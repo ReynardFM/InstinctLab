@@ -4,6 +4,9 @@ import { createRng, type Rng } from "./rng.ts";
 import { genomeSize, think } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { centre, mutate } from "./breed.ts";
+import { stepEcosystem } from "./ecosystem.ts";
+import { live } from "./life.ts";
+export { POISON_HIT } from "./life.ts";
 import { H, W } from "./space.ts";
 import { inputCount, sense } from "./senses.ts";
 import { newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
@@ -40,10 +43,12 @@ export interface Rules {
   poison: number; // share of food that is poison (costs POISON_HIT energy, worth nothing); 0 = none
   regrow: number; // ticks before eaten food reappears somewhere new; 0 = at once
   energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
+  mode: number; // 0 = generations (everyone replaced together); 1 = ecosystem (continuous births and deaths)
+  birth: number; // ecosystem: 0 = a full creature splits off a child; 1 = two full creatures that meet have one
+  birthEnergy: number; // ecosystem: energy needed to have a child (the most a creature can hold is 1.5)
+  ageScale: number; // ecosystem: at this age living costs double, at twice it triple...; 0 = no ageing
 }
 
-// Energy a creature loses by eating poison (good food gives +0.3).
-export const POISON_HIT = 0.5;
 
 export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
@@ -51,6 +56,7 @@ export const DEFAULT_RULES: Rules = {
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
   mutationRate: 1, centreShare: 0, hidden: 6,
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
+  mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000,
 };
 
 export interface World {
@@ -78,6 +84,17 @@ export interface World {
   nextBranchId: number;
   failedBranches: number; // branches that died out before proving themselves
   newcomerCount: number; // newcomer families made this run
+  eco: EcoStats; // ecosystem mode only
+}
+
+export interface EcoStats {
+  births: number;
+  deaths: number;
+  oldAge: number; // deaths of creatures older than ageScale (they starved, but ageing is why)
+  rescues: number; // times everyone had died and fresh founders were put in
+  popHist: number[]; // population, sampled every ECO_SAMPLE ticks
+  ageHist: number[]; // average age, same samples
+  recentDeaths: { x: number; y: number; tick: number }[]; // for the page's death marks (last 200)
 }
 
 export function createWorld(seed: number, rules: Rules): World {
@@ -104,6 +121,7 @@ export function createWorld(seed: number, rules: Rules): World {
     nextBranchId: 0,
     failedBranches: 0,
     newcomerCount: 0,
+    eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] },
   };
   for (let i = 0; i < rules.pop; i++) {
     const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
@@ -115,47 +133,21 @@ export function createWorld(seed: number, rules: Rules): World {
 }
 
 export function step(w: World): void {
-  const walls = w.rules.walls > 0;
-  for (const c of w.creatures) {
-    if (!c.alive) continue;
-    const seen = sense(w, c);
-    c.inputs = seen.inputs;
-    const { hidden, out } = think(c.g, c.inputs);
-    c.hidden = hidden;
-    c.out = out;
-
-    const speed = ((out[1] + 1) / 2) * 3;
-    c.a += out[0] * 0.2;
-    if (walls) {
-      // walls stop you: slide along them instead of passing through
-      c.x = Math.min(Math.max(c.x + cos(c.a) * speed, 0), W);
-      c.y = Math.min(Math.max(c.y + sin(c.a) * speed, 0), H);
-    } else {
-      c.x = (c.x + cos(c.a) * speed + W) % W;
-      c.y = (c.y + sin(c.a) * speed + H) % H;
-    }
-    c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost; // moving costs energy; standing still costs a little
-    if (seen.food && seen.foodDist < 6) {
-      if (seen.food.poison) {
-        c.poisoned++;
-        c.energy -= POISON_HIT;
-      } else {
-        c.eaten++;
-        c.energy = Math.min(c.energy + 0.3, 1.5);
-      }
-      Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new
-      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
-    }
-    if (c.energy <= 0) {
-      c.alive = false;
-      c.diedAt = w.tick;
-    }
+  if (w.rules.mode === 1) {
+    stepEcosystem(w);
+    return;
   }
+  for (const c of w.creatures) if (c.alive) live(w, c, 1);
   w.tick++;
   if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
     if (w.layout + 1 < w.rules.layouts) nextLayout(w);
     else nextGeneration(w);
   }
+}
+
+// Runs the world for a number of ticks (ecosystem mode has no generations to count).
+export function runTicks(w: World, ticks: number): void {
+  for (let i = 0; i < ticks; i++) step(w);
 }
 
 // Same brains, fresh start on a new food layout. Food eaten keeps adding up, so one lucky map

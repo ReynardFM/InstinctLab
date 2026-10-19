@@ -90,6 +90,7 @@ export function score(avgHist: number[]): number {
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   const combos = combinations(opts.grid);
+  if (combos.some((r) => r.mode === 1)) throw new Error("npm run lab compares generation runs; ecosystem mode (--mode=1) isn't supported here yet");
   const varied = Object.keys(opts.grid) as (keyof Rules)[];
   const jobs: Job[] = combos.flatMap((rules) => opts.seeds.map((seed) => ({ seed, rules, gens: opts.gens })));
   const workers = Math.min(opts.workers, jobs.length);

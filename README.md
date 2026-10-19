@@ -21,7 +21,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 
 Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
 
-`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, `hidden`, `poison`, `regrow`, `energyCost`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `early` is the average over the first 30 generations (how fast it learns). `vs 1st` compares each row with the first row seed by seed: the same seed gives the same food layouts in every setting, so that luck cancels and a `*` marks a difference that is probably real. Seeds take ranges: `--seeds=1-14`. Rows print as soon as each setting finishes, so the first answers arrive early; for a quick look use `--seeds=1-7 --gens=60` (about 4x faster).
+`npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, `hidden`, `poison`, `regrow`, `energyCost`, `birth`, `birthEnergy`, `ageScale` (`mode` must stay 0: the lab compares generation runs), plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `early` is the average over the first 30 generations (how fast it learns). `vs 1st` compares each row with the first row seed by seed: the same seed gives the same food layouts in every setting, so that luck cancels and a `*` marks a difference that is probably real. Seeds take ranges: `--seeds=1-14`. Rows print as soon as each setting finishes, so the first answers arrive early; for a quick look use `--seeds=1-7 --gens=60` (about 4x faster).
 
 ## File dependency tree
 
@@ -47,7 +47,9 @@ src/cli/bench.ts     generations/s vs number of workers (npm run bench)
 ├─→ src/cli/pool.ts
 └─→ src/engine/world.ts   (default rules)
 
-src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerations, nextGeneration
+src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerations, runTicks, nextGeneration
+├─→ src/engine/life.ts      one tick of one creature: sense, think, move, eat, starve (both modes)
+├─→ src/engine/ecosystem.ts ecosystem mode: births (split or pairs), ageing, deaths, rescue, population samples
 ├─→ src/engine/lineage.ts  families, branches on trial, champions, newcomers, legacy
 │   └─→ src/engine/creature.ts
 ├─→ src/engine/creature.ts Creature, Food, newCreature, colours
@@ -139,6 +141,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | **Baseline, new defaults (30% poison)**, from Rey's run: 14 seeds x 100 generations | score 31.6 ±1.2, top half 35.5, early 21.5, poison 5.0% of intake |
 | 2026-10-19 | Poison world (new defaults), quick check, cloud, 7 seeds x 60 generations, paired | 12 middle neurons -0.2 ±1.4, step 0.3 +0.8 ±2.4, both +0.3 ±2.0. No difference here either |
 | 2026-10-19 | One-pass food scan (good + poison together), default rules, cloud, best of 4 | 3163 -> 1814 ns per creature-tick (1.74x). Every recorded run identical |
+| 2026-10-19 | Ecosystem mode, 30,000 ticks, seeds 1-2 | Split births + regrow 100: after 1-2 extinctions, a stable population of about 40. Instant regrowth: food is unlimited and the population climbs toward the 1,000 safety limit. Two-parent births: only 3-29 births per 30,000 ticks even with a 200 px meeting range, repeated extinctions (random brains rarely get full at the same time near each other) |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

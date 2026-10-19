@@ -22,8 +22,11 @@ Profile 2026-10-19 (default rules, 6 generations, Node CPU profile, self time): 
 
 Rey's calls 2026-10-19: (1) senses speed-up = one-pass food scan (done: 1.74x per creature-tick, identical results); (2) age = B, an "ecosystem" mode alongside the generations (no generations; creatures eat, have children at full energy, age and die; population rises and falls).
 
+Rey's ecosystem calls 2026-10-19: births = split and pairs as a setting; ageing = gradual (asked to tie it to brain weight changes, which do not exist in our system: brains are fixed for life; pending: A simple ageing / B lifetime brain change that costs energy / C thinking costs energy); population = food only + rescue when extinct.
+   Done 2026-10-19: ecosystem mode (`mode` 1) built alongside generations: life.ts (one tick of one creature, shared), ecosystem.ts (births, ageing as placeholder A via `ageScale`, deaths, rescue of 40 founders, population samples). Golden has an "ecosystem" case; generation runs unchanged. Found: instant regrowth = unlimited food (population explodes), so switching ecosystem on in the page sets regrow 100 (stable ~40 after 1-2 extinctions). Two-parent births barely happen (3-29 per 30,000 ticks): random brains rarely get full near each other, so the population cannot get started.
+
 ## Next session
-1. Ecosystem mode: Rey decides the 2-3 key rules first (how a child is made, what kills, population limits), then build.
+1. Rey: ageing A/B/C, and how to make two-parent births work (start from an evolved population / lower energy bar for pairs / split until the population is established).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 

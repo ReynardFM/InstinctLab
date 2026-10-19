@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { brainDistance, createWorld, founderHue, hueDrift, retire, runGenerations, step, wrapDelta, DEFAULT_RULES, LEGACY_LIMIT } from "../src/engine/world.ts";
+import { brainDistance, createWorld, founderHue, hueDrift, retire, runGenerations, runTicks, step, wrapDelta, DEFAULT_RULES, LEGACY_LIMIT } from "../src/engine/world.ts";
 import { think, genomeSize, GENOME } from "../src/engine/brain.ts";
 import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, wallAhead } from "../src/engine/senses.ts";
@@ -19,7 +19,7 @@ const ONE = BASE_RULES;
 const golden = JSON.parse(readFileSync(new URL("./golden.json", import.meta.url), "utf8"));
 
 test("basic rules behave exactly as recorded", () => {
-  for (const c of CASES.filter((x) => x.name !== "defaults")) {
+  for (const c of CASES.filter((x) => x.name !== "defaults" && x.name !== "ecosystem")) {
     assert.equal(firstDifference(runCase(c), golden[c.name]), null, `case ${c.name}`);
   }
 });
@@ -391,4 +391,45 @@ test("poison share stays fixed: exact count per layout, eaten pellets come back 
     step(w);
     assert.equal(count(), 10, `tick ${i}`);
   }
+});
+
+test("ecosystem: runs exactly as recorded", () => {
+  const c = CASES.find((x) => x.name === "ecosystem")!;
+  assert.equal(firstDifference(runCase(c), golden.ecosystem), null);
+});
+
+test("ecosystem: a full creature splits its energy with a child next to it", () => {
+  // only the parent can reach 1.45: the others start at 1 and one pellet gives 0.3
+  const w = createWorld(3, { ...ONE, mode: 1, regrow: 100, ageScale: 0, birthEnergy: 1.45 });
+  const parent = w.creatures[0];
+  parent.energy = 1.5;
+  step(w);
+  const child = w.creatures.find((c) => c.depth === 1)!;
+  assert.ok(child, "a child was born");
+  assert.equal(child.family, parent.family);
+  assert.equal(parent.children, 1);
+  assert.ok(Math.abs(parent.energy - child.energy) < 1e-12, "half each");
+  assert.ok(parent.energy + child.energy < 1.5 && parent.energy + child.energy > 1.49, "energy is not created");
+  assert.equal(w.eco.births, 1);
+});
+
+test("ecosystem: two full creatures that meet have one child together", () => {
+  const w = createWorld(3, { ...ONE, mode: 1, birth: 1, regrow: 100, ageScale: 0, birthEnergy: 1.45 });
+  const [a, b] = w.creatures;
+  a.energy = b.energy = 1.5;
+  b.x = a.x + 3;
+  b.y = a.y;
+  step(w);
+  assert.equal(w.eco.births, 1);
+  assert.equal(a.children, 1);
+  assert.equal(b.children, 1);
+});
+
+test("ecosystem: when everyone dies, fresh founders are put in", () => {
+  const w = createWorld(3, { ...ONE, mode: 1, regrow: 100 });
+  for (const c of w.creatures) c.energy = -1; // even a pellet this tick can't save them
+  runTicks(w, 1); // all die this tick, so the founders arrive at its end
+  assert.equal(w.eco.rescues, 1);
+  assert.equal(w.creatures.length, 40);
+  assert.ok(w.legacy.length >= 40, "the old families moved to legacy");
 });

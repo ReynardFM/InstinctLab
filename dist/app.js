@@ -150,6 +150,14 @@
   // src/engine/space.ts
   var W = 800;
   var H = 600;
+  function wrapDelta(d, size) {
+    if (d > size / 2) return d - size;
+    if (d < -size / 2) return d + size;
+    return d;
+  }
+  function offset(d, size, walls) {
+    return walls ? d : wrapDelta(d, size);
+  }
   function nearest(items, x, y, walls, count, skip) {
     const found = [];
     const fdx = [];
@@ -299,6 +307,9 @@
       poisoned: 0,
       alive: true,
       diedAt: null,
+      age: 0,
+      depth: 0,
+      children: 0,
       inputs: new Array(inputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
@@ -329,7 +340,7 @@
     const alive = new Set(w.creatures.map((c) => c.family));
     for (const fam of [...w.families.values()]) if (!alive.has(fam.id)) retire(w, fam, w.generation);
   }
-  function maybeSplit(w, child) {
+  function maybeSplit(w, child, instant = false) {
     const limit = w.rules.splitDistance;
     if (child.branch !== null) return;
     const fam = w.families.get(child.family);
@@ -341,7 +352,7 @@
         return;
       }
     }
-    if (w.rules.splitProof > 0) {
+    if (w.rules.splitProof > 0 && !instant) {
       for (const b of w.branches.values()) {
         if (b.family === child.family && brainDistance(child.g, b.ref) <= limit) {
           child.branch = b.id;
@@ -354,7 +365,7 @@
       return;
     }
     const id = w.nextFamilyId++;
-    w.families.set(id, newFamily(id, child.g, child.family, w.generation + 1));
+    w.families.set(id, newFamily(id, child.g, child.family, w.rules.mode === 1 ? w.tick : w.generation + 1));
     child.family = id;
     child.hue = founderHue(id);
     w.splits++;
@@ -486,8 +497,152 @@
     return Math.sqrt(s / a.length);
   }
 
-  // src/engine/world.ts
+  // src/engine/life.ts
   var POISON_HIT = 0.5;
+  function live(w, c, costFactor) {
+    const walls = w.rules.walls > 0;
+    const seen = sense(w, c);
+    c.inputs = seen.inputs;
+    const { hidden, out } = think(c.g, c.inputs);
+    c.hidden = hidden;
+    c.out = out;
+    const speed2 = (out[1] + 1) / 2 * 3;
+    c.a += out[0] * 0.2;
+    if (walls) {
+      c.x = Math.min(Math.max(c.x + cos(c.a) * speed2, 0), W);
+      c.y = Math.min(Math.max(c.y + sin(c.a) * speed2, 0), H);
+    } else {
+      c.x = (c.x + cos(c.a) * speed2 + W) % W;
+      c.y = (c.y + sin(c.a) * speed2 + H) % H;
+    }
+    c.energy -= (5e-4 + speed2 * 4e-4) * w.rules.energyCost * costFactor;
+    if (seen.food && seen.foodDist < 6) {
+      if (seen.food.poison) {
+        c.poisoned++;
+        c.energy -= POISON_HIT;
+      } else {
+        c.eaten++;
+        c.energy = Math.min(c.energy + 0.3, 1.5);
+      }
+      Object.assign(seen.food, newFood(w, seen.food.poison));
+      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+    }
+    if (c.energy <= 0) {
+      c.alive = false;
+      c.diedAt = w.tick;
+    }
+  }
+
+  // src/engine/ecosystem.ts
+  var ECO_SAMPLE = 100;
+  var RESCUE = 40;
+  var MAX_POP = 1e3;
+  var PAIR_RANGE = 30;
+  var KEEP_DEATHS = 200;
+  function stepEcosystem(w) {
+    const { rules } = w;
+    const scale = rules.ageScale;
+    for (const c of w.creatures) {
+      if (!c.alive) continue;
+      live(w, c, scale > 0 ? 1 + c.age / scale : 1);
+      c.age++;
+    }
+    const born = [];
+    const room = () => w.creatures.length + born.length < MAX_POP;
+    const ready = (c) => c.alive && c.energy >= rules.birthEnergy;
+    if (rules.birth === 1) {
+      const walls = rules.walls > 0;
+      const used = /* @__PURE__ */ new Set();
+      for (const a of w.creatures) {
+        if (!room()) break;
+        if (used.has(a) || !ready(a)) continue;
+        let partner = null;
+        let best = PAIR_RANGE * PAIR_RANGE;
+        for (const b of w.creatures) {
+          if (b === a || used.has(b) || !ready(b)) continue;
+          const dx = offset(b.x - a.x, W, walls);
+          const dy = offset(b.y - a.y, H, walls);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < best) {
+            best = d2;
+            partner = b;
+          }
+        }
+        if (!partner) continue;
+        used.add(a);
+        used.add(partner);
+        const p = partner;
+        const mixed = a.g.map((x, k) => w.rng.next() < 0.5 ? x : p.g[k]);
+        const fromA = a.energy / 3;
+        const fromB = p.energy / 3;
+        a.energy -= fromA;
+        p.energy -= fromB;
+        p.children++;
+        born.push(makeChild(w, a, mutate(w, mixed, rules.mutation), fromA + fromB));
+      }
+    } else {
+      for (const a of w.creatures) {
+        if (!room()) break;
+        if (!ready(a)) continue;
+        const half = a.energy / 2;
+        a.energy -= half;
+        born.push(makeChild(w, a, mutate(w, a.g, rules.mutation), half));
+      }
+    }
+    const alive = [];
+    for (const c of w.creatures) {
+      if (c.alive) {
+        alive.push(c);
+        continue;
+      }
+      w.eco.deaths++;
+      if (scale > 0 && c.age >= scale) w.eco.oldAge++;
+      w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
+    }
+    if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
+    w.creatures = alive.concat(born);
+    if (w.creatures.length === 0) rescue(w);
+    const present = new Set(w.creatures.map((c) => c.family));
+    for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
+    w.tick++;
+    if (w.tick % ECO_SAMPLE === 0) sample(w);
+  }
+  function makeChild(w, parent, genome, energy) {
+    const child = newCreature(w, genome, parent.family, false, parent.hue);
+    const walls = w.rules.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    child.x = place(parent.x + (w.env.next() - 0.5) * 10, W);
+    child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
+    child.energy = energy;
+    child.depth = parent.depth + 1;
+    parent.children++;
+    maybeSplit(w, child, true);
+    w.eco.births++;
+    return child;
+  }
+  function rescue(w) {
+    const { rules } = w;
+    for (let i = 0; i < RESCUE; i++) {
+      const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
+      const id = w.nextFamilyId++;
+      w.families.set(id, newFamily(id, genome, null, w.tick));
+      w.creatures.push(newCreature(w, genome, id, false, null));
+    }
+    w.eco.rescues++;
+  }
+  function sample(w) {
+    const n = w.creatures.length;
+    w.eco.popHist.push(n);
+    w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
+    const sizes = /* @__PURE__ */ new Map();
+    for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
+    for (const [id, size] of sizes) {
+      const fam = w.families.get(id);
+      if (fam && size > fam.peakSize) fam.peakSize = size;
+    }
+  }
+
+  // src/engine/world.ts
   var DEFAULT_RULES = {
     pop: 40,
     food: 60,
@@ -510,8 +665,12 @@
     hidden: 6,
     poison: 0.3,
     regrow: 0,
-    energyCost: 1
+    energyCost: 1,
     // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
+    mode: 0,
+    birth: 0,
+    birthEnergy: 1.2,
+    ageScale: 3e3
   };
   function createWorld(seed, rules) {
     const w = {
@@ -536,7 +695,8 @@
       branches: /* @__PURE__ */ new Map(),
       nextBranchId: 0,
       failedBranches: 0,
-      newcomerCount: 0
+      newcomerCount: 0,
+      eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
       const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
@@ -547,40 +707,11 @@
     return w;
   }
   function step(w) {
-    const walls = w.rules.walls > 0;
-    for (const c of w.creatures) {
-      if (!c.alive) continue;
-      const seen = sense(w, c);
-      c.inputs = seen.inputs;
-      const { hidden, out } = think(c.g, c.inputs);
-      c.hidden = hidden;
-      c.out = out;
-      const speed2 = (out[1] + 1) / 2 * 3;
-      c.a += out[0] * 0.2;
-      if (walls) {
-        c.x = Math.min(Math.max(c.x + cos(c.a) * speed2, 0), W);
-        c.y = Math.min(Math.max(c.y + sin(c.a) * speed2, 0), H);
-      } else {
-        c.x = (c.x + cos(c.a) * speed2 + W) % W;
-        c.y = (c.y + sin(c.a) * speed2 + H) % H;
-      }
-      c.energy -= (5e-4 + speed2 * 4e-4) * w.rules.energyCost;
-      if (seen.food && seen.foodDist < 6) {
-        if (seen.food.poison) {
-          c.poisoned++;
-          c.energy -= POISON_HIT;
-        } else {
-          c.eaten++;
-          c.energy = Math.min(c.energy + 0.3, 1.5);
-        }
-        Object.assign(seen.food, newFood(w, seen.food.poison));
-        if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
-      }
-      if (c.energy <= 0) {
-        c.alive = false;
-        c.diedAt = w.tick;
-      }
+    if (w.rules.mode === 1) {
+      stepEcosystem(w);
+      return;
     }
+    for (const c of w.creatures) if (c.alive) live(w, c, 1);
     w.tick++;
     if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
       if (w.layout + 1 < w.rules.layouts) nextLayout(w);
@@ -677,6 +808,10 @@
   var mean = (xs) => xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0;
   var food = (v) => Number.isInteger(v) ? String(v) : v.toFixed(1);
   function updateMarks() {
+    if (world.rules.mode === 1) {
+      marks = world.eco.recentDeaths;
+      return;
+    }
     const key = `${world.generation}:${world.layout}`;
     if (key !== marksKey) {
       marks = [];
@@ -711,6 +846,7 @@
     ctx.strokeStyle = C.neg;
     ctx.lineWidth = 1.5;
     for (const m of marks) {
+      if (world.rules.mode === 1 && world.tick - m.tick > 600) continue;
       ctx.globalAlpha = Math.max(0.15, 0.7 - (world.tick - m.tick) / 600);
       ctx.beginPath();
       ctx.moveTo(m.x - 3.5, m.y - 3.5);
@@ -776,6 +912,10 @@
     ctx.globalAlpha = 1;
   }
   function drawChart() {
+    $("chartTitle").textContent = world.rules.mode === 1 ? "Population over time" : "Food eaten per layout, each generation";
+    $("bandLegend").style.display = world.rules.mode === 1 ? "none" : "";
+    $("lineLegend").textContent = world.rules.mode === 1 ? "Creatures alive" : "Average";
+    if (world.rules.mode === 1) return drawPopulationChart();
     const ctx = chartCtx;
     const w = 680, h = 300;
     const pad = { l: 44, r: 10, t: 12, b: 30 };
@@ -820,6 +960,43 @@
     avgHist.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
     ctx.stroke();
   }
+  function drawPopulationChart() {
+    const ctx = chartCtx;
+    const w = 680, h = 300;
+    const pad = { l: 44, r: 10, t: 12, b: 30 };
+    const pop = world.eco.popHist.slice(-300);
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(0, 0, w, h);
+    const max = Math.max(10, ...pop);
+    const n = pop.length;
+    const x = (i) => pad.l + (n < 2 ? 0 : i / (n - 1) * (w - pad.l - pad.r));
+    const y = (v) => h - pad.b - v / max * (h - pad.t - pad.b);
+    ctx.font = `22px ${FONT}`;
+    ctx.fillStyle = C.muted;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 1;
+    for (const v of [0, Math.round(max / 2), max]) {
+      ctx.beginPath();
+      ctx.moveTo(pad.l, y(v));
+      ctx.lineTo(w - pad.r, y(v));
+      ctx.stroke();
+      ctx.textAlign = "right";
+      ctx.fillText(String(v), pad.l - 8, y(v) + 7);
+    }
+    ctx.textAlign = "left";
+    if (n === 0) {
+      ctx.fillText(`Appears after ${ECO_SAMPLE} ticks`, pad.l + 8, h / 2);
+      return;
+    }
+    ctx.fillText(`tick ${(world.eco.popHist.length - n) * ECO_SAMPLE}`, pad.l, h - 6);
+    ctx.textAlign = "right";
+    ctx.fillText(`tick ${world.eco.popHist.length * ECO_SAMPLE}`, w - pad.r, h - 6);
+    ctx.strokeStyle = C.pos;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    pop.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+    ctx.stroke();
+  }
   function drawFamilies() {
     const living = world.creatures.filter((c) => c.alive);
     const counts = /* @__PURE__ */ new Map();
@@ -850,7 +1027,7 @@
     const trials = [...world.branches.values()];
     const proof = world.rules.splitProof;
     const trialText = proof > 0 ? ` ${trials.length ? `${trials.length} branch${trials.length > 1 ? "es are" : " is"} on trial (best: family ${trials.reduce((a, b) => b.wins > a.wins ? b : a).family + 1}'s, ${Math.max(...trials.map((b) => b.wins))} of ${proof} wins)` : "No branch is on trial"}; ${world.failedBranches} failed so far.` : "";
-    $("familyText").textContent = (sorted.length === 1 ? "1 family has" : `${sorted.length} families have`) + ` living members. The biggest is ${Math.round(lead[1] / living.length * 100)}% of the living. ` + (world.splits === 1 ? "1 new family has" : `${world.splits} new families have`) + " split off this run" + (newest ? `; the newest is family ${newest.id + 1}, from family ${newest.parent + 1} in generation ${newest.bornGeneration}.` : ".") + trialText + newcomerText() + crownText;
+    $("familyText").textContent = (sorted.length === 1 ? "1 family has" : `${sorted.length} families have`) + ` living members. The biggest is ${Math.round(lead[1] / living.length * 100)}% of the living. ` + (world.splits === 1 ? "1 new family has" : `${world.splits} new families have`) + " split off this run" + (newest ? `; the newest is family ${newest.id + 1}, from family ${newest.parent + 1} ${world.rules.mode === 1 ? "at tick" : "in generation"} ${newest.bornGeneration}.` : ".") + (world.rules.mode === 1 ? "" : trialText + newcomerText() + crownText);
   }
   function newcomerText() {
     if (!world.rules.newcomers && !world.newcomerCount) return "";
@@ -868,7 +1045,7 @@
       const li = document.createElement("li");
       const from = f.parent === null ? "an original founder" : f.newcomer ? `a newcomer from family ${f.parent + 1}` : `from family ${f.parent + 1}`;
       const champs = f.champions.length ? `, ${f.champions.length} champion${f.champions.length > 1 ? "s" : ""}` : "";
-      li.innerHTML = `<span class="dot" style="background:${hsl(founderHue(f.id))}"></span>Family ${f.id + 1}, ${from}: generations ${f.bornGeneration}&ndash;${f.diedGeneration}, peak ${f.peakSize} creature${f.peakSize === 1 ? "" : "s"}, average ${mean(f.avgHist).toFixed(1)}, best ${food(f.bestEaten)} food${champs}`;
+      li.innerHTML = `<span class="dot" style="background:${hsl(founderHue(f.id))}"></span>Family ${f.id + 1}, ${from}: ${world.rules.mode === 1 ? "ticks" : "generations"} ${f.bornGeneration}&ndash;${f.diedGeneration}, peak ${f.peakSize} creature${f.peakSize === 1 ? "" : "s"}` + (world.rules.mode === 1 ? "" : `, average ${mean(f.avgHist).toFixed(1)}, best ${food(f.bestEaten)} food${champs}`);
       list.append(li);
     }
     $("legacyText").textContent = world.legacy.length ? `${world.legacy.length} families have died out this run. Newest first.` : "No family has died out yet.";
@@ -947,6 +1124,12 @@
   }
   function brainCaption(c, picked) {
     if (!c) return "";
+    if (world.rules.mode === 1) {
+      const who2 = picked ? "Your pick" : "The oldest creature";
+      const famE = world.families.get(c.family);
+      const fromE = famE && famE.parent !== null ? ` (split from family ${famE.parent + 1} at tick ${famE.bornGeneration})` : "";
+      return `${who2}. Family ${c.family + 1}${fromE}, age ${c.age}, ${c.depth} generation${c.depth === 1 ? "" : "s"} from its founder, ${c.children} child${c.children === 1 ? "" : "ren"}, ate ${c.eaten}` + (world.rules.poison > 0 ? ` (and ${c.poisoned} poison)` : "") + `, energy ${c.energy.toFixed(2)}.`;
+    }
     const who = picked ? "Your pick" : "Last generation's best, copied unchanged";
     const state = c.alive ? `energy ${c.energy.toFixed(2)}` : `starved at tick ${c.diedAt}`;
     const fam = world.families.get(c.family);
@@ -963,7 +1146,9 @@
     updateMarks();
     let sel = world.creatures.find((c) => c.id === selectedId) ?? null;
     const picked = sel !== null;
-    if (!sel) sel = world.creatures.find((c) => c.elite) ?? null;
+    if (!sel) {
+      sel = world.rules.mode === 1 ? world.creatures.reduce((a, c) => !a || c.age > a.age ? c : a, null) : world.creatures.find((c) => c.elite) ?? null;
+    }
     drawWorld(sel);
     drawChart();
     drawFamilies();
@@ -971,6 +1156,12 @@
     drawBrain(sel);
     $("brainText").textContent = brainCaption(sel, picked);
     $("brainTitle").textContent = sel ? "Brain, live" : "Brain";
+    if (world.rules.mode === 1) {
+      const e = world.eco;
+      $("genText").textContent = `Tick ${world.tick}`;
+      $("tickText").textContent = `Population ${world.creatures.length}. ${e.births} born, ${e.deaths} died (${e.oldAge} of old age).` + (e.rescues ? ` Everyone died ${e.rescues} time${e.rescues === 1 ? "" : "s"}; fresh founders were put in.` : "");
+      return;
+    }
     const alive = world.creatures.filter((c) => c.alive).length;
     const many = world.rules.layouts > 1;
     $("genText").textContent = `Generation ${world.generation}`;
@@ -1026,6 +1217,10 @@
     selectedId = best ? best.id : null;
   });
   var RULE_SPECS = [
+    ["mode", "Ecosystem mode (no generations)", 0, 1, 1, "Creatures have children when full, age and die; the population follows the food. Needs slow regrowth: switching it on sets food regrowth to 100."],
+    ["birth", "Children need two parents", 0, 1, 1, "Ecosystem: two full creatures within 30 px. Off = a full creature splits in two."],
+    ["birthEnergy", "Energy needed for a child", 0.8, 1.5, 0.05, "Ecosystem. The most a creature can hold is 1.5."],
+    ["ageScale", "Age at which living costs double", 0, 1e4, 500, "Ecosystem. 0 = no ageing."],
     ["pop", "Creatures per generation", 10, 200, 1, ""],
     ["food", "Food on the map", 5, 200, 1, "Fewer = scarcer, harder to find."],
     ["genTicks", "Generation length (ticks)", 300, 5e3, 100, ""],
@@ -1063,6 +1258,10 @@
         const box = div.querySelector("input");
         box.onchange = () => {
           pendingRules[key] = box.checked ? 1 : 0;
+          if (key === "mode" && box.checked && pendingRules.regrow === 0) {
+            pendingRules.regrow = 100;
+            renderRules();
+          }
           updatePending();
         };
         root.append(div);
@@ -1073,7 +1272,7 @@
       ${help ? `<small>${help}</small>` : ""}`;
       const input = div.querySelector("input");
       const out = div.querySelector("output");
-      const show = () => out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost"].includes(key) ? Number(input.value).toFixed(2) : input.value;
+      const show = () => out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy"].includes(key) ? Number(input.value).toFixed(2) : input.value;
       input.oninput = () => {
         pendingRules[key] = Number(input.value);
         show();

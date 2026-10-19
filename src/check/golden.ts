@@ -6,7 +6,7 @@
 // Re-record (npm run record-golden) only when a change is MEANT to alter behaviour, and say so in the
 // commit. History: the basic cases matched the original single-file version until 2026-10-18, when
 // deterministic math (dmath.ts) replaced Math.sin/cos/tanh/log and every number changed.
-import { createWorld, runGenerations, DEFAULT_RULES, type Rules } from "../engine/world.ts";
+import { createWorld, runGenerations, runTicks, DEFAULT_RULES, type Rules } from "../engine/world.ts";
 import { seedFrom } from "../engine/rng.ts";
 
 // The rules before food layouts, extra senses, newcomers and poison existed.
@@ -20,6 +20,7 @@ export interface GoldenCase {
   rules: Rules;
   gens: number;
   checkBest: boolean; // the "custom" case only recorded averages
+  ticks?: number; // ecosystem mode: run this many ticks instead of generations
 }
 
 export const CASES: GoldenCase[] = [
@@ -29,6 +30,8 @@ export const CASES: GoldenCase[] = [
     rules: { ...BASE_RULES, pop: 15, food: 20, elite: 0, parents: 50, mutation: 0.4, genTicks: 400 },
   },
   { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true },
+  // ecosystem: avg = population every 100 ticks, best = [births, deaths]
+  { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100 }, gens: 0, ticks: 4000, checkBest: true },
 ];
 
 export interface GoldenResult {
@@ -38,6 +41,10 @@ export interface GoldenResult {
 
 export function runCase(c: GoldenCase): GoldenResult {
   const w = createWorld(c.seed, c.rules);
+  if (c.ticks) {
+    runTicks(w, c.ticks);
+    return { avg: w.eco.popHist, best: [w.eco.births, w.eco.deaths] };
+  }
   runGenerations(w, c.gens);
   return c.checkBest ? { avg: w.avgHist, best: w.bestHist } : { avg: w.avgHist };
 }

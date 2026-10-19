@@ -28,6 +28,9 @@ export interface Creature {
   poisoned: number; // poison eaten this generation
   alive: boolean;
   diedAt: number | null;
+  age: number; // ticks lived (ecosystem mode)
+  depth: number; // generations since its founder: 0 for founders, parent's + 1 for a child
+  children: number; // children it has had (ecosystem mode)
   // last senses and thoughts, kept so the page can show the brain working
   inputs: number[];
   hidden: number[];
@@ -70,6 +73,9 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     poisoned: 0,
     alive: true,
     diedAt: null,
+    age: 0,
+    depth: 0,
+    children: 0,
     inputs: new Array(inputCount(w.rules)).fill(0),
     hidden: new Array(w.rules.hidden).fill(0),
     out: [0, 0],
