@@ -6,7 +6,7 @@
 // Every combination is run once per seed. Runs are spread over all CPU cores; --workers=N to change.
 import { availableParallelism } from "node:os";
 import { DEFAULT_RULES, type Rules } from "../engine/world.ts";
-import type { Job } from "./job.ts";
+import type { Job, JobResult } from "./job.ts";
 import { runJobs } from "./pool.ts";
 
 interface Options {
@@ -95,16 +95,6 @@ async function main(): Promise<void> {
   const workers = Math.min(opts.workers, jobs.length);
   console.log(`${combos.length} setting(s) x ${opts.seeds.length} seed(s) x ${opts.gens} generations, ${workers} worker(s)\n`);
 
-  const t0 = performance.now();
-  const progress = process.stderr.isTTY
-    ? (done: number) => process.stderr.write(`\r${done} of ${jobs.length} runs done`)
-    : undefined;
-  const results = await runJobs(jobs, workers, progress);
-  if (progress) process.stderr.write("\r\x1b[K");
-  const secs = (performance.now() - t0) / 1000;
-  const totalGens = jobs.length * opts.gens;
-
-  const rows: string[][] = [];
   const anyPoison = combos.some((r) => r.poison > 0);
   // share of everything eaten that was poison, last 10 generations. Eating blindly gives about the
   // poison share of the map; much lower means creatures learned to avoid it.
@@ -113,9 +103,6 @@ async function main(): Promise<void> {
     const g = rs.reduce((s, r) => s + score(r.avgHist), 0);
     return p + g > 0 ? `${((100 * p) / (p + g)).toFixed(1)}%` : "-";
   };
-  const perCombo = combos.map((_, i) => results.slice(i * opts.seeds.length, (i + 1) * opts.seeds.length));
-  const refScores = perCombo[0].map((r) => score(r.avgHist));
-  const refLearn = perCombo[0].map((r) => learning(r.avgHist));
   // "+2.1 ±1.3 *": the * means the whole range is on one side of 0, so the difference is probably real
   const diffText = (xs: number[], ref: number[]) => {
     const { mean, margin } = pairedDiff(xs, ref);
@@ -123,35 +110,58 @@ async function main(): Promise<void> {
     const sure = Math.abs(mean) > margin ? " *" : "";
     return `${mean >= 0 ? "+" : ""}${mean.toFixed(1)} ±${margin.toFixed(1)}${sure}`;
   };
-  for (const [i, rules] of combos.entries()) {
-    const mine = perCombo[i];
+  const pm = (x: number) => (Number.isNaN(x) ? "-" : `±${x.toFixed(1)}`);
+  const S = opts.seeds.length;
+  const rowFor = (i: number, mine: JobResult[], ref: JobResult[]): string[] => {
     const scores = mine.map((r) => score(r.avgHist));
-    const mean = scores.reduce((s, x) => s + x, 0) / scores.length;
-    const top = mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / mine.length;
-    const m = margin95(scores);
     const learn = mine.map((r) => learning(r.avgHist));
-    const lm = margin95(learn);
-    const pm = (x: number) => (Number.isNaN(x) ? "-" : `±${x.toFixed(1)}`);
-    rows.push([
-      ...varied.map((k) => String(rules[k])),
-      mean.toFixed(1),
-      pm(m),
-      top.toFixed(1),
-      (learn.reduce((s, x) => s + x, 0) / learn.length).toFixed(1),
-      pm(lm),
-      i === 0 ? "reference" : diffText(scores, refScores),
-      i === 0 ? "reference" : diffText(learn, refLearn),
+    return [
+      ...varied.map((k) => String(combos[i][k])),
+      (scores.reduce((s, x) => s + x, 0) / S).toFixed(1),
+      pm(margin95(scores)),
+      (mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / S).toFixed(1),
+      (learn.reduce((s, x) => s + x, 0) / S).toFixed(1),
+      pm(margin95(learn)),
+      i === 0 ? "reference" : diffText(scores, ref.map((r) => score(r.avgHist))),
+      i === 0 ? "reference" : diffText(learn, ref.map((r) => learning(r.avgHist))),
       ...(anyPoison ? [poisonShare(mine)] : []),
       `${Math.min(...scores).toFixed(1)}..${Math.max(...scores).toFixed(1)}`,
-    ]);
-  }
+    ];
+  };
 
+  // Rows are printed as soon as each setting's runs are all done (in table order), so the first rows
+  // show up long before the whole grid finishes. Column widths are fixed for that reason.
   const header = [...varied, "score", "±95%", "top half", "early", "±95% ", "score vs 1st", "early vs 1st",
     ...(anyPoison ? ["poison eaten"] : []), "seed range"];
-  const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
+  const widths = header.map((h) => Math.max(h.length, 8));
+  widths[varied.length + 5] = widths[varied.length + 6] = 13;
   const line = (cells: string[]) => cells.map((c, i) => c.padStart(widths[i])).join("  ");
+  const clearProgress = () => process.stderr.isTTY && process.stderr.write("\r\x1b[K");
   console.log(line(header));
-  for (const r of rows) console.log(line(r));
+
+  const got: (JobResult | undefined)[] = new Array(jobs.length);
+  const left = combos.map(() => S);
+  let printed = 0;
+  const printReady = () => {
+    while (printed < combos.length && left[printed] === 0) {
+      const slice = (k: number) => got.slice(k * S, (k + 1) * S) as JobResult[];
+      clearProgress();
+      console.log(line(rowFor(printed, slice(printed), slice(0))));
+      printed++;
+    }
+  };
+  const t0 = performance.now();
+  const progress = process.stderr.isTTY
+    ? (done: number) => process.stderr.write(`\r${done} of ${jobs.length} runs done`)
+    : undefined;
+  await runJobs(jobs, workers, progress, (index, result) => {
+    got[index] = result;
+    left[Math.floor(index / S)]--;
+    printReady();
+  });
+  clearProgress();
+  const secs = (performance.now() - t0) / 1000;
+  const totalGens = jobs.length * opts.gens;
   console.log(`\nscore = average food eaten per creature per layout, last 10 generations, averaged over seeds`);
   console.log(`±95% = the true score is probably within score ± this; settings whose ranges overlap are not shown to differ`);
   console.log(`top half = the same for the better half of each generation (weak newcomers don't drag it down); seed range is for score`);

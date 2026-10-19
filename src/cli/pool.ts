@@ -4,7 +4,10 @@
 import { Worker } from "node:worker_threads";
 import type { Job, JobResult } from "./job.ts";
 
-export function runJobs(jobs: Job[], workers: number, onProgress?: (done: number) => void): Promise<JobResult[]> {
+// onResult is called as each job finishes (in finishing order), so callers can show results early.
+export function runJobs(
+  jobs: Job[], workers: number, onProgress?: (done: number) => void, onResult?: (index: number, result: JobResult) => void,
+): Promise<JobResult[]> {
   const results: JobResult[] = new Array(jobs.length);
   if (jobs.length === 0) return Promise.resolve(results);
   const count = Math.max(1, Math.min(Math.floor(workers), jobs.length)); // no point in idle workers
@@ -32,6 +35,7 @@ export function runJobs(jobs: Job[], workers: number, onProgress?: (done: number
       w.on("message", (m: { index: number; result: JobResult }) => {
         results[m.index] = m.result;
         done++;
+        onResult?.(m.index, m.result);
         onProgress?.(done);
         if (done === jobs.length) finish();
         else giveWork(w);
