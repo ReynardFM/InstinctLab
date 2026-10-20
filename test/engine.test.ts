@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 import { brainDistance, createWorld, founderHue, hueDrift, retire, runGenerations, runTicks, step, wrapDelta, DEFAULT_RULES, LEGACY_LIMIT } from "../src/engine/world.ts";
 import { think, genomeSize, learn, GENOME } from "../src/engine/brain.ts";
 import { nearest } from "../src/engine/space.ts";
-import { inputCount, inputLabels, scanFood, wallAhead } from "../src/engine/senses.ts";
+import { inputCount, inputLabels, looksPoison, scanFood, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
 import * as dmath from "../src/engine/dmath.ts";
 import { centre, inherited, mutate } from "../src/engine/breed.ts";
-import { looksPoison, type Creature } from "../src/engine/creature.ts";
+import type { Creature } from "../src/engine/creature.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
 

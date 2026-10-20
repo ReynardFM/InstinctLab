@@ -64,10 +64,10 @@ src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerat
 ├─→ src/engine/dmath.ts   sin, cos, tanh, log that give identical bits in every JS engine
 └─→ src/engine/rng.ts     seeded random numbers, one per World
 
-brain.ts, rng.ts, senses.ts and world.ts all use dmath.ts instead of Math.sin/cos/tanh/log.
+brain.ts, breed.ts, life.ts, rng.ts, senses.ts and world.ts use dmath.ts instead of Math.sin/cos/tanh/log.
 
-lineage.ts, creature.ts and senses.ts use World only as a type (no import at run time), so there is no
-import loop. Other files import engine things through world.ts.
+The engine's run-time imports form no loop (checked 2026-10-20): files below world.ts use World only as a
+type. Other files import engine things through world.ts.
 
 src/check/golden.ts  the recorded runs (cases) and how to compare them
 └─→ src/engine/world.ts
@@ -90,10 +90,13 @@ test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, en
 | `src/engine/dmath.ts` | — | `brain.ts`, `rng.ts`, `senses.ts`, `world.ts`, `breed.ts`, tests |
 | `src/engine/brain.ts` | `dmath.ts` | `world.ts`, `senses.ts`, `main.ts`, tests |
 | `src/engine/space.ts` | — | `world.ts`, `senses.ts`, `main.ts`, tests |
-| `src/engine/senses.ts` | `space.ts`, `brain.ts`, `dmath.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `creature.ts`, `main.ts`, tests |
-| `src/engine/creature.ts` | `brain.ts`, `senses.ts`, `space.ts` (`World` type) | `world.ts`, `lineage.ts` |
-| `src/engine/lineage.ts` | `creature.ts`, `breed.ts` (`World` type) | `world.ts` |
-| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts`, `breed.ts`, `dmath.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
+| `src/engine/senses.ts` | `space.ts`, `brain.ts`, `dmath.ts` (types from `world.ts`, `creature.ts`) | `world.ts`, `life.ts`, `creature.ts`, `main.ts`, tests |
+| `src/engine/creature.ts` | `brain.ts`, `senses.ts`, `space.ts` (`World` type) | `world.ts`, `lineage.ts`, `life.ts`, `ecosystem.ts` |
+| `src/engine/life.ts` | `brain.ts`, `creature.ts`, `senses.ts`, `space.ts`, `dmath.ts` | `world.ts`, `ecosystem.ts` |
+| `src/engine/ecosystem.ts` | `life.ts`, `creature.ts`, `lineage.ts`, `breed.ts`, `space.ts` | `world.ts` |
+| `src/engine/mode.ts` | — (`World` type) | `world.ts`, `lineage.ts`, `main.ts` |
+| `src/engine/lineage.ts` | `creature.ts`, `breed.ts`, `mode.ts` (`World` type) | `world.ts`, `ecosystem.ts` |
+| `src/engine/world.ts` | `rng.ts`, `brain.ts`, `space.ts`, `senses.ts`, `creature.ts`, `lineage.ts`, `breed.ts`, `life.ts`, `ecosystem.ts`, `mode.ts`, `dmath.ts` | `main.ts`, `run.ts`, `job.ts`, `bench.ts`, tests |
 | `src/web/main.ts` | engine | `dist/app.js` (build output) |
 | `src/cli/job.ts` | `world.ts` | `worker.ts`, `pool.ts`, `run.ts`, `bench.ts`, `cli.test.ts` |
 | `src/cli/worker.ts` | `job.ts` | `pool.ts` (started as a thread, not imported) |

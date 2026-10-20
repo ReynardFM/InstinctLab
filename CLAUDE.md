@@ -6,9 +6,10 @@ Paths are relative to this folder (`evolution-lab/`, the git repository). This f
 A 2D world where creatures with tiny neural-network brains evolve by mutation and selection. Rey sets the rules and watches what evolves.
 Two goals: (1) fun to experiment with, (2) a vehicle for system design and scaling practice.
 
-## Current state (2026-10-18)
-- Engine `src/engine` (world, lineage, creature, senses, space, brain, rng), page `src/web`, CLI `src/cli`, checks `src/check` + `scripts`. README has commands and the file tree.
-- `test/golden.json` pins the basic rules ("42", "7", "hello", "custom") and the current defaults. Re-record with `npm run record-golden` only for a deliberate behaviour change, and say so in the commit. All engine math goes through `src/engine/dmath.ts` (identical bits in every JS engine); never call Math.sin/cos/tan/atan2/exp/log/pow or ** in the engine.
+## Current state (2026-10-20)
+- Engine `src/engine` (world, life, ecosystem, mode, lineage, creature, senses, space, brain, breed, dmath, rng), page `src/web`, CLI `src/cli`, checks `src/check` + `scripts`. README has commands and the file tree.
+- Features: generations (default) and ecosystem mode; poison (30% default), regrow, walls, extra senses; learning during life with forgetting, relative reward, energy gate, evolved per-connection rates; swap world. Learning, swap world and ecosystem are off by default.
+- `test/golden.json` pins the basic rules ("42", "7", "hello", "custom"), the current defaults, "learning" (every learning option and the swap world on; added 2026-10-20 to lock that code) and "ecosystem". Re-record with `npm run record-golden` only for a deliberate behaviour change, and say so in the commit. All engine math goes through `src/engine/dmath.ts` (identical bits in every JS engine); never call Math.sin/cos/tan/atan2/exp/log/pow or ** in the engine.
 - Machine: Rey's laptop is an Intel Core Ultra 7 155U (2 P-cores + 8 E-cores + 2 low-power E-cores, 15 W). Parallel efficiency: 100% to 2 workers, 74% at 4, 36% at 14 (unequal cores + power limit; start-up only 201 ms).
 - Before every commit: `npm run check` (types + tests + dist up to date). One commit per reviewed change; message says what changed and what was measured.
 - Baseline, current defaults (2026-10-19: 30% poison, separate world randomness), Rey's laptop, 14 seeds x 100 generations: score 31.6 ±1.2, top half 35.5, early 21.5, poison 5.0% of intake.
@@ -26,7 +27,7 @@ Rey's ecosystem calls 2026-10-19: births = split and pairs as a setting; ageing 
    Done 2026-10-19: ecosystem mode (`mode` 1) built alongside generations: life.ts (one tick of one creature, shared), ecosystem.ts (births, ageing as placeholder A via `ageScale`, deaths, rescue of 40 founders, population samples). Golden has an "ecosystem" case; generation runs unchanged. Found: instant regrowth = unlimited food (population explodes), so switching ecosystem on in the page sets regrow 100 (stable ~40 after 1-2 extinctions). Two-parent births barely happen (3-29 per 30,000 ticks): random brains rarely get full near each other, so the population cannot get started.
 
 ## Next session
-Rey's call 2026-10-19: two-parent births start from an evolved population. Done: `ecoWarmup` (default 20) runs ordinary generations first, then the ecosystem; no extinctions in 3 seeds, pairs sustain 20-46 creatures. Ageing: Rey asked whether B (lifetime brain change that costs energy) and C (thinking costs energy) combine; open.
+Rey's call 2026-10-19: two-parent births start from an evolved population. Done: `ecoWarmup` (default 20) runs ordinary generations first, then the ecosystem; no extinctions in 3 seeds, pairs sustain 20-46 creatures. Ageing: Rey asked whether B (lifetime brain change that costs energy) and C (thinking costs energy) combine; answered by the learning calls below (both, no wear).
 Rey's learning calls 2026-10-19: weights change by learning from eating (food +1, poison -1); children inherit 70-80% of what the parent learned (0.75); energy = thinking + learning per tick (no wear; ageing stays the separate ageScale).
    Done 2026-10-19: learning during life (brain.ts learn(): reward-modulated Hebbian with a 0.9 eligibility trace; creature.w = working brain, creature.g = inborn; breed.inherited()), thinkCost, learnCost. All off by default: golden unchanged. Measured: it hurts badly (-17 to -21 food); with 75% inheritance weights blow up 0.4 -> 5-22 (Hebbian growth piling up across generations); without inheritance still about -7 (food is rewarded far more often than poison, so the rule strengthens whatever is active).
 Rey's call 2026-10-19: both fixes (c), plus his idea of learning less when hungry as an extra option.
@@ -35,7 +36,10 @@ Rey 2026-10-19: "follow yours" -> give learning a reason first (swap world), the
    Done 2026-10-19: swapKinds (coin per food map decides which look is poison; creatures sense the look; off by default). Measured: learning still no gain (0.001 +1.2 ±1.9, 0.02 -5.4 *), also with gentler poison (0.15). The plain reward-modulated Hebbian rule is too weak to switch after one or two lessons.
 Rey 2026-10-19: (c) one time-boxed try of evolved per-connection learning, then scaling whatever the result.
    Done 2026-10-19: plasticity (genome = weights + one evolved learning rate per weight; learn() reads them). Measured: no gain (-0.1 to -1.5, all within noise); it only cancels the harm of a high shared rate (-1.5 vs -5.4 *). Learning closed: all sliders stay, off by default.
-1. Rey: scaling next - stage 3b (one run across cores) or stage 4 (queue + Docker), by measured trigger.
+Gap check 2026-10-20 (Rey: a): golden "learning" case added; senses.ts <-> creature.ts run-time import loop removed (looksPoison moved to senses.ts); docs brought up to date; elite comment fixed.
+Known limits (off by default, only matter if learning or the swap world come back): (1) ecosystem + swapKinds: the swap stops flipping after warm-up (no food maps in ecosystem mode); (2) with plasticity, brainDistance counts the evolved learning rates, so rate drift alone can split a family; (3) speed of forgetting and per-connection learning not measured.
+Rey 2026-10-20: asked why we have QA but rarely BA. Agreed gap: features got built before their goal, done-means and kill condition were written. Rey writes the requirement (goal / problem / done means / kill if / time-box / cheapest test first) for the next step.
+1. Rey: requirement for the next scaling step (3b or stage 4 or a measured experiment first); Claude checks it for gaps, then builds. Whether the BA brief becomes a standing rule (every feature / big ones only / no) is not decided yet.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 

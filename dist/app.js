@@ -250,6 +250,9 @@
     const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
     return Math.min(Math.min(tx, ty) / 200, 1);
   }
+  function looksPoison(w, f) {
+    return f.poison !== w.swapped;
+  }
   function scanFood(w, x, y, goodCount) {
     const walls = w.rules.walls > 0;
     const tick = w.tick;
@@ -308,9 +311,6 @@
   }
 
   // src/engine/creature.ts
-  function looksPoison(w, f) {
-    return f.poison !== w.swapped;
-  }
   function newFood(w, poison = false) {
     return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
   }

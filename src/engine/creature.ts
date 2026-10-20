@@ -42,12 +42,6 @@ export interface Creature {
 }
 
 
-// What a pellet looks like: a purple ring (true) or a green dot. Normally poison is the purple ring;
-// with rules.swapKinds the looks swap roles on some food maps. Creatures sense the look, not the truth.
-export function looksPoison(w: World, f: Food): boolean {
-  return f.poison !== w.swapped;
-}
-
 export function newFood(w: World, poison = false): Food {
   return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
 }

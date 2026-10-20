@@ -26,7 +26,7 @@ export interface Rules {
   pop: number; // creatures per generation
   food: number; // food pellets on the map at once
   genTicks: number; // length of one generation
-  elite: number; // best N copied unchanged
+  elite: number; // best N copied unchanged (with learning on, they carry rules.inheritLearned of what they learned, like any child)
   parents: number; // children come from the best N
   mutation: number; // size of the random nudge per weight
   splitDistance: number; // a child this different from its family's main brain founds a new family; 0 = never

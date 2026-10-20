@@ -1,12 +1,11 @@
 // The page: drawing and controls. It reads the World but never changes how it evolves.
 import { createWorld, founderHue, step, DEFAULT_RULES, W, H, type Creature, type Family, type Rules, type World } from "../engine/world.ts";
 import { OUT } from "../engine/brain.ts";
-import { inputLabels, scanFood } from "../engine/senses.ts";
+import { inputLabels, looksPoison, scanFood } from "../engine/senses.ts";
 import { ECO_SAMPLE } from "../engine/ecosystem.ts";
 import { inEcosystem } from "../engine/mode.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
-import { looksPoison } from "../engine/creature.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const ctx2d = (id: string) => $<HTMLCanvasElement>(id).getContext("2d")!;

@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] }, ecosystem: { avg: [52, 49, 49, 51, 48, 46, 40, 37, 36, 33, 28, 23, 23, 17, 18, 15, 14, 15, 14, 13, 14, 15, 15, 15, 12, 14, 15, 16, 16, 18, 19, 19, 18, 15, 17, 17, 18, 19, 19, 21], best: [72, 91] } };
+  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] }, learning: { avg: [0.725, 1.1916666666666667, 1.4083333333333332], best: [5, 5.666666666666667, 5.666666666666667] }, ecosystem: { avg: [52, 49, 49, 51, 48, 46, 40, 37, 36, 33, 28, 23, 23, 17, 18, 15, 14, 15, 14, 13, 14, 15, 15, 15, 12, 14, 15, 16, 16, 18, 19, 19, 18, 15, 17, 17, 18, 19, 19, 21], best: [72, 91] } };
 
   // src/engine/dmath.ts
   var HALF_PI_HI = 1.5707963267341256;
@@ -245,6 +245,9 @@
     const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
     return Math.min(Math.min(tx, ty) / 200, 1);
   }
+  function looksPoison(w, f) {
+    return f.poison !== w.swapped;
+  }
   function scanFood(w, x, y, goodCount) {
     const walls = w.rules.walls > 0;
     const tick = w.tick;
@@ -303,9 +306,6 @@
   }
 
   // src/engine/creature.ts
-  function looksPoison(w, f) {
-    return f.poison !== w.swapped;
-  }
   function newFood(w, poison = false) {
     return { x: w.env.next() * W, y: w.env.next() * H, poison, readyAt: 0 };
   }
@@ -885,6 +885,13 @@
       rules: { ...BASE_RULES, pop: 15, food: 20, elite: 0, parents: 50, mutation: 0.4, genTicks: 400 }
     },
     { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true },
+    {
+      name: "learning",
+      seed: seedFrom("42"),
+      gens: 3,
+      checkBest: true,
+      rules: { ...DEFAULT_RULES, poison: 0.5, swapKinds: 1, learnRate: 5e-3, plasticity: 1, energyGate: 1, thinkCost: 5e-4, learnCost: 5e-3 }
+    },
     // ecosystem: avg = population every 100 ticks, best = [births, deaths]
     // (2 warm-up generations, 3 layouts x 1500 ticks each = 9000 ticks, then 4000 ticks of ecosystem)
     { name: "ecosystem", seed: seedFrom("42"), rules: { ...DEFAULT_RULES, mode: 1, regrow: 100, ecoWarmup: 2 }, gens: 0, ticks: 13e3, checkBest: true }

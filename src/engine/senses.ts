@@ -1,7 +1,7 @@
 // What a creature perceives each tick. Which senses exist is set by the rules; each one adds inputs
 // to the brain, so the brain (and the genome) grows with them.
 import type { World } from "./world.ts"; // types only, no import at run time
-import { looksPoison, type Creature, type Food } from "./creature.ts";
+import type { Creature, Food } from "./creature.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { H, W, nearest, type Near } from "./space.ts";
@@ -46,6 +46,12 @@ export function wallAhead(x: number, y: number, heading: number): number {
   const tx = cx > 0 ? (W - x) / cx : cx < 0 ? -x / cx : Infinity;
   const ty = cy > 0 ? (H - y) / cy : cy < 0 ? -y / cy : Infinity;
   return Math.min(Math.min(tx, ty) / 200, 1);
+}
+
+// What a pellet looks like: a purple ring (true) or a green dot. Normally poison is the purple ring;
+// with rules.swapKinds the looks swap roles on some food maps. Creatures sense the look, not the truth.
+export function looksPoison(w: World, f: Food): boolean {
+  return f.poison !== w.swapped;
 }
 
 export interface Perception {
