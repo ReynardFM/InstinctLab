@@ -12,16 +12,22 @@ import type { Creature } from "../src/engine/creature.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
 
-// Recorded runs (see src/check/golden.ts): the basic rules, plus the current defaults.
+// Recorded runs (see src/check/golden.ts): the basic rules, the current defaults, learning, ecosystem.
 import { BASE_RULES, CASES, firstDifference, runCase } from "../src/check/golden.ts";
 // the rules before food layouts, extra senses and newcomers existed
 const ONE = BASE_RULES;
 const golden = JSON.parse(readFileSync(new URL("./golden.json", import.meta.url), "utf8"));
 
 test("basic rules behave exactly as recorded", () => {
-  for (const c of CASES.filter((x) => x.name !== "defaults" && x.name !== "ecosystem")) {
+  for (const c of CASES.filter((x) => !["defaults", "ecosystem", "learning"].includes(x.name))) {
     assert.equal(firstDifference(runCase(c), golden[c.name]), null, `case ${c.name}`);
   }
+});
+
+test("learning and the swap world (all off by default) behave exactly as recorded", () => {
+  const c = CASES.find((x) => x.name === "learning")!;
+  assert.ok(golden.learning, "learning not recorded: run npm run record-golden");
+  assert.equal(firstDifference(runCase(c), golden.learning), null);
 });
 
 test("current default rules behave exactly as recorded (npm run record-golden after a deliberate change)", () => {
