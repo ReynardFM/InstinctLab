@@ -62,7 +62,8 @@ export function live(w: World, c: Creature, costFactor: number): void {
       c.usual += USUAL_RATE * (reward - c.usual);
     }
     const rate = r.energyGate > 0 ? r.learnRate * Math.max(0, Math.min(c.energy / 1.5, 1)) : r.learnRate;
-    const change = learn(c.w, c.trace, c.inputs, hidden, out, felt, rate, LEARN_DECAY);
+    const rates = r.plasticity > 0 ? c.g : null; // evolved per-connection rates sit after the weights
+    const change = learn(c.w, c.trace, c.inputs, hidden, out, felt, rate, LEARN_DECAY, rates, c.w.length);
     c.learned += change;
     c.energy -= r.learnCost * change;
     if (r.forget > 0) for (let k = 0; k < c.w.length; k++) c.w[k] += r.forget * (c.g[k] - c.w[k]); // fade back toward the inborn brain

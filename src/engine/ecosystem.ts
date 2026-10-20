@@ -2,11 +2,10 @@
 // and the population rises and falls with the food. Same seed + same rules = same run, as always.
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
-import { genomeSize, type Genome } from "./brain.ts";
-import { newCreature } from "./creature.ts";
+import type { Genome } from "./brain.ts";
+import { genomeLength, newCreature } from "./creature.ts";
 import { inherited, mutate } from "./breed.ts";
 import { maybeSplit, newFamily, retire } from "./lineage.ts";
-import { inputCount } from "./senses.ts";
 import { live } from "./life.ts";
 import { H, W, offset } from "./space.ts";
 
@@ -115,7 +114,7 @@ function makeChild(w: World, parent: Creature, genome: Genome, energy: number): 
 function rescue(w: World): void {
   const { rules } = w;
   for (let i = 0; i < RESCUE; i++) {
-    const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
+    const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
     const id = w.nextFamilyId++;
     w.families.set(id, newFamily(id, genome, null, w.tick, true));
     w.creatures.push(newCreature(w, genome, id, false, null));

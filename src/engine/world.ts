@@ -1,7 +1,7 @@
 // The simulation. No drawing, no DOM, no clock: only the World object and functions on it.
 // Same seed + same rules = same run, at any speed, in the browser or in Node.
 import { createRng, type Rng } from "./rng.ts";
-import { genomeSize, think } from "./brain.ts";
+import { think } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { centre, inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
@@ -10,8 +10,8 @@ import { inEcosystem } from "./mode.ts";
 export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
 import { H, W } from "./space.ts";
-import { inputCount, sense } from "./senses.ts";
-import { newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
+import { sense } from "./senses.ts";
+import { genomeLength, newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
 import {
   addNewcomer, crownChampions, judgeBranches, maybeSplit, newFamily, protectNewcomers, recordFamilyStats,
   settleLineage, type Branch, type Family,
@@ -56,6 +56,7 @@ export interface Rules {
   learnCost: number; // energy per unit of weight change from learning; 0 = free
   forget: number; // learning: share of the learned change that fades back toward the inborn brain each tick (0.002 = about 350 ticks to halve); 0 = never
   relativeReward: number; // learning: 1 = a meal counts only as better or worse than the creature's usual intake; 0 = food +1, poison -1
+  plasticity: number; // learning: 1 = every connection has its own learning rate, evolved in the genome (genome doubles); 0 = one rate for all
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
 }
@@ -69,7 +70,7 @@ export const DEFAULT_RULES: Rules = {
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
-  forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
+  forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
 };
 
 export interface World {
@@ -139,7 +140,7 @@ export function createWorld(seed: number, rules: Rules): World {
     eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] },
   };
   for (let i = 0; i < rules.pop; i++) {
-    const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
+    const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }

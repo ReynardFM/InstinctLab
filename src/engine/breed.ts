@@ -23,7 +23,8 @@ export function mutate(w: World, g: Genome, size: number): Genome {
 export function inherited(w: World, c: Creature): Genome {
   if (c.w === c.g) return c.g;
   const share = w.rules.inheritLearned;
-  return c.g.map((x, k) => x + share * (c.w[k] - x));
+  const n = c.w.length; // weights; with rules.plasticity the evolved learning rates follow, passed on as they are
+  return c.g.map((x, k) => (k < n ? x + share * (c.w[k] - x) : x));
 }
 
 export function centre(w: World, ranked: Creature[], parents: number): Genome {

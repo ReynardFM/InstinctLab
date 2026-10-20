@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { brainDistance, createWorld, founderHue, hueDrift, retire, runGenerations, runTicks, step, wrapDelta, DEFAULT_RULES, LEGACY_LIMIT } from "../src/engine/world.ts";
-import { think, genomeSize, GENOME } from "../src/engine/brain.ts";
+import { think, genomeSize, learn, GENOME } from "../src/engine/brain.ts";
 import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, scanFood, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
@@ -485,6 +485,27 @@ test("swapKinds: on some food maps purple rings are the food, and creatures sens
   }
   assert.deepEqual([...seen].sort(), [false, true], "both ways happen");
   assert.equal(createWorld(1, DEFAULT_RULES).swapped, false, "off by default");
+});
+
+test("plasticity: each connection learns at its own evolved rate, stored after the weights", () => {
+  const rules = { ...ONE, learnRate: 0.1, plasticity: 1 };
+  const w = createWorld(9, rules);
+  const c = w.creatures[0];
+  const n = genomeSize(inputCount(rules), rules.hidden);
+  assert.equal(c.g.length, n * 2, "genome = weights + one learning rate per weight");
+  assert.equal(c.w.length, n, "the working brain is the weights only");
+  // a connection with rate 0 never changes; give every connection rate 0 except the last one
+  for (let k = n; k < 2 * n; k++) c.g[k] = 0;
+  c.g[2 * n - 1] = 1;
+  c.trace.fill(1);
+  const before = c.w.slice();
+  learn(c.w, c.trace, c.inputs.length ? c.inputs : new Array(inputCount(rules)).fill(0.5), new Array(rules.hidden).fill(0.5), [0.5, 0.5], 1, 0.1, 0.9, c.g, n);
+  for (let k = 0; k < n - 1; k++) assert.equal(c.w[k], before[k]);
+  assert.notEqual(c.w[n - 1], before[n - 1], "only the connection with a learning rate changed");
+  // children inherit the evolved rates unchanged, and a share of the learned weights
+  const kid = inherited(w, c);
+  assert.equal(kid.length, 2 * n);
+  assert.deepEqual(kid.slice(n), c.g.slice(n));
 });
 
 test("thinking and learning can cost energy", () => {

@@ -543,6 +543,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["forget", "Forgetting", 0, 0.01, 0.0005, "Share of learned change fading back to the inborn brain each tick. 0 = never forget."],
   ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
   ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
+  ["plasticity", "Evolve how each connection learns", 0, 1, 1, "1 = every connection gets its own learning rate, evolved in the genome (doubles it). Needs learning on."],
   ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],

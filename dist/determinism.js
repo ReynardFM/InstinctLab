@@ -127,13 +127,13 @@
     }
     return { hidden, out };
   }
-  function learn(weights, trace, inputs, hidden, out, reward, rate, decay) {
+  function learn(weights, trace, inputs, hidden, out, reward, rate, decay, rates = null, ratesAt = 0) {
     let k = 0;
     let change = 0;
     const step2 = (pre, post) => {
       trace[k] = decay * trace[k] + pre * post;
       if (reward !== 0) {
-        const d = rate * reward * trace[k];
+        const d = rate * reward * trace[k] * (rates ? rates[ratesAt + k] : 1);
         weights[k] += d;
         change += d < 0 ? -d : d;
       }
@@ -160,7 +160,8 @@
   function inherited(w, c) {
     if (c.w === c.g) return c.g;
     const share = w.rules.inheritLearned;
-    return c.g.map((x, k) => x + share * (c.w[k] - x));
+    const n = c.w.length;
+    return c.g.map((x, k) => k < n ? x + share * (c.w[k] - x) : x);
   }
   function centre(w, ranked, parents) {
     const fam = ranked[0].family;
@@ -313,6 +314,10 @@
     const poisonCount = Math.round(w.rules.poison * w.rules.food);
     return Array.from({ length: w.rules.food }, (_, i) => newFood(w, i < poisonCount));
   }
+  function genomeLength(r) {
+    const weights = genomeSize(inputCount(r), r.hidden);
+    return r.plasticity > 0 ? weights * 2 : weights;
+  }
   function newCreature(w, genome, family, elite, parentHue) {
     const { env } = w;
     const id = w.nextId++;
@@ -325,8 +330,9 @@
       branch: null,
       streak: 0,
       g: genome,
-      w: w.rules.learnRate > 0 ? genome.slice() : genome,
-      trace: w.rules.learnRate > 0 ? new Array(genome.length).fill(0) : [],
+      // the working brain is the weights part only; its own copy when it can change during life
+      w: w.rules.plasticity > 0 ? genome.slice(0, genome.length / 2) : w.rules.learnRate > 0 ? genome.slice() : genome,
+      trace: w.rules.learnRate > 0 ? new Array(w.rules.plasticity > 0 ? genome.length / 2 : genome.length).fill(0) : [],
       learned: 0,
       usual: 0,
       x: env.next() * W,
@@ -583,7 +589,8 @@
         c.usual += USUAL_RATE * (reward - c.usual);
       }
       const rate = r.energyGate > 0 ? r.learnRate * Math.max(0, Math.min(c.energy / 1.5, 1)) : r.learnRate;
-      const change = learn(c.w, c.trace, c.inputs, hidden, out, felt, rate, LEARN_DECAY);
+      const rates = r.plasticity > 0 ? c.g : null;
+      const change = learn(c.w, c.trace, c.inputs, hidden, out, felt, rate, LEARN_DECAY, rates, c.w.length);
       c.learned += change;
       c.energy -= r.learnCost * change;
       if (r.forget > 0) for (let k = 0; k < c.w.length; k++) c.w[k] += r.forget * (c.g[k] - c.w[k]);
@@ -686,7 +693,7 @@
   function rescue(w) {
     const { rules } = w;
     for (let i = 0; i < RESCUE; i++) {
-      const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
+      const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
       const id = w.nextFamilyId++;
       w.families.set(id, newFamily(id, genome, null, w.tick, true));
       w.creatures.push(newCreature(w, genome, id, false, null));
@@ -742,7 +749,8 @@
     forget: 2e-3,
     relativeReward: 1,
     energyGate: 0,
-    swapKinds: 0
+    swapKinds: 0,
+    plasticity: 0
   };
   function createWorld(seed, rules) {
     const w = {
@@ -772,7 +780,7 @@
       eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = Array.from({ length: genomeSize(inputCount(rules), rules.hidden) }, () => w.rng.gauss() * 0.5);
+      const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }

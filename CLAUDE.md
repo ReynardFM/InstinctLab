@@ -33,7 +33,9 @@ Rey's call 2026-10-19: both fixes (c), plus his idea of learning less when hungr
    Done 2026-10-19: forget (0.002/tick toward the inborn brain), relativeReward (reward minus the creature's usual intake, ~500-tick average), energyGate (off). Learning itself still off by default. Measured: weights stay normal; 0.001 = no difference (+1.0 ±1.8), 0.005 = -2.4 *, 0.02 = -11.7 *; energy gate no effect (+0.7 ±3.3).
 Rey 2026-10-19: "follow yours" -> give learning a reason first (swap world), then scaling.
    Done 2026-10-19: swapKinds (coin per food map decides which look is poison; creatures sense the look; off by default). Measured: learning still no gain (0.001 +1.2 ±1.9, 0.02 -5.4 *), also with gentler poison (0.15). The plain reward-modulated Hebbian rule is too weak to switch after one or two lessons.
-1. Rey: evolve how each connection learns (per-connection plasticity in the genome) or stop learning here and go to scaling.
+Rey 2026-10-19: (c) one time-boxed try of evolved per-connection learning, then scaling whatever the result.
+   Done 2026-10-19: plasticity (genome = weights + one evolved learning rate per weight; learn() reads them). Measured: no gain (-0.1 to -1.5, all within noise); it only cancels the harm of a high shared rate (-1.5 vs -5.4 *). Learning closed: all sliders stay, off by default.
+1. Rey: scaling next - stage 3b (one run across cores) or stage 4 (queue + Docker), by measured trigger.
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
