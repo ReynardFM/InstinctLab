@@ -151,6 +151,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | Rey's energy gate (learn less when hungry), learnRate 0.005, paired | +0.7 ±3.3: no effect |
 | 2026-10-19 | Swap world (poison 0.5, which look is poison flips by coin on each food map), 7 seeds x 60 generations, paired vs no learning (10.7) | learnRate 0.001: +1.2 ±1.9; 0.005: -0.9 ±2.7; 0.02: -5.4 ±2.0 *. Learning still doesn't help. Non-learners eat only 17% poison, not by avoiding it: they commit to one look and die after 2-3 poisons on the bad maps. Hiding the energy sense changes nothing (17.6%), so it isn't used as a memory |
 | 2026-10-19 | Same, gentler poison (0.15 instead of 0.5 energy) so learners survive more lessons | 0.001: +0.1 ±1.7; 0.005: -2.2 ±2.8; 0.02: -2.9 ±1.3 *. Still no gain: the learning rule itself is too weak, not the number of lessons. Inheriting learned changes in the swap world: 0 vs 0.75 = +1.4 ±3.3 (no difference) |
+| 2026-10-19 | Swap world repeated on Rey's laptop, 14 seeds x 60 generations, paired vs no learning (10.3) | learnRate 0.001: +0.4 ±2.2; 0.005: -0.9 ±2.0; 0.02: -4.6 ±1.8 *. Confirms the 7-seed cloud run. 3360 generations in 180 s (18.7/s, 14 workers) |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 
