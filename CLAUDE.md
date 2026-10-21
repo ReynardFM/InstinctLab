@@ -49,7 +49,8 @@ Rey 2026-10-20: BA brief is a standing rule for big features only (more than abo
 Rey 2026-10-21: do the small and medium options except the portfolio pass (#8): #5 queue hardening, #6 ecosystem in the lab, #7 hall of fame, #4 stage 3b. Built overnight in the cloud while his laptop slept; committed 2026-10-21 one by one.
    #6 done: npm run lab -- --mode=1 --ticks=N (job.ts EcoResult). Cloud check, seeds 1-3, 5 warm-up generations, 10000 ticks: split births 41.5 ±15.6 creatures, pairs 9.4 ±27.9 (-32.1 ±12.8 *).
    #7 done: hall of fame on the page (src/web/fame.ts; createWorld(seed, rules, start)). Checked in headless Chromium: save, reload, Watch, export, delete, import, broken file; no page errors.
-1. Rey: pick the next step (options briefed 2026-10-20). Push to GitHub last.
+   #4 done (stage 3b): world.startLayout (each food map has its own random numbers, layoutSeed, and starts everyone fresh; with learning on, each map starts from the inborn brain), cli/split.ts + layout-worker.ts, npm run bench-split. Golden re-recorded (every number changed; behaviour the same: 29.6 ±1.7 vs 30.1 ±1.3). The 2026-10-19 baseline (31.6 ±1.2, 14 seeds x 100 generations) predates this: re-measure on Rey's laptop.
+1. Rey: on his laptop, npm run bench-split -- --gens=30 (the 3b result) and npm run queue-demo (queue after hardening). Then pick the next step. Push to GitHub last.
 2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
@@ -92,7 +93,7 @@ Rey 2026-10-21: do the small and medium options except the portfolio pass (#8): 
 | 1 | Browser sim to watch | done |
 | 2 | TypeScript engine separate from rendering, seeded and deterministic | done: the single file reached 485 lines, and comparing settings by eye was too slow |
 | 3a | Experiment runs spread over worker threads (`npm run lab`, `npm run bench`) | done 2026-10-17: 900 generations took 81 s on Rey's machine, then layouts made generations 3x slower |
-| 3b | One run's layouts scored in parallel (needs one random stream per layout) | Watching or running a single run is too slow |
+| 3b | One run's layouts scored in parallel (needs one random stream per layout) | done 2026-10-21 on Rey's pick (trigger not measured): cli/split.ts, npm run bench-split; 1.5x on 2 cloud cores, identical results |
 | 4 | Job queue + multiple worker processes in Docker | done 2026-10-20 as practice (Rey's BA brief, Box A; trigger "one machine maxes out" not met): Redis queue, 4 worker containers, worker killed mid-run redone with identical results. Real speed-up needs a second machine |
 | 5 | Postgres: genomes, lineage, replay any creature | Want "show me the ancestor of the best one" |
 | 6 | Live view of a server-side run over WebSocket | Want to watch a run happening on a server |

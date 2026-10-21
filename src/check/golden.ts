@@ -8,6 +8,9 @@
 // Re-record (npm run record-golden) only when a change is MEANT to alter behaviour, and say so in the
 // commit. History: the basic cases matched the original single-file version until 2026-10-18, when
 // deterministic math (dmath.ts) replaced Math.sin/cos/tanh/log and every number changed.
+// Re-recorded 2026-10-21 (stage 3b): each food map now has its own random numbers and starts everyone
+// fresh, so the maps can run on separate threads; every number changed, behaviour didn't (default rules,
+// seeds 1-7 x 60 generations: 29.6 ±1.7 vs 30.1 ±1.3 before).
 import { createWorld, runGenerations, runTicks, DEFAULT_RULES, type Rules } from "../engine/world.ts";
 import { seedFrom } from "../engine/rng.ts";
 

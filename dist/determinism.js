@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.925, 6.225, 11.4, 18.75, 25.775, 24.75, 31.25, 26.875, 29.45, 32.275], best: [20, 38, 42, 47, 45, 45, 57, 50, 55, 54] }, "42": { avg: [2.475, 8.2, 9.85, 16.5, 18.425, 21.775, 24.725, 26.35, 29.675, 26.55], best: [20, 25, 46, 43, 42, 45, 47, 48, 59, 47] }, hello: { avg: [2.375, 6.9, 13.525, 21.6, 26.5, 28.25, 32.225, 33.625, 33.55, 32.15], best: [28, 29, 48, 50, 53, 52, 50, 59, 54, 58] }, custom: { avg: [0.8666666666666667, 0.3333333333333333, 0.8666666666666667, 0.9333333333333333, 0.26666666666666666, 1.1333333333333333, 1.4666666666666666, 1.9333333333333333, 0.8666666666666667, 1] }, defaults: { avg: [1.5, 2.875, 6.816666666666666], best: [10, 11, 17.666666666666668] }, learning: { avg: [0.725, 1.1916666666666667, 1.4083333333333332], best: [5, 5.666666666666667, 5.666666666666667] }, ecosystem: { avg: [52, 49, 49, 51, 48, 46, 40, 37, 36, 33, 28, 23, 23, 17, 18, 15, 14, 15, 14, 13, 14, 15, 15, 15, 12, 14, 15, 16, 16, 18, 19, 19, 18, 15, 17, 17, 18, 19, 19, 21], best: [72, 91] } };
+  var golden_default = { "7": { avg: [1.775, 4.15, 9.95, 15.55, 20.175, 24.675, 25.125, 26.875, 27.475, 32.05], best: [20, 22, 34, 40, 48, 50, 55, 52, 50, 55] }, "42": { avg: [3.25, 7.325, 10.7, 13.425, 14.5, 18.525, 22.475, 25.75, 27.85, 28.35], best: [18, 29, 28, 43, 35, 41, 52, 46, 50, 50] }, hello: { avg: [2.625, 7.925, 16.975, 24.325, 22.625, 26.85, 27.65, 27.35, 30.275, 28.7], best: [27, 43, 48, 50, 51, 50, 53, 50, 56, 57] }, custom: { avg: [0.5333333333333333, 0.7333333333333333, 0.13333333333333333, 1.4, 1.2666666666666666, 0.6, 1.0666666666666667, 1.5333333333333334, 1.4666666666666666, 1] }, defaults: { avg: [1.2333333333333334, 3.0083333333333333, 5.591666666666666], best: [5.666666666666667, 10.333333333333334, 20] }, learning: { avg: [0.7833333333333333, 1.1833333333333333, 1.7166666666666668], best: [4.333333333333333, 4.666666666666667, 7] }, ecosystem: { avg: [48, 52, 53, 53, 55, 55, 47, 39, 31, 29, 24, 23, 21, 16, 14, 12, 11, 11, 11, 11, 12, 10, 11, 12, 12, 11, 9, 8, 9, 7, 10, 12, 15, 14, 16, 16, 20, 19, 25, 26], best: [62, 76] } };
 
   // src/engine/dmath.ts
   var HALF_PI_HI = 1.5707963267341256;
@@ -753,11 +753,17 @@
     plasticity: 0
   };
   function createWorld(seed, rules, start) {
-    if (start && start.length !== genomeLength(rules)) {
-      throw new Error(`This brain has ${start.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+    const each = start && Array.isArray(start[0]) ? start : null;
+    const one = start && !each ? start : null;
+    for (const g of each ?? (one ? [one] : [])) {
+      if (g.length !== genomeLength(rules)) {
+        throw new Error(`This brain has ${g.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+      }
     }
+    if (each && each.length !== rules.pop) throw new Error(`${each.length} brains for ${rules.pop} creatures`);
     const w = {
       rules: { ...rules },
+      seed,
       rng: createRng(seed),
       env: createRng(envSeed(seed)),
       creatures: [],
@@ -783,11 +789,11 @@
       eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = start ? start.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+      const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
-    w.food = newFoodLayout(w);
+    startLayout(w);
     return w;
   }
   function step(w) {
@@ -795,18 +801,25 @@
       stepEcosystem(w);
       return;
     }
-    for (const c of w.creatures) if (c.alive) live(w, c, 1);
-    w.tick++;
-    if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
+    if (tickLayout(w)) {
       if (w.layout + 1 < w.rules.layouts) nextLayout(w);
       else nextGeneration(w);
     }
+  }
+  function tickLayout(w) {
+    for (const c of w.creatures) if (c.alive) live(w, c, 1);
+    w.tick++;
+    return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
   }
   function runTicks(w, ticks) {
     for (let i = 0; i < ticks; i++) step(w);
   }
   function nextLayout(w) {
     w.layout++;
+    startLayout(w);
+  }
+  function startLayout(w) {
+    w.env = createRng(layoutSeed(w.seed, w.generation, w.layout));
     for (const c of w.creatures) {
       c.x = w.env.next() * W;
       c.y = w.env.next() * H;
@@ -814,6 +827,11 @@
       c.energy = 1;
       c.alive = true;
       c.diedAt = null;
+      if (c.w !== c.g) {
+        for (let k = 0; k < c.w.length; k++) c.w[k] = c.g[k];
+        c.trace.fill(0);
+        c.usual = 0;
+      }
     }
     w.food = newFoodLayout(w);
     w.tick = 0;
@@ -822,6 +840,14 @@
     let h = Math.imul((seed | 0) ^ 1540483477, 668265261);
     h ^= h >>> 15;
     return Math.imul(h, 374761393) | 0;
+  }
+  function layoutSeed(seed, generation, layout) {
+    let h = envSeed(seed);
+    h = Math.imul(h ^ generation, 2654435761);
+    h ^= h >>> 16;
+    h = Math.imul(h ^ layout, 2246822507);
+    h ^= h >>> 13;
+    return h | 0;
   }
   function runGenerations(w, generations) {
     const target = w.generation + generations;
@@ -862,10 +888,9 @@
     }
     w.creatures = next;
     settleLineage(w, proven);
-    w.food = newFoodLayout(w);
-    w.tick = 0;
     w.layout = 0;
     w.generation++;
+    startLayout(w);
   }
 
   // src/check/golden.ts

@@ -19,6 +19,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run typecheck` | yes | Checks the TypeScript types |
 | `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
 | `npm run record-golden` | no | Re-records the runs in `test/golden.json`. Only after a change that is meant to alter behaviour |
+| `npm run bench-split -- --gens=30` | no | One run with its food maps on separate threads (stage 3b) vs one after another: checks they are identical, prints the speed-up |
 | `npm run queue-demo` | yes | Stage 4 check in one command: queue + Docker workers, one killed mid-run, compared with threads (below) |
 | `npm run queue-status` | yes | What the queue and its workers are doing right now: waiting and running runs, lease time left, attempt numbers, live workers |
 | `npm run lab -- --queue --gens=60 --seeds=1-14` | yes | Same as `lab`, but the runs go through a Redis queue to worker containers (stage 4, below). Same table, same numbers |
@@ -86,6 +87,10 @@ src/queue/worker-main.ts  one queue worker = one Docker container (Dockerfile, c
 ├─→ src/queue/redis-queue.ts
 └── starts ──→ src/cli/worker.ts   the run happens in a thread, so the heartbeat keeps going
 
+src/cli/split.ts     stage 3b: one run's food maps on separate threads, same numbers
+└── starts ──→ src/cli/layout-worker.ts   one thread: plays one food map of one generation
+src/cli/split-bench.ts  npm run bench-split: one run split vs not, identical check, speed-up
+
 src/cli/bench.ts     generations/s vs number of workers (npm run bench)
 ├─→ src/cli/pool.ts
 └─→ src/engine/world.ts   (default rules)
@@ -126,6 +131,7 @@ scripts/queue-status.ts         ─→ src/queue/redis-queue.ts
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
+test/split.test.ts  ─→ cli/split.ts, engine/world.ts: split = one after another
 test/queue.test.ts  ─→ queue/redis-queue.ts, queue/worker-main.ts (as processes), cli/pool.ts; needs redis-server
 ```
 
@@ -204,6 +210,8 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-19 | Evolved per-connection learning rates (plasticity 1), swap world, 7 seeds x 60 generations, paired vs no learning (10.7) | No gain: plasticity alone -0.1 ±2.7, with learnRate 0.005 -1.0 ±3.7, with 0.02 -1.5 ±2.1 (vs -5.4 * for one shared rate). Evolution used the control to cancel harmful learning, not to learn the swap (likely; rates not inspected). Learning closed here, time-boxed per Rey's call |
 | 2026-10-19 | Per-connection learning rates repeated on Rey's laptop, 14 seeds x 60 generations, paired vs no learning (10.3) | Plasticity alone +0.8 ±2.2; learnRate 0.005: -0.9 (shared) / -0.2 (per-connection); 0.02: -4.6 * (shared) / -1.2 ±1.4 (per-connection). Confirms the 7-seed run: no gain, per-connection rates only cancel the harm. 5040 generations in 252 s (20.0/s, 14 workers) |
 | 2026-10-20 | Stage 4 on Rey's laptop: `npm run queue-demo`, 14 runs x 60 generations, Redis + 4 worker containers, one container killed 3 s into a run | PASS: the killed run was redone by another worker on attempt 2; both queue passes identical to threads, number for number. Times: queue with the kill 177 s (incl. the 30 s lease wait), queue 130.5 s (6.4 gens/s), 4 threads 152.0 s (5.5 gens/s). Queue 1.16x threads in this one trial: threads ran last (heat/power limit on a 15 W laptop is a likely reason, unverified); expected about equal on the same cores |
+| 2026-10-21 | Stage 3b: each food map gets its own random numbers and starts everyone fresh (golden re-recorded), default rules, seeds 1-7 x 60 generations, cloud | Same behaviour: 29.6 ±1.7 food (before 30.1 ±1.3), poison 5.2% (5.4%). Older rows were measured before this change: same trends, not the same digits |
+| 2026-10-21 | `npm run bench-split -- --gens=20`, 2-core cloud machine | 1.56x on 2 threads (1.5x is the ceiling for 3 maps on 2 cores), 1.50x on 3 threads; identical results. Rey's laptop: to measure (at most 3x) |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

@@ -758,11 +758,17 @@
     plasticity: 0
   };
   function createWorld(seed, rules, start) {
-    if (start && start.length !== genomeLength(rules)) {
-      throw new Error(`This brain has ${start.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+    const each = start && Array.isArray(start[0]) ? start : null;
+    const one = start && !each ? start : null;
+    for (const g of each ?? (one ? [one] : [])) {
+      if (g.length !== genomeLength(rules)) {
+        throw new Error(`This brain has ${g.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+      }
     }
+    if (each && each.length !== rules.pop) throw new Error(`${each.length} brains for ${rules.pop} creatures`);
     const w = {
       rules: { ...rules },
+      seed,
       rng: createRng(seed),
       env: createRng(envSeed(seed)),
       creatures: [],
@@ -788,11 +794,11 @@
       eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = start ? start.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+      const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
-    w.food = newFoodLayout(w);
+    startLayout(w);
     return w;
   }
   function step(w) {
@@ -800,15 +806,22 @@
       stepEcosystem(w);
       return;
     }
-    for (const c of w.creatures) if (c.alive) live(w, c, 1);
-    w.tick++;
-    if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
+    if (tickLayout(w)) {
       if (w.layout + 1 < w.rules.layouts) nextLayout(w);
       else nextGeneration(w);
     }
   }
+  function tickLayout(w) {
+    for (const c of w.creatures) if (c.alive) live(w, c, 1);
+    w.tick++;
+    return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
+  }
   function nextLayout(w) {
     w.layout++;
+    startLayout(w);
+  }
+  function startLayout(w) {
+    w.env = createRng(layoutSeed(w.seed, w.generation, w.layout));
     for (const c of w.creatures) {
       c.x = w.env.next() * W;
       c.y = w.env.next() * H;
@@ -816,6 +829,11 @@
       c.energy = 1;
       c.alive = true;
       c.diedAt = null;
+      if (c.w !== c.g) {
+        for (let k = 0; k < c.w.length; k++) c.w[k] = c.g[k];
+        c.trace.fill(0);
+        c.usual = 0;
+      }
     }
     w.food = newFoodLayout(w);
     w.tick = 0;
@@ -824,6 +842,14 @@
     let h = Math.imul((seed | 0) ^ 1540483477, 668265261);
     h ^= h >>> 15;
     return Math.imul(h, 374761393) | 0;
+  }
+  function layoutSeed(seed, generation, layout) {
+    let h = envSeed(seed);
+    h = Math.imul(h ^ generation, 2654435761);
+    h ^= h >>> 16;
+    h = Math.imul(h ^ layout, 2246822507);
+    h ^= h >>> 13;
+    return h | 0;
   }
   function nextGeneration(w) {
     const { rules, rng } = w;
@@ -860,10 +886,9 @@
     }
     w.creatures = next;
     settleLineage(w, proven);
-    w.food = newFoodLayout(w);
-    w.tick = 0;
     w.layout = 0;
     w.generation++;
+    startLayout(w);
   }
 
   // src/web/fame.ts

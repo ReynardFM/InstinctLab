@@ -75,10 +75,12 @@ export const DEFAULT_RULES: Rules = {
 
 export interface World {
   rules: Rules;
+  seed: number; // the run's seed: each food map's random numbers are derived from it (layoutSeed)
   rng: Rng; // evolution's random numbers: starting brains, mutation, which parents breed
   env: Rng; // the world's random numbers: food positions and starting spots. Kept separate so that two
   // settings run with the same seed get the same food layouts, and comparing them seed by seed cancels
-  // that luck (common random numbers).
+  // that luck (common random numbers). Each food map starts its own stream (layoutSeed), so the maps of
+  // a generation don't depend on each other and can run on separate cores (stage 3b, cli/split.ts).
   creatures: Creature[];
   food: Food[];
   tick: number;
@@ -113,12 +115,19 @@ export interface EcoStats {
 }
 
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
-export function createWorld(seed: number, rules: Rules, start?: Genome): World {
-  if (start && start.length !== genomeLength(rules)) {
-    throw new Error(`This brain has ${start.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+// Or one brain per creature (cli/split.ts rebuilds a generation on another thread this way).
+export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[]): World {
+  const each = start && Array.isArray(start[0]) ? (start as Genome[]) : null;
+  const one = start && !each ? (start as Genome) : null;
+  for (const g of each ?? (one ? [one] : [])) {
+    if (g.length !== genomeLength(rules)) {
+      throw new Error(`This brain has ${g.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+    }
   }
+  if (each && each.length !== rules.pop) throw new Error(`${each.length} brains for ${rules.pop} creatures`);
   const w: World = {
     rules: { ...rules },
+    seed,
     rng: createRng(seed),
     env: createRng(envSeed(seed)),
     creatures: [],
@@ -144,11 +153,11 @@ export function createWorld(seed: number, rules: Rules, start?: Genome): World {
     eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] },
   };
   for (let i = 0; i < rules.pop; i++) {
-    const genome = start ? start.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+    const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }
-  w.food = newFoodLayout(w);
+  startLayout(w);
   return w;
 }
 
@@ -157,12 +166,17 @@ export function step(w: World): void {
     stepEcosystem(w);
     return;
   }
-  for (const c of w.creatures) if (c.alive) live(w, c, 1);
-  w.tick++;
-  if (w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive)) {
+  if (tickLayout(w)) {
     if (w.layout + 1 < w.rules.layouts) nextLayout(w);
     else nextGeneration(w);
   }
+}
+
+// One tick of the current food map; true when the map is over (time is up, or everyone starved).
+export function tickLayout(w: World): boolean {
+  for (const c of w.creatures) if (c.alive) live(w, c, 1);
+  w.tick++;
+  return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
 }
 
 // Runs the world for a number of ticks (ecosystem mode has no generations to count).
@@ -174,6 +188,16 @@ export function runTicks(w: World, ticks: number): void {
 // can't decide who breeds. Everyone shares the same layout, so the comparison stays fair.
 function nextLayout(w: World): void {
   w.layout++;
+  startLayout(w);
+}
+
+// The start of a food map (w.generation, w.layout): its own random numbers, everyone back to a random
+// spot with full energy, fresh food. Nothing carries over from the map before except food eaten, so the
+// maps of a generation can be played in any order or at the same time with the same result. With
+// learning on, each map starts from the inborn brain: what was learned on one map is not carried to the
+// next (children still inherit what was learned on the last map, see breed.inherited).
+export function startLayout(w: World): void {
+  w.env = createRng(layoutSeed(w.seed, w.generation, w.layout));
   for (const c of w.creatures) {
     c.x = w.env.next() * W;
     c.y = w.env.next() * H;
@@ -181,6 +205,11 @@ function nextLayout(w: World): void {
     c.energy = 1;
     c.alive = true;
     c.diedAt = null;
+    if (c.w !== c.g) {
+      for (let k = 0; k < c.w.length; k++) c.w[k] = c.g[k];
+      c.trace.fill(0);
+      c.usual = 0;
+    }
   }
   w.food = newFoodLayout(w);
   w.tick = 0;
@@ -193,13 +222,25 @@ export function envSeed(seed: number): number {
   return Math.imul(h, 0x165667b1) | 0;
 }
 
+// The seed of one food map: the run's seed, the generation and the map number, mixed (integer hash).
+export function layoutSeed(seed: number, generation: number, layout: number): number {
+  let h = envSeed(seed);
+  h = Math.imul(h ^ generation, 0x9e3779b1);
+  h ^= h >>> 16;
+  h = Math.imul(h ^ layout, 0x85ebca6b);
+  h ^= h >>> 13;
+  return h | 0;
+}
+
 // Runs until `generations` more generations have finished.
 export function runGenerations(w: World, generations: number): void {
   const target = w.generation + generations;
   while (w.generation < target) step(w);
 }
 
-function nextGeneration(w: World): void {
+// Ranks the creatures by food eaten over all maps and breeds the next generation. Exported for
+// cli/split.ts, which plays the maps on separate threads and then calls this.
+export function nextGeneration(w: World): void {
   const { rules, rng } = w;
   const ranked = [...w.creatures].sort((a, b) => b.eaten - a.eaten); // fitness = food eaten, all layouts
   const per = Math.max(1, rules.layouts); // history is per layout, so runs with different layouts compare
@@ -236,8 +277,7 @@ function nextGeneration(w: World): void {
   }
   w.creatures = next;
   settleLineage(w, proven);
-  w.food = newFoodLayout(w);
-  w.tick = 0;
   w.layout = 0;
   w.generation++;
+  startLayout(w);
 }

@@ -13,6 +13,7 @@
     "check": "tsc -p . && node --test \"test/*.test.ts\" && node scripts/check-dist.ts",
     "lab": "node src/cli/run.ts",
     "bench": "node src/cli/bench.ts",
+    "bench-split": "node src/cli/split-bench.ts",
     "record-golden": "node scripts/record-golden.ts",
     "queue-demo": "node scripts/queue-demo.ts",
     "queue-status": "node scripts/queue-status.ts"
