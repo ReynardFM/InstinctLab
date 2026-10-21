@@ -43,7 +43,9 @@ Rey's requirement 2026-10-20 (Box A, stage 4 as practice): goal = scaling practi
    Done 2026-10-20 (session 1): src/queue (redis-queue.ts coordinator, worker-main.ts worker; @redis/client 5.12.1), `npm run lab -- --queue`, Dockerfile + compose.yaml (redis:7.4-alpine, node:22.22.0-alpine, 4 workers, tags unverified until Rey's first build), test/queue.test.ts (real redis-server; skipped without one). Lease 30 s, heartbeat 5 s, run in a thread so the heartbeat keeps going during a run. Cloud: identical to threads; a SIGKILLed worker's run redone on attempt 2 with identical numbers; a run that always throws stops after exactly 3 attempts and is reported.
    Known limits: Redis restart loses the queue (no persistence, by design for one grid); a worker that dies between claiming and counting the attempt gets that attempt free; a heartbeat in flight can leave a lease key for up to 30 s after cleanup (it expires); workers don't restart after a kill (restart "no", for the kill test).
    Rey couldn't time the kill by hand -> scripts/queue-demo.ts (npm run queue-demo) does it all: kills the container whose lease is live, a clean queue pass for speed, threads, verdict. Cloud dry run (stand-in docker = real redis-server + worker processes): PASS; queue 1.03x threads on the same machine.
-1. Rey: npm install, then npm run queue-demo (Docker Desktop running). Paste the result block.
+   Rey's laptop 2026-10-20: npm run queue-demo PASS (14 x 60 gens; killed container ea67..., run #1 redone by another worker on attempt 2; both queue passes identical to threads). Queue 130.5 s vs threads 152.0 s (1.16x, one trial, threads ran last). Image tags node:22.22.0-alpine and redis:7.4-alpine verified by the build. Done in session 1 of the 3-session time-box.
+   Resume line (measured): built a Redis job queue (leases, heartbeats, retries capped at 3) for a deterministic simulation; killed a worker container mid-run, its job was redone by another worker with bit-identical results; same throughput as threads on one laptop.
+1. Rey: next step (BA brief first). Open: whether the BA brief becomes a standing rule; push to GitHub (last).
 2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
@@ -87,7 +89,7 @@ Rey's requirement 2026-10-20 (Box A, stage 4 as practice): goal = scaling practi
 | 2 | TypeScript engine separate from rendering, seeded and deterministic | done: the single file reached 485 lines, and comparing settings by eye was too slow |
 | 3a | Experiment runs spread over worker threads (`npm run lab`, `npm run bench`) | done 2026-10-17: 900 generations took 81 s on Rey's machine, then layouts made generations 3x slower |
 | 3b | One run's layouts scored in parallel (needs one random stream per layout) | Watching or running a single run is too slow |
-| 4 | Job queue + multiple worker processes in Docker | One machine maxes out. Started 2026-10-20 as practice without that trigger (Rey's BA brief, Box A): no speed promise |
+| 4 | Job queue + multiple worker processes in Docker | done 2026-10-20 as practice (Rey's BA brief, Box A; trigger "one machine maxes out" not met): Redis queue, 4 worker containers, worker killed mid-run redone with identical results. Real speed-up needs a second machine |
 | 5 | Postgres: genomes, lineage, replay any creature | Want "show me the ancestor of the best one" |
 | 6 | Live view of a server-side run over WebSocket | Want to watch a run happening on a server |
 
