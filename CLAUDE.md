@@ -46,6 +46,8 @@ Rey's requirement 2026-10-20 (Box A, stage 4 as practice): goal = scaling practi
    Rey's laptop 2026-10-20: npm run queue-demo PASS (14 x 60 gens; killed container ea67..., run #1 redone by another worker on attempt 2; both queue passes identical to threads). Queue 130.5 s vs threads 152.0 s (1.16x, one trial, threads ran last). Image tags node:22.22.0-alpine and redis:7.4-alpine verified by the build. Done in session 1 of the 3-session time-box.
    Resume line (measured): built a Redis job queue (leases, heartbeats, retries capped at 3) for a deterministic simulation; killed a worker container mid-run, its job was redone by another worker with bit-identical results; same throughput as threads on one laptop.
 Rey 2026-10-20: BA brief is a standing rule for big features only (more than about one evening): goal / problem / done means / kill if / time-box / cheapest test first, written before building; Claude checks it for gaps. Small tweaks skip it.
+Rey 2026-10-21: do the small and medium options except the portfolio pass (#8): #5 queue hardening, #6 ecosystem in the lab, #7 hall of fame, #4 stage 3b. Built overnight in the cloud while his laptop slept; committed 2026-10-21 one by one.
+   #6 done: npm run lab -- --mode=1 --ticks=N (job.ts EcoResult). Cloud check, seeds 1-3, 5 warm-up generations, 10000 ticks: split births 41.5 ±15.6 creatures, pairs 9.4 ±27.9 (-32.1 ±12.8 *).
 1. Rey: pick the next step (options briefed 2026-10-20). Push to GitHub last.
 2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.

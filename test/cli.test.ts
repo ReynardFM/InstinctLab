@@ -13,6 +13,11 @@ test("reads options and lists of values", () => {
   assert.deepEqual(o.grid.mutation, [0.1, 0.2]);
   assert.equal(parseArgs(["--workers=3"]).workers, 3);
   assert.equal(parseArgs([]).queue, null, "threads unless asked");
+  assert.equal(parseArgs([]).ticks, 20000);
+  assert.equal(parseArgs(["--ticks=5000"]).ticks, 5000);
+  assert.equal(combinations({ mode: [1] })[0].regrow, 100, "ecosystem: food regrows after 100 ticks, like the page");
+  assert.equal(combinations({ mode: [1], regrow: [0] })[0].regrow, 0, "unless asked");
+  assert.equal(combinations({})[0].regrow, 0);
   assert.equal(parseArgs(["--queue"]).queue, "redis://localhost:6379");
   assert.equal(parseArgs(["--queue=redis://box:7000", "--gens=5"]).queue, "redis://box:7000");
   assert.ok(parseArgs([]).workers >= 1, "defaults to the number of cores");
@@ -44,6 +49,15 @@ test("worker threads give exactly the same results as running in one thread, in 
 test("a run that crashes inside a worker is reported, not left hanging", async () => {
   const broken: Job = { seed: 1, rules: { ...DEFAULT_RULES, pop: 0 }, gens: 1 }; // no creatures to rank
   await assert.rejects(runJobs([broken], 1));
+});
+
+test("ecosystem runs: warm-up, then the given ticks; same result in a thread", async () => {
+  const job = { seed: 3, rules: { ...DEFAULT_RULES, mode: 1, ecoWarmup: 1, regrow: 100 }, gens: 0, ticks: 2000 };
+  const inline = runJob(job);
+  assert.ok(inline.eco, "ecosystem results are there");
+  assert.equal(inline.eco!.popHist.length, 20, "a population sample every 100 ticks");
+  assert.equal(inline.avgHist.length, 1, "one warm-up generation");
+  assert.deepEqual((await runJobs([job], 1))[0], inline);
 });
 
 test("bench tries 1, 2, 4 ... workers up to the core count", () => {
