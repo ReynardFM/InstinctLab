@@ -45,7 +45,8 @@ Rey's requirement 2026-10-20 (Box A, stage 4 as practice): goal = scaling practi
    Rey couldn't time the kill by hand -> scripts/queue-demo.ts (npm run queue-demo) does it all: kills the container whose lease is live, a clean queue pass for speed, threads, verdict. Cloud dry run (stand-in docker = real redis-server + worker processes): PASS; queue 1.03x threads on the same machine.
    Rey's laptop 2026-10-20: npm run queue-demo PASS (14 x 60 gens; killed container ea67..., run #1 redone by another worker on attempt 2; both queue passes identical to threads). Queue 130.5 s vs threads 152.0 s (1.16x, one trial, threads ran last). Image tags node:22.22.0-alpine and redis:7.4-alpine verified by the build. Done in session 1 of the 3-session time-box.
    Resume line (measured): built a Redis job queue (leases, heartbeats, retries capped at 3) for a deterministic simulation; killed a worker container mid-run, its job was redone by another worker with bit-identical results; same throughput as threads on one laptop.
-1. Rey: next step (BA brief first). Open: whether the BA brief becomes a standing rule; push to GitHub (last).
+Rey 2026-10-20: BA brief is a standing rule for big features only (more than about one evening): goal / problem / done means / kill if / time-box / cheapest test first, written before building; Claude checks it for gaps. Small tweaks skip it.
+1. Rey: pick the next step (options briefed 2026-10-20). Push to GitHub last.
 2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
@@ -96,6 +97,7 @@ Rey's requirement 2026-10-20 (Box A, stage 4 as practice): goal = scaling practi
 Headline scaling metric: generations per hour vs number of workers.
 
 ## Review protocol (every change)
+Before building (Rey 2026-10-20): big features (more than about one evening) need a BA brief first: goal (watch / scaling / resume), problem, done means, kill if, time-box, cheapest test first. Claude checks it for gaps (failure points first). Small tweaks skip it.
 Format (Rey 2026-10-19, "make decisions easier to digest"): at most 3 decisions per review, the rest listed as "small, done my way". One line each: what is decided, the other option, what changes for Rey. For the 1-2 that matter most, Rey gives his call before seeing Claude's lean.
 1. Claude implements best-effort code (no deliberately planted bugs) and tests it.
 2. Claude lists the design decisions in the change as a table: `# | Decision | ✓ Keep it (what happens) | ✗ Change it (the alternative and what happens)`.
