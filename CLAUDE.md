@@ -39,7 +39,11 @@ Rey 2026-10-19: (c) one time-boxed try of evolved per-connection learning, then 
 Gap check 2026-10-20 (Rey: a): golden "learning" case added; senses.ts <-> creature.ts run-time import loop removed (looksPoison moved to senses.ts); docs brought up to date; elite comment fixed.
 Known limits (off by default, only matter if learning or the swap world come back): (1) ecosystem + swapKinds: the swap stops flipping after warm-up (no food maps in ecosystem mode); (2) with plasticity, brainDistance counts the evolved learning rates, so rate drift alone can split a family; (3) speed of forgetting and per-connection learning not measured.
 Rey 2026-10-20: asked why we have QA but rarely BA. Agreed gap: features got built before their goal, done-means and kill condition were written. Rey writes the requirement (goal / problem / done means / kill if / time-box / cheapest test first) for the next step.
-1. Rey: requirement for the next scaling step (3b or stage 4 or a measured experiment first); Claude checks it for gaps, then builds. Whether the BA brief becomes a standing rule (every feature / big ones only / no) is not decided yet.
+Rey's requirement 2026-10-20 (Box A, stage 4 as practice): goal = scaling practice + resume; done = a lab grid runs through a queue to worker containers with results identical to threads, kill a worker mid-run and its job is retried with identical results, throughput measured vs threads; kill if setup eats the time-box before one job runs end to end; time-box 3 sessions (evenings). Calls: D1 Redis (build the reliable queue ourselves), D2 retry yes, at most 3 attempts per job.
+   Done 2026-10-20 (session 1): src/queue (redis-queue.ts coordinator, worker-main.ts worker; @redis/client 5.12.1), `npm run lab -- --queue`, Dockerfile + compose.yaml (redis:7.4-alpine, node:22.22.0-alpine, 4 workers, tags unverified until Rey's first build), test/queue.test.ts (real redis-server; skipped without one). Lease 30 s, heartbeat 5 s, run in a thread so the heartbeat keeps going during a run. Cloud: identical to threads; a SIGKILLed worker's run redone on attempt 2 with identical numbers; a run that always throws stops after exactly 3 attempts and is reported.
+   Known limits: Redis restart loses the queue (no persistence, by design for one grid); a worker that dies between claiming and counting the attempt gets that attempt free; a heartbeat in flight can leave a lease key for up to 30 s after cleanup (it expires); workers don't restart after a kill (restart "no", for the kill test).
+1. Rey: on his laptop: npm install, docker compose up -d --build, lab --queue grid, docker kill a worker mid-run, then the same grid with --workers=4 for the speed comparison. Paste outputs.
+2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).
 2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
@@ -82,7 +86,7 @@ Rey 2026-10-20: asked why we have QA but rarely BA. Agreed gap: features got bui
 | 2 | TypeScript engine separate from rendering, seeded and deterministic | done: the single file reached 485 lines, and comparing settings by eye was too slow |
 | 3a | Experiment runs spread over worker threads (`npm run lab`, `npm run bench`) | done 2026-10-17: 900 generations took 81 s on Rey's machine, then layouts made generations 3x slower |
 | 3b | One run's layouts scored in parallel (needs one random stream per layout) | Watching or running a single run is too slow |
-| 4 | Job queue + multiple worker processes in Docker | One machine maxes out |
+| 4 | Job queue + multiple worker processes in Docker | One machine maxes out. Started 2026-10-20 as practice without that trigger (Rey's BA brief, Box A): no speed promise |
 | 5 | Postgres: genomes, lineage, replay any creature | Want "show me the ancestor of the best one" |
 | 6 | Live view of a server-side run over WebSocket | Want to watch a run happening on a server |
 

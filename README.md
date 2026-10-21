@@ -18,10 +18,31 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run typecheck` | yes | Checks the TypeScript types |
 | `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
 | `npm run record-golden` | no | Re-records the runs in `test/golden.json`. Only after a change that is meant to alter behaviour |
+| `npm run lab -- --queue --gens=60 --seeds=1-14` | yes | Same as `lab`, but the runs go through a Redis queue to worker containers (stage 4, below). Same table, same numbers |
 
-Run `npm install` once on your own machine before using `build`, `watch` or `typecheck`.
+Run `npm install` once on your own machine before using `build`, `watch`, `typecheck` or `--queue` (and again after `package.json` changes).
 
 `npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, `hidden`, `poison`, `regrow`, `energyCost`, `birth`, `birthEnergy`, `ageScale`, `ecoWarmup`, `learnRate`, `inheritLearned`, `thinkCost`, `learnCost`, `forget`, `relativeReward`, `energyGate`, `swapKinds`, `plasticity` (`mode` must stay 0: the lab compares generation runs), plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `early` is the average over the first 30 generations (how fast it learns). `vs 1st` compares each row with the first row seed by seed: the same seed gives the same food layouts in every setting, so that luck cancels and a `*` marks a difference that is probably real. Seeds take ranges: `--seeds=1-14`. Rows print as soon as each setting finishes, so the first answers arrive early; for a quick look use `--seeds=1-7 --gens=60` (about 4x faster).
+
+## Stage 4: queue + Docker
+
+Runs can go through a job queue (Redis) to worker processes in Docker containers instead of threads.
+On one laptop this is not faster (same cores); it is practice for spreading work over machines, and it
+survives a worker dying mid-run.
+
+1. `npm install` (adds the Redis client)
+2. `docker compose up -d --build`: starts Redis and 4 workers (`--scale worker=8` for 8)
+3. `npm run lab -- --queue --gens=60 --seeds=1-14`: sends the grid; prints the same table as threads,
+   plus how many runs were retried
+4. Kill test, while a grid runs: `docker compose ps`, then `docker kill evolution-lab-worker-2`. Its run is
+   retried by another worker after 30 s without a heartbeat; the table must match the thread version exactly
+5. `docker compose logs worker` shows which worker did which run and attempt; `docker compose down` stops it all
+
+How it works: the lab puts jobs in a Redis list; a worker moves one to an "active" list, keeps a lease
+alive with a heartbeat every 5 s, runs it in a thread, and stores the result. A lease that lapses (30 s)
+means the worker died: the lab puts the job back, at most 3 attempts in total, then reports it as failed.
+Runs are deterministic, so running one twice is harmless; a second result is checked against the first.
+`npm test` tests all this against a real `redis-server` when one is installed (skipped otherwise).
 
 ## File dependency tree
 
@@ -42,6 +63,12 @@ src/cli/run.ts       headless experiment runner (npm run lab)
     └── starts ──→ src/cli/worker.ts   one thread: runs jobs it is sent
                    └─→ src/cli/job.ts  one run: seed + rules + generations
                        └─→ src/engine/world.ts
+
+src/queue/redis-queue.ts  stage 4: the Redis job queue; the lab's side (send jobs, collect, retry) (run.ts --queue)
+└─→ src/cli/job.ts (types)
+src/queue/worker-main.ts  one queue worker = one Docker container (Dockerfile, compose.yaml)
+├─→ src/queue/redis-queue.ts
+└── starts ──→ src/cli/worker.ts   the run happens in a thread, so the heartbeat keeps going
 
 src/cli/bench.ts     generations/s vs number of workers (npm run bench)
 ├─→ src/cli/pool.ts
@@ -81,6 +108,7 @@ scripts/record-golden.ts        ─→ src/check/golden.ts, test/golden.json
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
+test/queue.test.ts  ─→ queue/redis-queue.ts, queue/worker-main.ts (as processes), cli/pool.ts; needs redis-server
 ```
 
 | File | Depends on | Used by |

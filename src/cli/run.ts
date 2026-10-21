@@ -4,6 +4,8 @@
 //
 // Any rule (pop, food, genTicks, elite, parents, mutation, layouts, ...) can take a comma-separated list.
 // Every combination is run once per seed. Runs are spread over all CPU cores; --workers=N to change.
+// --queue (or --queue=redis://host:port) sends the runs to a Redis queue instead, for the worker
+// containers to do (stage 4, see README): same table, same numbers.
 import { availableParallelism } from "node:os";
 import { DEFAULT_RULES, type Rules } from "../engine/world.ts";
 import type { Job, JobResult } from "./job.ts";
@@ -13,13 +15,19 @@ interface Options {
   gens: number;
   seeds: number[];
   workers: number;
+  queue: string | null; // Redis URL: run through the queue instead of threads
   grid: Partial<Record<keyof Rules, number[]>>;
 }
 
 export function parseArgs(argv: string[]): Options {
   // 7 seeds by default: with 3, differences of about 2 food were indistinguishable from luck
-  const opts: Options = { gens: 100, seeds: [1, 2, 3, 4, 5, 6, 7], workers: availableParallelism(), grid: {} };
+  const opts: Options = { gens: 100, seeds: [1, 2, 3, 4, 5, 6, 7], workers: availableParallelism(), queue: null, grid: {} };
   for (const arg of argv) {
+    if (arg === "--queue") opts.queue = "redis://localhost:6379";
+    if (arg === "--queue" || arg.startsWith("--queue=")) {
+      opts.queue ??= arg.slice("--queue=".length);
+      continue;
+    }
     const m = /^--(\w+)=(.+)$/.exec(arg);
     if (!m) throw new Error(`Can't read "${arg}". Use --name=value or --name=a,b,c`);
     const [, key, raw] = m;
@@ -94,7 +102,8 @@ async function main(): Promise<void> {
   const varied = Object.keys(opts.grid) as (keyof Rules)[];
   const jobs: Job[] = combos.flatMap((rules) => opts.seeds.map((seed) => ({ seed, rules, gens: opts.gens })));
   const workers = Math.min(opts.workers, jobs.length);
-  console.log(`${combos.length} setting(s) x ${opts.seeds.length} seed(s) x ${opts.gens} generations, ${workers} worker(s)\n`);
+  const where = opts.queue ? `through the Redis queue at ${opts.queue}` : `${workers} worker(s)`;
+  console.log(`${combos.length} setting(s) x ${opts.seeds.length} seed(s) x ${opts.gens} generations, ${where}\n`);
 
   const anyPoison = combos.some((r) => r.poison > 0);
   // share of everything eaten that was poison, last 10 generations. Eating blindly gives about the
@@ -155,11 +164,17 @@ async function main(): Promise<void> {
   const progress = process.stderr.isTTY
     ? (done: number) => process.stderr.write(`\r${done} of ${jobs.length} runs done`)
     : undefined;
-  await runJobs(jobs, workers, progress, (index, result) => {
+  const onResult = (index: number, result: JobResult) => {
     got[index] = result;
     left[Math.floor(index / S)]--;
     printReady();
-  });
+  };
+  const report = { retries: 0, quiet: 0, repeats: 0 };
+  if (opts.queue) {
+    // loaded only when used: the thread version needs no Redis client
+    const { runJobsOnQueue } = await import("../queue/redis-queue.ts");
+    await runJobsOnQueue(jobs, opts.queue, progress, onResult, report);
+  } else await runJobs(jobs, workers, progress, onResult);
   clearProgress();
   const secs = (performance.now() - t0) / 1000;
   const totalGens = jobs.length * opts.gens;
@@ -170,7 +185,12 @@ async function main(): Promise<void> {
   console.log(`vs 1st = paired difference from the first row, seed by seed (same seed = same food layouts). * = probably real.`);
   console.log(`  With many rows, expect about 1 in 20 rows to get a * by chance alone.`);
   if (anyPoison) console.log(`poison eaten = share of everything eaten that was poison (last 10 generations); eating blindly ≈ the poison share`);
-  console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${workers} worker${workers > 1 ? "s" : ""})`);
+  const how = opts.queue ? "Redis queue" : `${workers} worker${workers > 1 ? "s" : ""}`;
+  console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${how})`);
+  if (opts.queue) {
+    console.log(`queue: ${report.retries} retried run(s), ${report.quiet} because a worker stopped responding; ` +
+      `${report.repeats} run(s) finished twice with identical results`);
+  }
 }
 
 if (import.meta.main ?? process.argv[1]?.endsWith("run.ts")) await main();

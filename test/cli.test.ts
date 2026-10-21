@@ -12,6 +12,9 @@ test("reads options and lists of values", () => {
   assert.deepEqual(o.seeds, [4, 5]);
   assert.deepEqual(o.grid.mutation, [0.1, 0.2]);
   assert.equal(parseArgs(["--workers=3"]).workers, 3);
+  assert.equal(parseArgs([]).queue, null, "threads unless asked");
+  assert.equal(parseArgs(["--queue"]).queue, "redis://localhost:6379");
+  assert.equal(parseArgs(["--queue=redis://box:7000", "--gens=5"]).queue, "redis://box:7000");
   assert.ok(parseArgs([]).workers >= 1, "defaults to the number of cores");
   assert.throws(() => parseArgs(["--speed=3"]), /Unknown option/);
   assert.throws(() => parseArgs(["--food=lots"]), /needs numbers/);

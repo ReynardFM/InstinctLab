@@ -1,0 +1,20 @@
+# Stage 4: Redis plus queue workers on this machine.
+#   docker compose up -d --build                 start Redis and 4 workers
+#   docker compose up -d --scale worker=8        change the number of workers
+#   npm run lab -- --queue --gens=60 --seeds=1-14   send a grid to them (same table as threads)
+#   docker compose down                          stop everything
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"] # the queue only lives for one grid
+    ports:
+      - "6379:6379" # so npm run lab on this machine can reach it
+  worker:
+    build: .
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    deploy:
+      replicas: 4
+    restart: "no" # a killed worker stays dead (the retry test); the others take over its run
