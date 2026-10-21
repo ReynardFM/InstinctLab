@@ -6,7 +6,7 @@
 import { Worker } from "node:worker_threads";
 import { hostname } from "node:os";
 import type { Job, JobResult } from "../cli/job.ts";
-import { connect, HEARTBEAT_MS, indexOf, KEYS, LEASE_MS, retryOrBury, runOf } from "./redis-queue.ts";
+import { connect, handBack, HEARTBEAT_MS, indexOf, KEYS, LEASE_MS, retryOrBury, runOf } from "./redis-queue.ts";
 
 const url = process.env.REDIS_URL ?? "redis://localhost:6379";
 // "<container id>:<pid>" in Docker (the hostname is the container id), so `docker kill <id>` hits this worker
@@ -35,26 +35,40 @@ async function main(): Promise<void> {
   const r = await connect(url); // jobs and results
   const hb = await connect(url); // heartbeats: never stuck behind a slow command on the other connection
   let thread = startThread();
+  // docker stop sends SIGTERM: a job in progress is handed back (not a failure), then the worker exits
   let stopping = false;
-  process.on("SIGTERM", () => (stopping = true)); // docker stop: finish the current job, then exit
-  process.on("SIGINT", () => (stopping = true));
+  let onStop = () => {};
+  const stop = () => {
+    stopping = true;
+    onStop();
+  };
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+  const alive = (doing: string) => hb.set(KEYS.worker(name), doing, { PX: LEASE_MS }).catch(() => {});
   log(`waiting for jobs at ${url}`);
   while (!stopping) {
+    await alive("idle");
     const id = await r.blMove(KEYS.pending, KEYS.active, "RIGHT", "LEFT", 2); // wait up to 2 s
     if (!id) continue;
     await hb.set(KEYS.lease(id), name, { PX: LEASE_MS });
-    const beat = setInterval(() => void hb.set(KEYS.lease(id), name, { PX: LEASE_MS }).catch(() => {}), HEARTBEAT_MS);
+    const beat = setInterval(() => {
+      void hb.set(KEYS.lease(id), name, { PX: LEASE_MS }).catch(() => {});
+      void alive(`run ${id}`);
+    }, HEARTBEAT_MS);
     try {
-      const attempt = await r.hIncrBy(KEYS.job(id), "attempts", 1);
-      const payload = await r.hGet(KEYS.job(id), "payload");
+      const [payload, failures] = await r.hmGet(KEYS.job(id), ["payload", "failures"]);
       if (payload === null) {
-        await r.lRem(KEYS.active, 0, id); // its grid was cancelled and tidied up
+        await r.multi().lRem(KEYS.active, 0, id).del(KEYS.lease(id)).exec(); // its grid was cancelled and tidied up
         continue;
       }
+      const attempt = Number(failures ?? 0) + 1;
+      await alive(`run ${id}`);
       log(`run #${indexOf(id) + 1}, attempt ${attempt}`);
-      let result: JobResult;
+      const stopped = new Promise<"stop">((ok) => (onStop = () => ok("stop")));
+      if (stopping) onStop();
+      let result: JobResult | "stop";
       try {
-        result = await runInThread(thread, JSON.parse(payload) as Job);
+        result = await Promise.race([runInThread(thread, JSON.parse(payload) as Job), stopped]);
         clearInterval(beat); // stop renewing before the lease is deleted below
       } catch (e) {
         clearInterval(beat);
@@ -63,6 +77,13 @@ async function main(): Promise<void> {
         const what = await retryOrBury(r, id, `${(e as Error).message}`);
         log(`run #${indexOf(id) + 1} failed (${(e as Error).message}): ${what}`);
         continue;
+      } finally {
+        onStop = () => {};
+      }
+      if (result === "stop") {
+        await handBack(r, id);
+        log(`run #${indexOf(id) + 1} handed back (stopping)`);
+        break;
       }
       const json = JSON.stringify(result);
       const first = await r.hSetNX(KEYS.results(runOf(id)), String(indexOf(id)), json);
@@ -79,6 +100,7 @@ async function main(): Promise<void> {
     }
   }
   log("stopping");
+  await hb.del(KEYS.worker(name)).catch(() => {});
   await thread.terminate();
   await r.quit();
   await hb.quit();

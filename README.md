@@ -19,6 +19,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
 | `npm run record-golden` | no | Re-records the runs in `test/golden.json`. Only after a change that is meant to alter behaviour |
 | `npm run queue-demo` | yes | Stage 4 check in one command: queue + Docker workers, one killed mid-run, compared with threads (below) |
+| `npm run queue-status` | yes | What the queue and its workers are doing right now: waiting and running runs, lease time left, attempt numbers, live workers |
 | `npm run lab -- --queue --gens=60 --seeds=1-14` | yes | Same as `lab`, but the runs go through a Redis queue to worker containers (stage 4, below). Same table, same numbers |
 
 Run `npm install` once on your own machine before using `build`, `watch`, `typecheck` or `--queue` (and again after `package.json` changes).
@@ -49,6 +50,9 @@ By hand:
 How it works: the lab puts jobs in a Redis list; a worker moves one to an "active" list, keeps a lease
 alive with a heartbeat every 5 s, runs it in a thread, and stores the result. A lease that lapses (30 s)
 means the worker died: the lab puts the job back, at most 3 attempts in total, then reports it as failed.
+Failures are counted when they happen, so a worker that dies right after taking a job uses an attempt.
+`docker stop` is not a failure: the worker hands its run back untouched and exits (20 s grace period).
+Crashed workers restart on their own (`restart: unless-stopped`).
 Runs are deterministic, so running one twice is harmless; a second result is checked against the first.
 `npm test` tests all this against a real `redis-server` when one is installed (skipped otherwise).
 
@@ -114,6 +118,7 @@ src/web/determinism.ts  determinism.html: replays the recorded runs in a browser
 scripts/build.ts, check-dist.ts ─→ scripts/bundles.ts (list of browser bundles), esbuild
 scripts/record-golden.ts        ─→ src/check/golden.ts, test/golden.json
 scripts/queue-demo.ts           ─→ src/queue/redis-queue.ts, src/cli/pool.ts, docker compose
+scripts/queue-status.ts         ─→ src/queue/redis-queue.ts
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts

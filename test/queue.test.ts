@@ -24,6 +24,15 @@ function startWorker(onLine?: (line: string) => void): ChildProcess {
   return p;
 }
 
+// Kill every worker and wait until they are gone, plus a moment for Redis to drop their connections.
+// Otherwise Redis can hand the next test's first job to a worker that is already dead (it was waiting
+// for a job when killed); the queue then correctly retries it, but the test's attempt count is off by one.
+async function stopWorkers(): Promise<void> {
+  const all = workers.splice(0);
+  await Promise.all(all.map((w) => (w.exitCode !== null || w.signalCode !== null ? null : new Promise((ok) => (w.once("exit", ok), w.kill("SIGKILL"))))));
+  await sleep(150);
+}
+
 before(async () => {
   if (!hasRedis) return;
   server = spawn("redis-server", ["--port", String(PORT), "--save", "", "--appendonly", "no"], { stdio: "ignore" });
@@ -44,12 +53,12 @@ test("queue: workers give exactly the same results as threads, in job order", { 
   startWorker();
   startWorker();
   const seen: number[] = [];
-  const report = { retries: 0, quiet: 0, repeats: 0 };
+  const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
   const viaQueue = await runJobsOnQueue(jobs, URL_, undefined, (i) => seen.push(i), report);
   assert.deepEqual(viaQueue, await runJobs(jobs, 2));
   assert.deepEqual([...seen].sort(), [0, 1, 2, 3], "every result reported once as it arrived");
-  assert.deepEqual(report, { retries: 0, quiet: 0, repeats: 0 });
-  for (const w of workers.splice(0)) w.kill("SIGKILL");
+  assert.deepEqual(report, { retries: 0, quiet: 0, handedBack: 0, repeats: 0 });
+  await stopWorkers();
 });
 
 test("queue: a worker killed in the middle of a run; another one redoes it, same numbers", { skip }, async () => {
@@ -62,12 +71,33 @@ test("queue: a worker killed in the middle of a run; another one redoes it, same
     }
   });
   startWorker();
-  const report = { retries: 0, quiet: 0, repeats: 0 };
+  const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
   const viaQueue = await runJobsOnQueue(jobs, URL_, undefined, undefined, report);
   assert.ok(killed, "a worker was killed");
   assert.deepEqual(viaQueue, await runJobs(jobs, 2), "results identical to threads");
   assert.ok(report.quiet >= 1 && report.retries >= 1, `the dead worker's run was retried: ${JSON.stringify(report)}`);
-  for (const w of workers.splice(0)) w.kill("SIGKILL");
+  await stopWorkers();
+});
+
+test("queue: a worker asked to stop (docker stop) hands its run back; no attempt is used", { skip }, async () => {
+  const { runJobsOnQueue } = await import("../src/queue/redis-queue.ts");
+  let stopped = false;
+  const lines: string[] = [];
+  const victim = startWorker((line) => {
+    lines.push(line);
+    if (!stopped && line.includes("attempt 1")) {
+      stopped = true;
+      setTimeout(() => victim.kill("SIGTERM"), 200);
+    }
+  });
+  startWorker();
+  const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
+  const viaQueue = await runJobsOnQueue(jobs, URL_, undefined, undefined, report);
+  assert.deepEqual(viaQueue, await runJobs(jobs, 2), "results identical to threads");
+  assert.equal(report.handedBack, 1, "one run handed back");
+  assert.equal(report.retries, 0, "handing back is not a failure");
+  assert.match(lines.join(""), /handed back \(stopping\)/);
+  await stopWorkers();
 });
 
 test("queue: a run that fails every time is given up after 3 attempts, and reported", { skip }, async () => {
@@ -77,6 +107,6 @@ test("queue: a run that fails every time is given up after 3 attempts, and repor
   const broken = [{ seed: 1, rules: undefined, gens: 1 }] as unknown as typeof jobs; // createWorld throws
   await assert.rejects(runJobsOnQueue(broken, URL_), /1 run\(s\) failed 3 times: #1/);
   const attempts = lines.join("").match(/attempt \d/g) ?? [];
-  assert.deepEqual(attempts, ["attempt 1", "attempt 2", "attempt 3"], "tried exactly 3 times");
-  for (const w of workers.splice(0)) w.kill("SIGKILL");
+  assert.deepEqual(attempts, ["attempt 1", "attempt 2", "attempt 3"], `tried exactly 3 times:\n${lines.join("")}`);
+  await stopWorkers();
 });

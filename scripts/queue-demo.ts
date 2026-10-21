@@ -68,7 +68,7 @@ const killer = (async () => {
 })();
 
 const progress = (done: number) => process.stdout.write(`\r   ${done} of ${jobs.length} runs done`);
-const report = { retries: 0, quiet: 0, repeats: 0 };
+const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
 let t0 = performance.now();
 const viaQueue = await runJobsOnQueue(jobs, URL_, progress, undefined, report);
 const killSecs = (performance.now() - t0) / 1000;
@@ -78,7 +78,7 @@ console.log();
 
 say(`same grid through the queue again, no kill (speed)`);
 if (killed) docker(["start", killed], true); // back to ${WORKERS} workers
-const clean = { retries: 0, quiet: 0, repeats: 0 };
+const clean = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
 t0 = performance.now();
 const viaQueue2 = await runJobsOnQueue(jobs, URL_, progress, undefined, clean);
 const queueSecs = (performance.now() - t0) / 1000;

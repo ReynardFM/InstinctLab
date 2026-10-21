@@ -2,6 +2,7 @@
 #   docker compose up -d --build                 start Redis and 4 workers
 #   docker compose up -d --scale worker=8        change the number of workers
 #   npm run lab -- --queue --gens=60 --seeds=1-14   send a grid to them (same table as threads)
+#   npm run queue-status                         what the queue and the workers are doing
 #   docker compose down                          stop everything
 services:
   redis:
@@ -17,4 +18,5 @@ services:
       - redis
     deploy:
       replicas: 4
-    restart: "no" # a killed worker stays dead (the retry test); the others take over its run
+    restart: unless-stopped # a crashed worker comes back; its run is retried by whoever is free
+    stop_grace_period: 20s # docker stop: time to hand the current run back before being killed

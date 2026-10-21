@@ -169,7 +169,7 @@ async function main(): Promise<void> {
     left[Math.floor(index / S)]--;
     printReady();
   };
-  const report = { retries: 0, quiet: 0, repeats: 0 };
+  const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
   if (opts.queue) {
     // loaded only when used: the thread version needs no Redis client
     const { runJobsOnQueue } = await import("../queue/redis-queue.ts");
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
   console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${how})`);
   if (opts.queue) {
     console.log(`queue: ${report.retries} retried run(s), ${report.quiet} because a worker stopped responding; ` +
-      `${report.repeats} run(s) finished twice with identical results`);
+      `${report.handedBack} handed back by a stopping worker; ${report.repeats} run(s) finished twice with identical results`);
   }
 }
 

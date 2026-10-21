@@ -6,7 +6,10 @@
 //   pending (list)  --worker claims-->  active (list)  --worker finishes-->  results:<run> (hash)
 // A worker that holds a job keeps a lease (lab:lease:<id>, expires after LEASE_MS) alive with a
 // heartbeat. If the lease runs out, the worker is presumed dead: the coordinator (the program that
-// sent the jobs) puts the job back in pending, or in dead:<run> after MAX_ATTEMPTS tries.
+// sent the jobs) puts the job back in pending, or in dead:<run> after MAX_ATTEMPTS failed attempts.
+// Failures are counted when they happen (not when a job is claimed), so a worker that dies right
+// after claiming still uses up an attempt. A worker that is asked to stop (docker stop) hands its job
+// back instead: that is not a failure.
 // Runs are deterministic, so a job that runs twice gives the same numbers: retrying is always safe,
 // and the second result is checked against the first (a mismatch would mean determinism broke).
 import { createClient } from "@redis/client";
@@ -15,12 +18,13 @@ import type { Job, JobResult } from "../cli/job.ts";
 export const KEYS = {
   pending: "lab:pending",
   active: "lab:active",
-  job: (id: string) => `lab:job:${id}`, // hash: payload (the Job as JSON), attempts, error
+  job: (id: string) => `lab:job:${id}`, // hash: payload (the Job as JSON), failures, handbacks, error
   lease: (id: string) => `lab:lease:${id}`,
   results: (run: string) => `lab:results:${run}`, // hash: job index -> JobResult as JSON
   dead: (run: string) => `lab:dead:${run}`, // jobs that failed MAX_ATTEMPTS times
   repeat: (run: string) => `lab:repeat:${run}`, // jobs that finished twice (a slow worker came back after a retry)
   mismatch: (run: string) => `lab:mismatch:${run}`, // ... and whose second result differed from the first
+  worker: (name: string) => `lab:worker:${name}`, // a live worker: what it is doing; expires if it dies
 };
 
 const num = (name: string, fallback: number) => {
@@ -50,8 +54,8 @@ export const indexOf = (id: string) => Number(id.slice(id.lastIndexOf(":") + 1))
 // A failed attempt (the worker died, or the job threw): try again, or give up after MAX_ATTEMPTS.
 // Used by the coordinator (lease ran out) and by a worker (the job threw an error).
 export async function retryOrBury(r: Redis, id: string, error: string): Promise<"retry" | "dead"> {
-  const attempts = Number((await r.hGet(KEYS.job(id), "attempts")) ?? 0);
-  const dead = attempts >= MAX_ATTEMPTS;
+  const failures = await r.hIncrBy(KEYS.job(id), "failures", 1);
+  const dead = failures >= MAX_ATTEMPTS;
   const tx = r.multi().lRem(KEYS.active, 0, id).del(KEYS.lease(id)).hSet(KEYS.job(id), "error", error);
   if (dead) tx.rPush(KEYS.dead(runOf(id)), id);
   else tx.rPush(KEYS.pending, id); // the right end is where workers take from: it runs next
@@ -59,9 +63,15 @@ export async function retryOrBury(r: Redis, id: string, error: string): Promise<
   return dead ? "dead" : "retry";
 }
 
+// A worker that was asked to stop puts its job back untouched: it runs next, and no attempt is used.
+export async function handBack(r: Redis, id: string): Promise<void> {
+  await r.multi().lRem(KEYS.active, 0, id).del(KEYS.lease(id)).hIncrBy(KEYS.job(id), "handbacks", 1).rPush(KEYS.pending, id).exec();
+}
+
 export interface QueueReport {
-  retries: number; // extra attempts: a worker died or went quiet, or the run threw an error
+  retries: number; // failed attempts that were tried again: a worker died or went quiet, or the run threw
   quiet: number; // of those, workers that stopped responding (lease ran out)
+  handedBack: number; // jobs a stopping worker put back (not failures)
   repeats: number; // runs that finished twice (a slow worker came back after its job was retried); results identical
 }
 
@@ -77,10 +87,10 @@ export async function runJobsOnQueue(
   const ids = jobs.map((_, i) => jobId(run, i));
   const results: JobResult[] = new Array(jobs.length);
   const quietSince = new Map<string, number>(); // active jobs without a lease, and since when
-  const rep = report ?? { retries: 0, quiet: 0, repeats: 0 };
+  const rep = report ?? { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
   try {
     const tx = r.multi();
-    for (let i = 0; i < jobs.length; i++) tx.hSet(KEYS.job(ids[i]), { payload: JSON.stringify(jobs[i]), attempts: 0 });
+    for (let i = 0; i < jobs.length; i++) tx.hSet(KEYS.job(ids[i]), { payload: JSON.stringify(jobs[i]), failures: 0, handbacks: 0 });
     if (ids.length) tx.lPush(KEYS.pending, ids); // first job ends up at the right end: taken first
     await tx.exec();
 
@@ -130,8 +140,9 @@ export async function runJobsOnQueue(
     }
     const mismatches = await r.lLen(KEYS.mismatch(run));
     if (mismatches > 0) throw new Error(`${mismatches} run(s) gave different numbers when repeated: determinism broke`);
-    const attempts = await Promise.all(ids.map((id) => r.hGet(KEYS.job(id), "attempts")));
-    rep.retries = attempts.reduce((s, a) => s + Math.max(0, Number(a ?? 1) - 1), 0);
+    const counts = await Promise.all(ids.map((id) => r.hmGet(KEYS.job(id), ["failures", "handbacks"])));
+    rep.retries = counts.reduce((s, [f]) => s + Number(f ?? 0), 0);
+    rep.handedBack = counts.reduce((s, [, h]) => s + Number(h ?? 0), 0);
     rep.repeats = await r.lLen(KEYS.repeat(run));
     return results;
   } finally {
