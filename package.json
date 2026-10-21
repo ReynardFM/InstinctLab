@@ -13,7 +13,8 @@
     "check": "tsc -p . && node --test \"test/*.test.ts\" && node scripts/check-dist.ts",
     "lab": "node src/cli/run.ts",
     "bench": "node src/cli/bench.ts",
-    "record-golden": "node scripts/record-golden.ts"
+    "record-golden": "node scripts/record-golden.ts",
+    "queue-demo": "node scripts/queue-demo.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.5",

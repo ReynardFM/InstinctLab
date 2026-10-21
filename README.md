@@ -18,6 +18,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run typecheck` | yes | Checks the TypeScript types |
 | `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
 | `npm run record-golden` | no | Re-records the runs in `test/golden.json`. Only after a change that is meant to alter behaviour |
+| `npm run queue-demo` | yes | Stage 4 check in one command: queue + Docker workers, one killed mid-run, compared with threads (below) |
 | `npm run lab -- --queue --gens=60 --seeds=1-14` | yes | Same as `lab`, but the runs go through a Redis queue to worker containers (stage 4, below). Same table, same numbers |
 
 Run `npm install` once on your own machine before using `build`, `watch`, `typecheck` or `--queue` (and again after `package.json` changes).
@@ -30,6 +31,13 @@ Runs can go through a job queue (Redis) to worker processes in Docker containers
 On one laptop this is not faster (same cores); it is practice for spreading work over machines, and it
 survives a worker dying mid-run.
 
+**The whole check in one command** (Docker Desktop running, after `npm install`): `npm run queue-demo`.
+It starts Redis + 4 workers, sends a grid (14 runs x 60 generations) through the queue and kills one worker
+container in the middle of a run (it watches Redis to see who is busy), sends the grid again with no kill
+for a fair speed number, runs the same grid on 4 threads, then prints PASS/NOT A PASS, the retries, who redid
+the killed run, and the time of each. About 5 minutes. `--gens=N`, `--seeds=1-14`, `--keep` (leave it running).
+
+By hand:
 1. `npm install` (adds the Redis client)
 2. `docker compose up -d --build`: starts Redis and 4 workers (`--scale worker=8` for 8)
 3. `npm run lab -- --queue --gens=60 --seeds=1-14`: sends the grid; prints the same table as threads,
@@ -105,6 +113,7 @@ src/web/determinism.ts  determinism.html: replays the recorded runs in a browser
 
 scripts/build.ts, check-dist.ts ─→ scripts/bundles.ts (list of browser bundles), esbuild
 scripts/record-golden.ts        ─→ src/check/golden.ts, test/golden.json
+scripts/queue-demo.ts           ─→ src/queue/redis-queue.ts, src/cli/pool.ts, docker compose
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts

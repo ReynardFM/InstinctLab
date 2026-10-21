@@ -9,7 +9,8 @@ import type { Job, JobResult } from "../cli/job.ts";
 import { connect, HEARTBEAT_MS, indexOf, KEYS, LEASE_MS, retryOrBury, runOf } from "./redis-queue.ts";
 
 const url = process.env.REDIS_URL ?? "redis://localhost:6379";
-const name = `${hostname()}:${process.pid}`;
+// "<container id>:<pid>" in Docker (the hostname is the container id), so `docker kill <id>` hits this worker
+const name = process.env.WORKER_NAME ?? `${hostname()}:${process.pid}`;
 const log = (msg: string) => console.log(`[${name}] ${msg}`);
 
 function startThread(): Worker {
