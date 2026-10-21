@@ -9,11 +9,13 @@ export interface Food {
   y: number;
   poison: boolean; // costs energy, worth nothing
   readyAt: number; // tick it (re)appears at; before that it is gone (rules.regrow)
+  slot?: number; // its index in w.food, set each tick for the grid (senses.prepareGrids)
 }
 
 
 export interface Creature {
   id: number;
+  slot?: number; // its index in w.creatures, set each tick for the grid (senses.prepareGrids)
   family: number; // id of the family this creature belongs to
   branch: number | null; // id of the branch on trial it belongs to, if any
   hue: number; // display colour, inherited with a small drift so branches of a family show up

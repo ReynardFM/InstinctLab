@@ -104,8 +104,8 @@ src/engine/world.ts  the simulation: Rules, World, createWorld, step, runGenerat
 ├─→ src/engine/creature.ts Creature, Food, newCreature, colours
 │   ├─→ src/engine/senses.ts
 │   └─→ src/engine/space.ts
-├─→ src/engine/senses.ts  what a creature perceives each tick
-│   ├─→ src/engine/space.ts   map size, wrap/walls, nearest(): the one lookup all senses use
+├─→ src/engine/senses.ts  what a creature perceives each tick (grid search in big worlds)
+│   ├─→ src/engine/space.ts   map size, wrap/walls, nearest(), and the Grid for big worlds
 │   └─→ src/engine/brain.ts
 ├─→ src/engine/breed.ts   how a child's brain is made: mutate (dense or sparse), centre brain
 ├─→ src/engine/brain.ts   tiny neural network: think(genome, inputs)
@@ -131,6 +131,7 @@ scripts/queue-status.ts         ─→ src/queue/redis-queue.ts
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
+test/grid.test.ts   ─→ engine/space.ts, engine/senses.ts, golden: grid search = brute force
 test/split.test.ts  ─→ cli/split.ts, engine/world.ts: split = one after another
 test/queue.test.ts  ─→ queue/redis-queue.ts, queue/worker-main.ts (as processes), cli/pool.ts; needs redis-server
 ```
@@ -212,6 +213,8 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-20 | Stage 4 on Rey's laptop: `npm run queue-demo`, 14 runs x 60 generations, Redis + 4 worker containers, one container killed 3 s into a run | PASS: the killed run was redone by another worker on attempt 2; both queue passes identical to threads, number for number. Times: queue with the kill 177 s (incl. the 30 s lease wait), queue 130.5 s (6.4 gens/s), 4 threads 152.0 s (5.5 gens/s). Queue 1.16x threads in this one trial: threads ran last (heat/power limit on a 15 W laptop is a likely reason, unverified); expected about equal on the same cores |
 | 2026-10-21 | Stage 3b: each food map gets its own random numbers and starts everyone fresh (golden re-recorded), default rules, seeds 1-7 x 60 generations, cloud | Same behaviour: 29.6 ±1.7 food (before 30.1 ±1.3), poison 5.2% (5.4%). Older rows were measured before this change: same trends, not the same digits |
 | 2026-10-21 | `npm run bench-split -- --gens=20`, 2-core cloud machine | 1.56x on 2 threads (1.5x is the ceiling for 3 maps on 2 cores), 1.50x on 3 threads; identical results. Rey's laptop: to measure (at most 3x) |
+| 2026-10-21 | Profile, share of run time in the senses (food scan + nearest creature) | default world ~49%; 200 food + 200 creatures ~84%; ecosystem at ~390 creatures ~82% |
+| 2026-10-21 | Grid search (100 px squares) vs checking everything, 2-core cloud | First version with callbacks: 0.39x at default sizes (slower). Plain loops: food grid 0.84x at 100 pellets, 1.22x at 150, 2.37x at 300; creature grid 0.82x at 40, 1.10x at 80, 1.88x at 300. Switched on from 128 pellets / 64 creatures: default 1.01x (unchanged), 200 + 200 world 2.04x, ecosystem to ~390 creatures 2.34x. Identical results |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

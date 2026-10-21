@@ -225,6 +225,125 @@
     }
     return found.map((item, i) => ({ item, dx: fdx[i], dy: fdy[i], d2: fd2[i] }));
   }
+  var CELL = 100;
+  var GW = W / CELL;
+  var GH = H / CELL;
+  var MAX_R = Math.max(GW, GH);
+  var RING_OX = [];
+  var RING_OY = [];
+  for (let r = 0; r <= MAX_R; r++) {
+    const xs = [];
+    const ys = [];
+    for (let oy = -r; oy <= r; oy++) {
+      for (let ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        xs.push(ox);
+        ys.push(oy);
+      }
+    }
+    RING_OX.push(xs);
+    RING_OY.push(ys);
+  }
+  var RINGS = MAX_R;
+  var SPATIAL = { on: true, foodFrom: 128, creaturesFrom: 64 };
+  function cellOf(x, y) {
+    let cx = Math.floor(x / CELL);
+    let cy = Math.floor(y / CELL);
+    if (cx >= GW) cx = GW - 1;
+    else if (cx < 0) cx = 0;
+    if (cy >= GH) cy = GH - 1;
+    else if (cy < 0) cy = 0;
+    return cy * GW + cx;
+  }
+  function cellAt(home, ox, oy, walls) {
+    const hx = home % GW;
+    let cx = hx + ox;
+    let cy = (home - hx) / GW + oy;
+    if (walls) {
+      if (cx < 0 || cx >= GW || cy < 0 || cy >= GH) return -1;
+    } else {
+      cx = (cx % GW + GW) % GW;
+      cy = (cy % GH + GH) % GH;
+    }
+    return cy * GW + cx;
+  }
+  var Grid = class {
+    cells = Array.from({ length: GW * GH }, () => []);
+    where = [];
+    // square of each item
+    seen = new Int32Array(GW * GH);
+    // visit stamps: with wrap-around, a big ring can repeat a square
+    stamp = 0;
+    build(items) {
+      for (let k = 0; k < this.cells.length; k++) this.cells[k].length = 0;
+      this.where.length = items.length;
+      for (let i = 0; i < items.length; i++) {
+        const k = cellOf(items[i].x, items[i].y);
+        this.where[i] = k;
+        this.cells[k].push(i);
+      }
+    }
+    // Item i moved to (x, y).
+    move(i, x, y) {
+      const k = cellOf(x, y);
+      const old = this.where[i];
+      if (k === old) return;
+      const list = this.cells[old];
+      list.splice(list.indexOf(i), 1);
+      this.cells[k].push(i);
+      this.where[i] = k;
+    }
+    nextStamp() {
+      if (++this.stamp === 2147483647) {
+        this.seen.fill(0);
+        this.stamp = 1;
+      }
+      return this.stamp;
+    }
+  };
+  function nearestOne(grid, items, x, y, walls, skipItem, skipDead) {
+    let best = -1;
+    let bdx = 0;
+    let bdy = 0;
+    let bd2 = Infinity;
+    const halfW = W / 2;
+    const halfH = H / 2;
+    const home = cellOf(x, y);
+    const stamp = grid.nextStamp();
+    const seen = grid.seen;
+    for (let r = 0; r <= RINGS; r++) {
+      const rx = RING_OX[r];
+      const ry = RING_OY[r];
+      for (let t = 0; t < rx.length; t++) {
+        const k = cellAt(home, rx[t], ry[t], walls);
+        if (k < 0 || seen[k] === stamp) continue;
+        seen[k] = stamp;
+        const list = grid.cells[k];
+        for (let n = 0; n < list.length; n++) {
+          const j = list[n];
+          const item = items[j];
+          if (item === skipItem || skipDead && !item.alive) continue;
+          let dx = item.x - x;
+          let dy = item.y - y;
+          if (!walls) {
+            if (dx > halfW) dx -= W;
+            else if (dx < -halfW) dx += W;
+            if (dy > halfH) dy -= H;
+            else if (dy < -halfH) dy += H;
+          }
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bd2 || d2 === bd2 && j < best) {
+            best = j;
+            bdx = dx;
+            bdy = dy;
+            bd2 = d2;
+          }
+        }
+      }
+      if (best >= 0 && bd2 < r * r * CELL * CELL) break;
+    }
+    return best >= 0 ? { item: items[best], dx: bdx, dy: bdy, d2: bd2 } : void 0;
+  }
 
   // src/engine/senses.ts
   function inputCount(r) {
@@ -280,10 +399,111 @@
     }
     return { good, poison };
   }
+  var gridCache = /* @__PURE__ */ new WeakMap();
+  function prepareGrids(w) {
+    const foodOn = SPATIAL.on && w.food.length >= SPATIAL.foodFrom;
+    const creaturesOn = SPATIAL.on && w.rules.senseCreature > 0 && w.creatures.length >= SPATIAL.creaturesFrom;
+    if (!foodOn && !creaturesOn) {
+      w.grids = null;
+      return;
+    }
+    const g = gridCache.get(w) ?? { food: new Grid(), creatures: new Grid(), foodOn, creaturesOn, poisonLooks: 0 };
+    gridCache.set(w, g);
+    w.grids = g;
+    g.foodOn = foodOn;
+    g.creaturesOn = creaturesOn;
+    if (foodOn) {
+      g.food.build(w.food);
+      let p = 0;
+      for (let i = 0; i < w.food.length; i++) {
+        w.food[i].slot = i;
+        if (looksPoison(w, w.food[i])) p++;
+      }
+      g.poisonLooks = p;
+    }
+    if (creaturesOn) {
+      g.creatures.build(w.creatures);
+      for (let i = 0; i < w.creatures.length; i++) w.creatures[i].slot = i;
+    }
+  }
+  function scanFoodGrid(w, g, x, y, goodCount) {
+    const walls = w.rules.walls > 0;
+    const tick = w.tick;
+    const food = w.food;
+    const swapped = w.swapped;
+    const halfW = W / 2;
+    const halfH = H / 2;
+    const good = [];
+    const goodIdx = [];
+    let poison;
+    let poisonIdx = -1;
+    const goodLooks = food.length - g.poisonLooks;
+    let goodSeen = 0;
+    let poisonSeen = 0;
+    const grid = g.food;
+    const home = cellOf(x, y);
+    const stamp = grid.nextStamp();
+    const seen = grid.seen;
+    for (let r = 0; r <= RINGS; r++) {
+      const rx = RING_OX[r];
+      const ry = RING_OY[r];
+      for (let t = 0; t < rx.length; t++) {
+        const k = cellAt(home, rx[t], ry[t], walls);
+        if (k < 0 || seen[k] === stamp) continue;
+        seen[k] = stamp;
+        const list = grid.cells[k];
+        for (let n = 0; n < list.length; n++) {
+          const j = list[n];
+          const f = food[j];
+          const isP = f.poison !== swapped;
+          if (isP) poisonSeen++;
+          else goodSeen++;
+          if (f.readyAt > tick) continue;
+          let dx = f.x - x;
+          let dy = f.y - y;
+          if (!walls) {
+            if (dx > halfW) dx -= W;
+            else if (dx < -halfW) dx += W;
+            if (dy > halfH) dy -= H;
+            else if (dy < -halfH) dy += H;
+          }
+          const d2 = dx * dx + dy * dy;
+          if (isP) {
+            if (poison === void 0 || d2 < poison.d2 || d2 === poison.d2 && j < poisonIdx) {
+              poison = { item: f, dx, dy, d2 };
+              poisonIdx = j;
+            }
+            continue;
+          }
+          let i = good.length;
+          if (i === goodCount) {
+            const last = good[i - 1];
+            if (d2 > last.d2 || d2 === last.d2 && j > goodIdx[i - 1]) continue;
+            i--;
+          }
+          while (i > 0 && (d2 < good[i - 1].d2 || d2 === good[i - 1].d2 && j < goodIdx[i - 1])) {
+            good[i] = good[i - 1];
+            goodIdx[i] = goodIdx[i - 1];
+            i--;
+          }
+          good[i] = { item: f, dx, dy, d2 };
+          goodIdx[i] = j;
+        }
+      }
+      const bound = r * r * CELL * CELL;
+      const goodDone = goodSeen === goodLooks || good.length === goodCount && good[goodCount - 1].d2 < bound;
+      const poisonDone = poisonSeen === g.poisonLooks || poison !== void 0 && poison.d2 < bound;
+      if (goodDone && poisonDone) break;
+    }
+    return { good, poison };
+  }
   function sense(w, c) {
     const r = w.rules;
     const walls = r.walls > 0;
-    const scan = scanFood(w, c.x, c.y, r.senseFood2 ? 2 : 1);
+    const g = w.grids;
+    const useFood = g !== null && g.foodOn;
+    const useCreatures = g !== null && g.creaturesOn;
+    const scan = useFood ? scanFoodGrid(w, g, c.x, c.y, r.senseFood2 ? 2 : 1) : scanFood(w, c.x, c.y, r.senseFood2 ? 2 : 1);
     const foods = scan.good;
     const f = foods[0];
     const p = scan.poison;
@@ -296,7 +516,7 @@
       inputs.push(...s ? towards(s.dx, s.dy, s.d2, cosH, sinH) : NOTHING);
     }
     if (r.senseCreature) {
-      const n = nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
+      const n = useCreatures ? nearestOne(g.creatures, w.creatures, c.x, c.y, walls, c, true) : nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
       inputs.push(...n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING);
     }
     if (r.poison > 0) inputs.push(...p ? towards(p.dx, p.dy, p.d2, cosH, sinH) : NOTHING);
@@ -562,6 +782,7 @@
       c.x = (c.x + cos(c.a) * speed + W) % W;
       c.y = (c.y + sin(c.a) * speed + H) % H;
     }
+    if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot, c.x, c.y);
     c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost * costFactor;
     let reward = 0;
     if (seen.food && seen.foodDist < 6) {
@@ -574,6 +795,7 @@
         c.energy = Math.min(c.energy + 0.3, 1.5);
       }
       Object.assign(seen.food, newFood(w, seen.food.poison));
+      if (w.grids?.foodOn) w.grids.food.move(seen.food.slot, seen.food.x, seen.food.y);
       if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
     }
     const r = w.rules;
@@ -610,11 +832,13 @@
   function stepEcosystem(w) {
     const { rules } = w;
     const scale = rules.ageScale;
+    prepareGrids(w);
     for (const c of w.creatures) {
       if (!c.alive) continue;
       live(w, c, scale > 0 ? 1 + c.age / scale : 1);
       c.age++;
     }
+    w.grids = null;
     const born = [];
     const room = () => w.creatures.length + born.length < MAX_POP;
     const ready = (c) => c.alive && c.energy >= rules.birthEnergy;
@@ -772,6 +996,7 @@
       generation: 1,
       layout: 0,
       swapped: false,
+      grids: null,
       avgHist: [],
       bestHist: [],
       worstHist: [],
@@ -807,7 +1032,9 @@
     }
   }
   function tickLayout(w) {
+    prepareGrids(w);
     for (const c of w.creatures) if (c.alive) live(w, c, 1);
+    w.grids = null;
     w.tick++;
     return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
   }

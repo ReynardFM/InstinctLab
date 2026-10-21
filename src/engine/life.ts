@@ -35,6 +35,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
     c.x = (c.x + cos(c.a) * speed + W) % W;
     c.y = (c.y + sin(c.a) * speed + H) % H;
   }
+  if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot!, c.x, c.y); // later creatures this tick sense where it is now
   c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor; // moving costs energy; standing still costs a little
   let reward = 0;
   if (seen.food && seen.foodDist < 6) {
@@ -47,6 +48,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
       c.energy = Math.min(c.energy + 0.3, 1.5);
     }
     Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new
+    if (w.grids?.foodOn) w.grids.food.move(seen.food.slot!, seen.food.x, seen.food.y);
     if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
   }
   const r = w.rules;

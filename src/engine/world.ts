@@ -10,7 +10,7 @@ import { inEcosystem } from "./mode.ts";
 export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
 import { H, W } from "./space.ts";
-import { sense } from "./senses.ts";
+import { prepareGrids, sense, type Grids } from "./senses.ts";
 import { genomeLength, newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
 import {
   addNewcomer, crownChampions, judgeBranches, maybeSplit, newFamily, protectNewcomers, recordFamilyStats,
@@ -87,6 +87,7 @@ export interface World {
   generation: number;
   layout: number; // which food layout of this generation is running, from 0
   swapped: boolean; // rules.swapKinds: on this food map, purple rings are the food and green dots the poison
+  grids: Grids | null; // where food and creatures are, for fast senses; rebuilt at the start of each tick
   avgHist: number[]; // average food eaten per layout, one entry per finished generation
   bestHist: number[];
   worstHist: number[];
@@ -136,6 +137,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     generation: 1,
     layout: 0,
     swapped: false,
+    grids: null,
     avgHist: [],
     bestHist: [],
     worstHist: [],
@@ -174,7 +176,9 @@ export function step(w: World): void {
 
 // One tick of the current food map; true when the map is over (time is up, or everyone starved).
 export function tickLayout(w: World): boolean {
+  prepareGrids(w);
   for (const c of w.creatures) if (c.alive) live(w, c, 1);
+  w.grids = null;
   w.tick++;
   return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
 }

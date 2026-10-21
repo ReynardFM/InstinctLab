@@ -7,6 +7,7 @@ import { genomeLength, newCreature } from "./creature.ts";
 import { inherited, mutate } from "./breed.ts";
 import { maybeSplit, newFamily, retire } from "./lineage.ts";
 import { live } from "./life.ts";
+import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
@@ -18,11 +19,13 @@ const KEEP_DEATHS = 200;
 export function stepEcosystem(w: World): void {
   const { rules } = w;
   const scale = rules.ageScale;
+  prepareGrids(w);
   for (const c of w.creatures) {
     if (!c.alive) continue;
     live(w, c, scale > 0 ? 1 + c.age / scale : 1); // ageing: at age `scale` living costs double
     c.age++;
   }
+  w.grids = null; // births and deaths below change the creature list
 
   // births: children are added after everyone has moved, and act from the next tick
   const born: Creature[] = [];
