@@ -752,7 +752,10 @@
     swapKinds: 0,
     plasticity: 0
   };
-  function createWorld(seed, rules) {
+  function createWorld(seed, rules, start) {
+    if (start && start.length !== genomeLength(rules)) {
+      throw new Error(`This brain has ${start.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+    }
     const w = {
       rules: { ...rules },
       rng: createRng(seed),
@@ -780,7 +783,7 @@
       eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+      const genome = start ? start.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }

@@ -6,6 +6,7 @@ import { ECO_SAMPLE } from "../engine/ecosystem.ts";
 import { inEcosystem } from "../engine/mode.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
+import { FAME_LIMIT, loadFame, mergeFame, parseFame, storeFame, type FameEntry } from "./fame.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const ctx2d = (id: string) => $<HTMLCanvasElement>(id).getContext("2d")!;
@@ -26,6 +27,9 @@ type Speed = 0 | 1 | 10 | "max";
 let world: World;
 let speed: Speed = 1;
 let selectedId: number | null = null;
+let followed: Creature | null = null; // the creature the brain panel shows (picked, or the default)
+let runSeed = "42";
+let runNote = ""; // e.g. "Started from a saved brain: ..."
 const pendingRules: Rules = { ...DEFAULT_RULES };
 
 // Where creatures died on this food layout. Page-only memory; the engine doesn't know about it.
@@ -438,6 +442,7 @@ function draw(): void {
       ? world.creatures.reduce<Creature | null>((a, c) => (!a || c.age > a.age ? c : a), null) // follow the oldest
       : world.creatures.find((c) => c.elite) ?? null; // default: follow the champion
   }
+  followed = sel;
   drawWorld(sel);
   drawChart();
   drawFamilies();
@@ -464,7 +469,8 @@ function draw(): void {
       (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1)!.toFixed(1)} each.` : ".")
     : "";
   const swapText = world.swapped ? "This map: purple rings are the food, green dots the poison. " : "";
-  $("tickText").textContent = `${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
+  const note = runNote && world.generation === 1 ? `${runNote} ` : ""; // shown during the first generation
+  $("tickText").textContent = `${note}${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
 }
 
 function frame(): void {
@@ -605,11 +611,116 @@ function updatePending(): void {
   $("pending").textContent = changed ? "Changed rules apply when you start a new run." : "";
 }
 
-function startRun(seedText: string, rules: Rules): void {
-  world = createWorld(seedFrom(seedText), rules);
+function startRun(seedText: string, rules: Rules, start?: number[]): void {
+  world = createWorld(seedFrom(seedText), rules, start);
+  runSeed = seedText;
+  runNote = "";
   selectedId = null;
   legacyShown = -1;
 }
+
+// ---------- hall of fame ----------
+let fame: FameEntry[] = [];
+let fameStored = true;
+
+function fameMessage(text: string): void {
+  $("fameText").textContent = text;
+}
+
+function renderFame(): void {
+  const list = $("fame");
+  list.innerHTML = "";
+  for (const e of fame) {
+    const li = document.createElement("li");
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = hsl(e.hue);
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = e.name; // textContent: names can come from imported files
+    name.title = `Seed ${e.seed}, saved ${e.savedAt.slice(0, 10)}`;
+    const watch = document.createElement("button");
+    watch.textContent = "Watch";
+    watch.onclick = () => watchSaved(e);
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.onclick = () => {
+      fame = fame.filter((x) => x.id !== e.id);
+      fameStored = storeFame(fame);
+      renderFame();
+    };
+    li.append(dot, name, watch, del);
+    list.append(li);
+  }
+  if (!fame.length) fameMessage("No saved brains yet. Follow a creature (click it) and save its brain.");
+  else if (!fameStored) fameMessage("This browser won't keep them after the page closes: use Export to keep them.");
+  else fameMessage(`${fame.length} saved (at most ${FAME_LIMIT}). Kept in this browser; Export to keep them safe.`);
+}
+
+// A new run under the saved rules where every creature starts with the saved brain.
+function watchSaved(e: FameEntry): void {
+  try {
+    startRun(e.seed, e.rules, e.genome);
+  } catch (err) {
+    fameMessage(`Can't start from this brain: ${(err as Error).message}`);
+    return;
+  }
+  Object.assign(pendingRules, e.rules);
+  renderRules();
+  updatePending();
+  $<HTMLInputElement>("seed").value = e.seed;
+  runNote = `Started from a saved brain: ${e.name}. Everyone begins with it.`;
+}
+
+$("saveBrain").onclick = () => {
+  const c = followed;
+  if (!c) {
+    fameMessage("Click a creature first (there is no champion to follow until generation 2).");
+    return;
+  }
+  const per = inEcosystem(world) ? 1 : Math.max(1, world.layout + 1);
+  const eaten = c.eaten / per;
+  const entry: FameEntry = {
+    id: `${Date.now().toString(36)}-${c.id}`,
+    name: `Gen ${world.generation}, family ${c.family + 1}, ${food(Math.round(eaten * 10) / 10)} food so far`,
+    savedAt: new Date().toISOString(),
+    seed: runSeed,
+    generation: world.generation,
+    eaten,
+    hue: c.hue,
+    rules: { ...world.rules },
+    genome: c.g.slice(),
+  };
+  fame = mergeFame([entry], fame);
+  fameStored = storeFame(fame);
+  renderFame();
+};
+
+$("exportFame").onclick = () => {
+  const blob = new Blob([JSON.stringify(fame, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "evolution-lab-hall-of-fame.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+$("importFameBtn").onclick = () => $<HTMLInputElement>("importFame").click();
+$<HTMLInputElement>("importFame").onchange = async (ev) => {
+  const input = ev.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    const got = parseFame(await file.text());
+    fame = mergeFame(fame, got);
+    fameStored = storeFame(fame);
+    renderFame();
+    fameMessage(`Imported ${got.length} brain(s). ${$("fameText").textContent}`);
+  } catch (err) {
+    fameMessage(`Couldn't import that file: ${(err as Error).message}`);
+  }
+};
 
 $("newRun").onclick = () => {
   startRun($<HTMLInputElement>("seed").value, pendingRules);
@@ -617,6 +728,8 @@ $("newRun").onclick = () => {
 };
 
 startRun("42", DEFAULT_RULES);
+({ list: fame, stored: fameStored } = loadFame());
+renderFame();
 renderRules();
 setSpeed(1);
 frame();

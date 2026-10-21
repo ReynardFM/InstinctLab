@@ -9,6 +9,7 @@ import { createRng, seedFrom } from "../src/engine/rng.ts";
 import * as dmath from "../src/engine/dmath.ts";
 import { centre, inherited, mutate } from "../src/engine/breed.ts";
 import type { Creature } from "../src/engine/creature.ts";
+import { mergeFame, parseFame } from "../src/web/fame.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
 
@@ -512,6 +513,27 @@ test("plasticity: each connection learns at its own evolved rate, stored after t
   const kid = inherited(w, c);
   assert.equal(kid.length, 2 * n);
   assert.deepEqual(kid.slice(n), c.g.slice(n));
+});
+
+test("hall of fame: a world can start from a saved brain; a brain that doesn't fit the rules is refused", () => {
+  const saved = createWorld(5, DEFAULT_RULES).creatures[3].g;
+  const w = createWorld(9, DEFAULT_RULES, saved);
+  for (const c of w.creatures) assert.deepEqual(c.g, saved);
+  assert.notEqual(w.creatures[0].g, saved, "each creature gets its own copy");
+  runGenerations(w, 1); // and evolution carries on from it
+  assert.equal(w.generation, 2);
+  assert.throws(() => createWorld(9, { ...DEFAULT_RULES, senseFood2: 1 }, saved), /weights; these rules need/);
+});
+
+test("hall of fame file: bad entries skipped, missing rules filled in, newest first, no duplicates", () => {
+  const good = { id: "a", name: "Gen 3", savedAt: "2026-10-21T01:00:00Z", seed: "42", generation: 3, eaten: 30, hue: 10, rules: { pop: 20 }, genome: [0.1, -0.2] };
+  const list = parseFame(JSON.stringify([good, { genome: "nope" }, { genome: [1, null] }, null]));
+  assert.equal(list.length, 1);
+  assert.equal(list[0].rules.pop, 20);
+  assert.equal(list[0].rules.food, DEFAULT_RULES.food, "rules an older save lacks get today's defaults");
+  assert.throws(() => parseFame('{"not":"a list"}'), /Not a hall-of-fame file/);
+  const newer = { ...list[0], id: "b", savedAt: "2026-10-21T02:00:00Z" };
+  assert.deepEqual(mergeFame(list, [newer, list[0]]).map((e) => e.id), ["b", "a"]);
 });
 
 test("thinking and learning can cost energy", () => {

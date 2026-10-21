@@ -757,7 +757,10 @@
     swapKinds: 0,
     plasticity: 0
   };
-  function createWorld(seed, rules) {
+  function createWorld(seed, rules, start) {
+    if (start && start.length !== genomeLength(rules)) {
+      throw new Error(`This brain has ${start.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+    }
     const w = {
       rules: { ...rules },
       rng: createRng(seed),
@@ -785,7 +788,7 @@
       eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
     };
     for (let i = 0; i < rules.pop; i++) {
-      const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+      const genome = start ? start.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
@@ -863,6 +866,60 @@
     w.generation++;
   }
 
+  // src/web/fame.ts
+  var FAME_LIMIT = 50;
+  var KEY = "evolution-lab.hall-of-fame";
+  function parseFame(text) {
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error("Not a hall-of-fame file (expected a list of brains)");
+    const out = [];
+    for (const e of data) {
+      if (!e || typeof e !== "object") continue;
+      const genome = e.genome;
+      if (!Array.isArray(genome) || genome.length === 0 || !genome.every((x) => typeof x === "number" && Number.isFinite(x))) continue;
+      const rules = { ...DEFAULT_RULES };
+      if (e.rules && typeof e.rules === "object") {
+        for (const k of Object.keys(DEFAULT_RULES)) {
+          const v = e.rules[k];
+          if (typeof v === "number" && Number.isFinite(v)) rules[k] = v;
+        }
+      }
+      const num = (v, d) => typeof v === "number" && Number.isFinite(v) ? v : d;
+      out.push({
+        id: typeof e.id === "string" ? e.id : `${Date.now().toString(36)}-${out.length}`,
+        name: typeof e.name === "string" ? e.name.slice(0, 80) : "Saved brain",
+        savedAt: typeof e.savedAt === "string" ? e.savedAt : "",
+        seed: typeof e.seed === "string" ? e.seed : "42",
+        generation: num(e.generation, 0),
+        eaten: num(e.eaten, 0),
+        hue: num(e.hue, 0),
+        rules,
+        genome
+      });
+    }
+    return out;
+  }
+  function mergeFame(a, b) {
+    const seen = /* @__PURE__ */ new Set();
+    return [...a, ...b].filter((e) => seen.has(e.id) ? false : (seen.add(e.id), true)).sort((x, y) => y.savedAt > x.savedAt ? 1 : y.savedAt < x.savedAt ? -1 : 0).slice(0, FAME_LIMIT);
+  }
+  function loadFame() {
+    try {
+      const text = localStorage.getItem(KEY);
+      return { list: text ? parseFame(text) : [], stored: true };
+    } catch {
+      return { list: [], stored: false };
+    }
+  }
+  function storeFame(list) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(list));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // src/web/main.ts
   var $ = (id) => document.getElementById(id);
   var ctx2d = (id) => $(id).getContext("2d");
@@ -887,6 +944,9 @@
   var world;
   var speed = 1;
   var selectedId = null;
+  var followed = null;
+  var runSeed = "42";
+  var runNote = "";
   var pendingRules = { ...DEFAULT_RULES };
   var marks = [];
   var markedIds = /* @__PURE__ */ new Set();
@@ -1236,6 +1296,7 @@
     if (!sel) {
       sel = inEcosystem(world) ? world.creatures.reduce((a, c) => !a || c.age > a.age ? c : a, null) : world.creatures.find((c) => c.elite) ?? null;
     }
+    followed = sel;
     drawWorld(sel);
     drawChart();
     drawFamilies();
@@ -1255,7 +1316,8 @@
     const layoutText = many ? `Food layout ${world.layout + 1} of ${world.rules.layouts}. ` : "";
     const last = world.avgHist.length ? ` Last generation: average ${world.avgHist.at(-1).toFixed(1)}, best ${food(world.bestHist.at(-1))}${many ? " food per layout" : ""}` + (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1).toFixed(1)} each.` : ".") : "";
     const swapText = world.swapped ? "This map: purple rings are the food, green dots the poison. " : "";
-    $("tickText").textContent = `${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
+    const note = runNote && world.generation === 1 ? `${runNote} ` : "";
+    $("tickText").textContent = `${note}${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
   }
   function frame() {
     if (speed === "max") {
@@ -1384,16 +1446,114 @@
     const changed = Object.keys(pendingRules).some((k) => pendingRules[k] !== world.rules[k]);
     $("pending").textContent = changed ? "Changed rules apply when you start a new run." : "";
   }
-  function startRun(seedText, rules) {
-    world = createWorld(seedFrom(seedText), rules);
+  function startRun(seedText, rules, start) {
+    world = createWorld(seedFrom(seedText), rules, start);
+    runSeed = seedText;
+    runNote = "";
     selectedId = null;
     legacyShown = -1;
   }
+  var fame = [];
+  var fameStored = true;
+  function fameMessage(text) {
+    $("fameText").textContent = text;
+  }
+  function renderFame() {
+    const list = $("fame");
+    list.innerHTML = "";
+    for (const e of fame) {
+      const li = document.createElement("li");
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = hsl(e.hue);
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = e.name;
+      name.title = `Seed ${e.seed}, saved ${e.savedAt.slice(0, 10)}`;
+      const watch = document.createElement("button");
+      watch.textContent = "Watch";
+      watch.onclick = () => watchSaved(e);
+      const del = document.createElement("button");
+      del.textContent = "Delete";
+      del.onclick = () => {
+        fame = fame.filter((x) => x.id !== e.id);
+        fameStored = storeFame(fame);
+        renderFame();
+      };
+      li.append(dot, name, watch, del);
+      list.append(li);
+    }
+    if (!fame.length) fameMessage("No saved brains yet. Follow a creature (click it) and save its brain.");
+    else if (!fameStored) fameMessage("This browser won't keep them after the page closes: use Export to keep them.");
+    else fameMessage(`${fame.length} saved (at most ${FAME_LIMIT}). Kept in this browser; Export to keep them safe.`);
+  }
+  function watchSaved(e) {
+    try {
+      startRun(e.seed, e.rules, e.genome);
+    } catch (err) {
+      fameMessage(`Can't start from this brain: ${err.message}`);
+      return;
+    }
+    Object.assign(pendingRules, e.rules);
+    renderRules();
+    updatePending();
+    $("seed").value = e.seed;
+    runNote = `Started from a saved brain: ${e.name}. Everyone begins with it.`;
+  }
+  $("saveBrain").onclick = () => {
+    const c = followed;
+    if (!c) {
+      fameMessage("Click a creature first (there is no champion to follow until generation 2).");
+      return;
+    }
+    const per = inEcosystem(world) ? 1 : Math.max(1, world.layout + 1);
+    const eaten = c.eaten / per;
+    const entry = {
+      id: `${Date.now().toString(36)}-${c.id}`,
+      name: `Gen ${world.generation}, family ${c.family + 1}, ${food(Math.round(eaten * 10) / 10)} food so far`,
+      savedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      seed: runSeed,
+      generation: world.generation,
+      eaten,
+      hue: c.hue,
+      rules: { ...world.rules },
+      genome: c.g.slice()
+    };
+    fame = mergeFame([entry], fame);
+    fameStored = storeFame(fame);
+    renderFame();
+  };
+  $("exportFame").onclick = () => {
+    const blob = new Blob([JSON.stringify(fame, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "evolution-lab-hall-of-fame.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
+  };
+  $("importFameBtn").onclick = () => $("importFame").click();
+  $("importFame").onchange = async (ev) => {
+    const input = ev.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      const got = parseFame(await file.text());
+      fame = mergeFame(fame, got);
+      fameStored = storeFame(fame);
+      renderFame();
+      fameMessage(`Imported ${got.length} brain(s). ${$("fameText").textContent}`);
+    } catch (err) {
+      fameMessage(`Couldn't import that file: ${err.message}`);
+    }
+  };
   $("newRun").onclick = () => {
     startRun($("seed").value, pendingRules);
     updatePending();
   };
   startRun("42", DEFAULT_RULES);
+  ({ list: fame, stored: fameStored } = loadFame());
+  renderFame();
   renderRules();
   setSpeed(1);
   frame();

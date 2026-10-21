@@ -1,7 +1,7 @@
 // The simulation. No drawing, no DOM, no clock: only the World object and functions on it.
 // Same seed + same rules = same run, at any speed, in the browser or in Node.
 import { createRng, type Rng } from "./rng.ts";
-import { think } from "./brain.ts";
+import { think, type Genome } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { centre, inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
@@ -112,7 +112,11 @@ export interface EcoStats {
   recentDeaths: { x: number; y: number; tick: number }[]; // for the page's death marks (last 200)
 }
 
-export function createWorld(seed: number, rules: Rules): World {
+// start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
+export function createWorld(seed: number, rules: Rules, start?: Genome): World {
+  if (start && start.length !== genomeLength(rules)) {
+    throw new Error(`This brain has ${start.length} weights; these rules need ${genomeLength(rules)} (different senses or brain size)`);
+  }
   const w: World = {
     rules: { ...rules },
     rng: createRng(seed),
@@ -140,7 +144,7 @@ export function createWorld(seed: number, rules: Rules): World {
     eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] },
   };
   for (let i = 0; i < rules.pop; i++) {
-    const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+    const genome = start ? start.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }
