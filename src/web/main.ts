@@ -7,6 +7,7 @@ import { inEcosystem } from "../engine/mode.ts";
 import { nearest } from "../engine/space.ts";
 import { seedFrom } from "../engine/rng.ts";
 import { FAME_LIMIT, loadFame, mergeFame, parseFame, storeFame, type FameEntry } from "./fame.ts";
+import { decodeLink, encodeLink } from "./share.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const ctx2d = (id: string) => $<HTMLCanvasElement>(id).getContext("2d")!;
@@ -29,6 +30,9 @@ let speed: Speed = 1;
 let selectedId: number | null = null;
 let followed: Creature | null = null; // the creature the brain panel shows (picked, or the default)
 let runSeed = "42";
+let runStart: number[] | null = null; // the saved brain this run started from, if any
+let steps = 0; // steps since the run started: with seed, rules and start brain, it pins down this exact moment
+let rebuilding = false; // fast-forwarding to a link's moment
 let runNote = ""; // e.g. "Started from a saved brain: ..."
 const pendingRules: Rules = { ...DEFAULT_RULES };
 
@@ -473,13 +477,20 @@ function draw(): void {
   $("tickText").textContent = `${note}${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
 }
 
+function advance(): void {
+  step(world);
+  steps++;
+}
+
 function frame(): void {
-  if (speed === "max") {
+  if (rebuilding) {
+    // nothing: the link rebuild drives the world (openLink)
+  } else if (speed === "max") {
     const end = performance.now() + 12;
-    do step(world);
+    do advance();
     while (performance.now() < end);
   } else {
-    for (let i = 0; i < speed; i++) step(world);
+    for (let i = 0; i < speed; i++) advance();
   }
   draw();
   requestAnimationFrame(frame);
@@ -614,6 +625,11 @@ function updatePending(): void {
 function startRun(seedText: string, rules: Rules, start?: number[]): void {
   world = createWorld(seedFrom(seedText), rules, start);
   runSeed = seedText;
+  runStart = start ? start.slice() : null;
+  steps = 0;
+  if (location.hash && !rebuilding) history.replaceState(null, "", location.pathname + location.search); // a new run: the old link no longer applies
+  $("linkText").textContent = "";
+  $<HTMLInputElement>("linkBox").hidden = true;
   runNote = "";
   selectedId = null;
   legacyShown = -1;
@@ -727,12 +743,74 @@ $("newRun").onclick = () => {
   updatePending();
 };
 
-startRun("42", DEFAULT_RULES);
+// ---------- run links ----------
+$("copyLink").onclick = async () => {
+  const hash = encodeLink({ seed: runSeed, rules: world.rules, steps, start: runStart });
+  history.replaceState(null, "", hash);
+  const link = location.href;
+  const box = $<HTMLInputElement>("linkBox");
+  box.value = link;
+  box.hidden = false;
+  box.select();
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(link);
+    copied = true;
+  } catch {
+    // clipboard can be blocked (file:// pages, some browsers): the link is selected in the box instead
+  }
+  const where = inEcosystem(world) ? `tick ${world.tick}` : `generation ${world.generation}, map ${world.layout + 1}, tick ${world.tick}`;
+  $("linkText").textContent = `${copied ? "Copied" : "Select and copy"}: opens this run at ${where} (step ${steps}), paused.` +
+    (location.protocol === "file:" ? " It points to this file on this computer." : "");
+};
+
+// Opening a link: same seed, rules and start brain, then the same number of steps, a slice per frame
+// so the page stays responsive. Then paused, at exactly the moment the link was made.
+let linkProblem = ""; // shown after the normal start when a link can't be used
+
+function openLink(): boolean {
+  let link;
+  try {
+    link = decodeLink(location.hash);
+  } catch (err) {
+    linkProblem = `Couldn't read this link (${(err as Error).message}); started a normal run instead.`;
+    return false;
+  }
+  if (!link) return false;
+  try {
+    startRun(link.seed, link.rules, link.start ?? undefined);
+  } catch (err) {
+    rebuilding = false;
+    linkProblem = `Couldn't rebuild this run (${(err as Error).message}); started a normal run instead.`;
+    return false;
+  }
+  $<HTMLInputElement>("seed").value = link.seed;
+  Object.assign(pendingRules, link.rules);
+  setSpeed(0);
+  rebuilding = true;
+  const target = link.steps;
+  const slice = () => {
+    const end = performance.now() + 40;
+    while (steps < target && performance.now() < end) advance();
+    $("linkText").textContent = steps < target
+      ? `Rebuilding the run from the link: step ${steps} of ${target} (generation ${world.generation})...`
+      : `Rebuilt from a link: the exact same run at step ${target}, paused. Press 1× to carry on.`;
+    if (steps < target) setTimeout(slice, 0);
+    else rebuilding = false;
+  };
+  slice();
+  return true;
+}
+
+if (!openLink()) {
+  startRun("42", DEFAULT_RULES);
+  $("linkText").textContent = linkProblem;
+}
 ({ list: fame, stored: fameStored } = loadFame());
 renderFame();
 renderRules();
-setSpeed(1);
+if (!rebuilding) setSpeed(1);
 frame();
 
 // For tests and curious people: the current world is reachable from the browser console.
-(window as unknown as { lab: { world: () => World } }).lab = { world: () => world };
+(window as unknown as { lab: { world: () => World; steps: () => number } }).lab = { world: () => world, steps: () => steps };

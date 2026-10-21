@@ -10,6 +10,7 @@ import * as dmath from "../src/engine/dmath.ts";
 import { centre, inherited, mutate } from "../src/engine/breed.ts";
 import type { Creature } from "../src/engine/creature.ts";
 import { mergeFame, parseFame } from "../src/web/fame.ts";
+import { decodeLink, encodeLink } from "../src/web/share.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
 
@@ -534,6 +535,27 @@ test("hall of fame file: bad entries skipped, missing rules filled in, newest fi
   assert.throws(() => parseFame('{"not":"a list"}'), /Not a hall-of-fame file/);
   const newer = { ...list[0], id: "b", savedAt: "2026-10-21T02:00:00Z" };
   assert.deepEqual(mergeFame(list, [newer, list[0]]).map((e) => e.id), ["b", "a"]);
+});
+
+test("run links: seed, changed rules, steps and a start brain come back exactly; the run rebuilds to the same moment", () => {
+  const brain = createWorld(2, DEFAULT_RULES).creatures[0].g;
+  const rules = { ...DEFAULT_RULES, food: 80, poison: 0.45, genTicks: 300 };
+  const hash = encodeLink({ seed: "my seed & more", rules, steps: 1234, start: brain });
+  assert.ok(!hash.includes("pop:"), "only changed rules are written");
+  const back = decodeLink(hash)!;
+  assert.equal(back.seed, "my seed & more");
+  assert.deepEqual(back.rules, rules);
+  assert.equal(back.steps, 1234);
+  assert.deepEqual(back.start, brain, "the brain comes back bit for bit");
+  assert.equal(decodeLink("#nothing=here"), null);
+  assert.deepEqual(decodeLink("#s=1&r=food:70,notARule:5,pop:abc")!.rules, { ...DEFAULT_RULES, food: 70 }, "unknown or bad rules ignored");
+  // same seed + rules + start brain + steps = the same world
+  const a = createWorld(seedFrom("my seed & more"), rules, brain);
+  for (let i = 0; i < 1234; i++) step(a);
+  const b = createWorld(seedFrom(back.seed), back.rules, back.start!);
+  for (let i = 0; i < back.steps; i++) step(b);
+  assert.deepEqual(b.creatures.map((c) => [c.x, c.y, c.eaten]), a.creatures.map((c) => [c.x, c.y, c.eaten]));
+  assert.equal(b.generation, a.generation);
 });
 
 test("thinking and learning can cost energy", () => {

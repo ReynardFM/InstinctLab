@@ -6,6 +6,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 
 - **Watch it:** double-click `index.html`. Works offline, no install. It loads the already-built `dist/app.js`.
 - **Hall of fame (on the page):** "Save this brain" keeps the creature the brain panel follows, with its rules; "Watch" starts a run where every creature begins with it. Saved in this browser; Export / Import as a file to keep them safe.
+- **Run links:** "Copy link to this moment" makes a link that rebuilds the same run (seed, changed rules, saved start brain) to the exact same step, paused. A link made from the file on disk only works on this computer; once the page is online, links work for anyone, in any browser.
 - **Check a browser replays runs exactly:** double-click `determinism.html` in that browser (about 10 s).
 - **Everything else** needs Node 22.18 or newer (`node -v`):
 
@@ -69,6 +70,7 @@ index.html ── loads ──→ dist/app.js        (built by esbuild from src/
 
 src/web/main.ts      the page: drawing, controls, sliders, hall of fame
 ├─→ src/web/fame.ts       hall of fame: reading, merging and storing saved brains
+├─→ src/web/share.ts      run links: seed, changed rules, steps and start brain in the address
 ├─→ src/engine/world.ts
 ├─→ src/engine/brain.ts
 ├─→ src/engine/senses.ts  (input labels)

@@ -1172,6 +1172,69 @@
     }
   }
 
+  // src/web/share.ts
+  var B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  function toBase64(bytes) {
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 3) {
+      const n = bytes[i] << 16 | (bytes[i + 1] ?? 0) << 8 | (bytes[i + 2] ?? 0);
+      const chars = Math.min(4, Math.ceil((bytes.length - i) * 8 / 6));
+      for (let c = 0; c < chars; c++) out += B64[n >> 18 - 6 * c & 63];
+    }
+    return out;
+  }
+  function fromBase64(text) {
+    const bytes = [];
+    let bits = 0;
+    let acc = 0;
+    for (const ch of text) {
+      const v = B64.indexOf(ch);
+      if (v < 0) throw new Error("bad brain data in the link");
+      acc = acc << 6 | v;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        bytes.push(acc >> bits & 255);
+      }
+    }
+    return new Uint8Array(bytes);
+  }
+  function brainToText(genome) {
+    const view = new DataView(new ArrayBuffer(genome.length * 8));
+    genome.forEach((x, i) => view.setFloat64(i * 8, x, true));
+    return toBase64(new Uint8Array(view.buffer));
+  }
+  function brainFromText(text) {
+    const bytes = fromBase64(text);
+    if (bytes.length % 8 !== 0) throw new Error("bad brain data in the link");
+    const view = new DataView(bytes.buffer);
+    return Array.from({ length: bytes.length / 8 }, (_, i) => view.getFloat64(i * 8, true));
+  }
+  function encodeLink(link) {
+    const changed = Object.keys(DEFAULT_RULES).filter((k) => link.rules[k] !== DEFAULT_RULES[k]).map((k) => `${k}:${link.rules[k]}`);
+    const parts = [`s=${encodeURIComponent(link.seed)}`];
+    if (changed.length) parts.push(`r=${changed.join(",")}`);
+    parts.push(`at=${link.steps}`);
+    if (link.start) parts.push(`b=${brainToText(link.start)}`);
+    return `#${parts.join("&")}`;
+  }
+  function decodeLink(hash) {
+    const params = /* @__PURE__ */ new Map();
+    for (const part of hash.replace(/^#/, "").split("&")) {
+      const eq = part.indexOf("=");
+      if (eq > 0) params.set(part.slice(0, eq), part.slice(eq + 1));
+    }
+    if (!params.has("s")) return null;
+    const rules = { ...DEFAULT_RULES };
+    for (const pair of (params.get("r") ?? "").split(",")) {
+      const [k, v] = pair.split(":");
+      if (k in DEFAULT_RULES && v !== void 0 && Number.isFinite(Number(v))) rules[k] = Number(v);
+    }
+    const steps2 = Math.max(0, Math.floor(Number(params.get("at") ?? 0)) || 0);
+    const b = params.get("b");
+    return { seed: decodeURIComponent(params.get("s")), rules, steps: steps2, start: b ? brainFromText(b) : null };
+  }
+
   // src/web/main.ts
   var $ = (id) => document.getElementById(id);
   var ctx2d = (id) => $(id).getContext("2d");
@@ -1198,6 +1261,9 @@
   var selectedId = null;
   var followed = null;
   var runSeed = "42";
+  var runStart = null;
+  var steps = 0;
+  var rebuilding = false;
   var runNote = "";
   var pendingRules = { ...DEFAULT_RULES };
   var marks = [];
@@ -1571,14 +1637,19 @@
     const note = runNote && world.generation === 1 ? `${runNote} ` : "";
     $("tickText").textContent = `${note}${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
   }
+  function advance() {
+    step(world);
+    steps++;
+  }
   function frame() {
-    if (speed === "max") {
+    if (rebuilding) {
+    } else if (speed === "max") {
       const end = performance.now() + 12;
       do
-        step(world);
+        advance();
       while (performance.now() < end);
     } else {
-      for (let i = 0; i < speed; i++) step(world);
+      for (let i = 0; i < speed; i++) advance();
     }
     draw();
     requestAnimationFrame(frame);
@@ -1701,6 +1772,11 @@
   function startRun(seedText, rules, start) {
     world = createWorld(seedFrom(seedText), rules, start);
     runSeed = seedText;
+    runStart = start ? start.slice() : null;
+    steps = 0;
+    if (location.hash && !rebuilding) history.replaceState(null, "", location.pathname + location.search);
+    $("linkText").textContent = "";
+    $("linkBox").hidden = true;
     runNote = "";
     selectedId = null;
     legacyShown = -1;
@@ -1803,11 +1879,63 @@
     startRun($("seed").value, pendingRules);
     updatePending();
   };
-  startRun("42", DEFAULT_RULES);
+  $("copyLink").onclick = async () => {
+    const hash = encodeLink({ seed: runSeed, rules: world.rules, steps, start: runStart });
+    history.replaceState(null, "", hash);
+    const link = location.href;
+    const box = $("linkBox");
+    box.value = link;
+    box.hidden = false;
+    box.select();
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(link);
+      copied = true;
+    } catch {
+    }
+    const where = inEcosystem(world) ? `tick ${world.tick}` : `generation ${world.generation}, map ${world.layout + 1}, tick ${world.tick}`;
+    $("linkText").textContent = `${copied ? "Copied" : "Select and copy"}: opens this run at ${where} (step ${steps}), paused.` + (location.protocol === "file:" ? " It points to this file on this computer." : "");
+  };
+  var linkProblem = "";
+  function openLink() {
+    let link;
+    try {
+      link = decodeLink(location.hash);
+    } catch (err) {
+      linkProblem = `Couldn't read this link (${err.message}); started a normal run instead.`;
+      return false;
+    }
+    if (!link) return false;
+    try {
+      startRun(link.seed, link.rules, link.start ?? void 0);
+    } catch (err) {
+      rebuilding = false;
+      linkProblem = `Couldn't rebuild this run (${err.message}); started a normal run instead.`;
+      return false;
+    }
+    $("seed").value = link.seed;
+    Object.assign(pendingRules, link.rules);
+    setSpeed(0);
+    rebuilding = true;
+    const target = link.steps;
+    const slice = () => {
+      const end = performance.now() + 40;
+      while (steps < target && performance.now() < end) advance();
+      $("linkText").textContent = steps < target ? `Rebuilding the run from the link: step ${steps} of ${target} (generation ${world.generation})...` : `Rebuilt from a link: the exact same run at step ${target}, paused. Press 1\xD7 to carry on.`;
+      if (steps < target) setTimeout(slice, 0);
+      else rebuilding = false;
+    };
+    slice();
+    return true;
+  }
+  if (!openLink()) {
+    startRun("42", DEFAULT_RULES);
+    $("linkText").textContent = linkProblem;
+  }
   ({ list: fame, stored: fameStored } = loadFame());
   renderFame();
   renderRules();
-  setSpeed(1);
+  if (!rebuilding) setSpeed(1);
   frame();
-  window.lab = { world: () => world };
+  window.lab = { world: () => world, steps: () => steps };
 })();
