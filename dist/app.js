@@ -2040,6 +2040,7 @@
     if (e.key === "1") setSpeed(1);
     if (e.key === "2") setSpeed(10);
     if (e.key === "3") setSpeed("max");
+    if (e.key === "r" || e.key === "R") openRules();
   });
   $("world").addEventListener("click", (e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -2097,16 +2098,42 @@
     ["senseCreature", "Sense the nearest creature", 0, 1, 1, "Adds 3 inputs to the brain."],
     ["walls", "Walls instead of wrapping around", 0, 1, 1, "Adds a 'wall ahead' sense."]
   ];
+  var RULE_GROUPS = [
+    ["Population and time", ["pop", "genTicks", "layouts"]],
+    ["Food", ["food", "poison", "regrow", "energyCost", "swapKinds"]],
+    ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
+    ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
+    ["Families", ["splitDistance", "splitProof", "championStreak"]],
+    ["Hunters", ["hunters", "hunterSense"]],
+    ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
+    ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]]
+  ];
   function renderRules() {
     const root = $("rules");
     root.innerHTML = "";
-    for (const [key, label, min, max, stepV, help] of RULE_SPECS) {
+    const specs = new Map(RULE_SPECS.map((sp) => [sp[0], sp]));
+    const grouped = new Set(RULE_GROUPS.flatMap(([, keys]) => keys));
+    const other = RULE_SPECS.map((sp) => sp[0]).filter((k) => !grouped.has(k));
+    for (const [title, keys] of other.length ? [...RULE_GROUPS, ["Other", other]] : RULE_GROUPS) {
+      const h = document.createElement("h3");
+      h.textContent = title;
+      root.append(h);
+      for (const k of keys) {
+        const sp = specs.get(k);
+        if (sp) root.append(ruleRow(sp));
+      }
+    }
+    updatePending();
+  }
+  function ruleRow([key, label, min, max, stepV, help]) {
+    {
       const id = `rule-${key}`;
       const div = document.createElement("div");
       div.className = "rule";
+      div.dataset.key = key;
       if (max === 1 && stepV === 1) {
         div.classList.add("toggle");
-        div.innerHTML = `<label for="${id}"><input id="${id}" type="checkbox" ${pendingRules[key] ? "checked" : ""}> ${label}</label>
+        div.innerHTML = `<label for="${id}"><input id="${id}" type="checkbox" role="switch" ${pendingRules[key] ? "checked" : ""}> ${label}</label>
         ${help ? `<small>${help}</small>` : ""}`;
         const box = div.querySelector("input");
         box.onchange = () => {
@@ -2117,8 +2144,7 @@
           }
           updatePending();
         };
-        root.append(div);
-        continue;
+        return div;
       }
       div.innerHTML = `<label for="${id}">${label}</label><output for="${id}"></output>
       <input id="${id}" type="range" min="${min}" max="${max}" step="${stepV}" value="${pendingRules[key]}">
@@ -2132,13 +2158,37 @@
         updatePending();
       };
       show();
-      root.append(div);
+      return div;
     }
   }
   function updatePending() {
-    const changed = Object.keys(pendingRules).some((k) => pendingRules[k] !== world.rules[k]);
-    $("pending").textContent = changed ? "Changed rules apply when you start a new run." : "";
+    if (!world) return;
+    const changed = Object.keys(pendingRules).filter((k) => pendingRules[k] !== world.rules[k]);
+    for (const row of document.querySelectorAll("#rules .rule")) {
+      row.classList.toggle("changed", changed.includes(row.dataset.key));
+    }
+    $("rulesCount").textContent = changed.length ? String(changed.length) : "";
+    $("pending").classList.toggle("waiting", changed.length > 0);
+    $("pending").textContent = changed.length ? `${changed.length} change${changed.length === 1 ? "" : "s"} waiting for the next run.` : "Same rules as the run on the dish.";
   }
+  var rulesDialog = $("rulesDialog");
+  function openRules() {
+    if (!rulesDialog.open) rulesDialog.showModal();
+  }
+  $("openRules").onclick = openRules;
+  $("closeRules").onclick = () => rulesDialog.close();
+  rulesDialog.addEventListener("click", (e) => {
+    if (e.target === rulesDialog) rulesDialog.close();
+  });
+  $("applyRules").onclick = () => {
+    startRun($("seed").value, pendingRules);
+    updatePending();
+    rulesDialog.close();
+  };
+  $("resetRules").onclick = () => {
+    Object.assign(pendingRules, DEFAULT_RULES);
+    renderRules();
+  };
   function startRun(seedText, rules, start) {
     world = createWorld(seedFrom(seedText), rules, start);
     runSeed = seedText;
@@ -2305,17 +2355,6 @@
   ({ list: fame, stored: fameStored } = loadFame());
   renderFame();
   renderRules();
-  var rulesBox = $("rulesBox");
-  try {
-    rulesBox.open = localStorage.getItem("evolution-lab.rules-open") === "1";
-  } catch {
-  }
-  rulesBox.addEventListener("toggle", () => {
-    try {
-      localStorage.setItem("evolution-lab.rules-open", rulesBox.open ? "1" : "0");
-    } catch {
-    }
-  });
   if (!rebuilding) setSpeed(1);
   frame();
   window.lab = { world: () => world, steps: () => steps };
