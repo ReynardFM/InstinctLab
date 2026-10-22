@@ -70,6 +70,7 @@ Runs are deterministic, so running one twice is harmless; a second result is che
 
 ```
 index.html ── loads ──→ dist/app.js        (built by esbuild from src/web/main.ts)
+           ── loads ──→ assets/fonts/recursive.woff2  (Recursive, OFL licence next to it; works offline)
 
 src/web/main.ts      the page: drawing, controls, sliders, hall of fame
 ├─→ src/web/fame.ts       hall of fame: reading, merging and storing saved brains

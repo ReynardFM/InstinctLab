@@ -18,11 +18,23 @@ const brainCtx = ctx2d("brain");
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const C = {
-  field: css("--field"), food: css("--food"), poison: css("--poison"), text: css("--text"), muted: css("--muted"),
+  field: css("--field"), food: css("--food"), foodRim: css("--food-rim"), poison: css("--poison"), hunter: css("--hunter"),
+  accent: css("--accent"), text: css("--text"), muted: css("--muted"),
   line: css("--line"), pos: css("--pos"), neg: css("--neg"), panel: css("--panel"),
 };
-const FONT = '"IBM Plex Sans", system-ui, sans-serif';
-const hsl = (hue: number) => `hsl(${hue} 62% 64%)`;
+const FONT = '"Recursive", system-ui, sans-serif';
+// Family colours are stains: solid in the notebook, translucent on the agar.
+// Hues are squeezed out of the yellow band (about 40-100), which vanishes on straw-coloured agar;
+// the notebook uses the same mapping, so a family has one colour everywhere.
+const stainHue = (hue: number) => (100 + (((hue % 360) + 360) % 360) * (300 / 360)) % 360;
+const hsl = (hue: number) => `hsl(${stainHue(hue)} 55% 40%)`;
+const stain = (hue: number, a: number) => `hsla(${stainHue(hue)}, 60%, 36%, ${a})`;
+let reducedMotion = false;
+try {
+  reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+} catch {
+  // no matchMedia: keep the motion
+}
 
 type Speed = 0 | 1 | 10 | "max";
 let world: World;
@@ -63,78 +75,243 @@ function updateMarks(): void {
     if (!c.alive && !markedIds.has(c.id)) {
       markedIds.add(c.id);
       marks.push({ x: c.x, y: c.y, tick: c.diedAt ?? world.tick });
+      addFx({ x: c.x, y: c.y, kind: "death", hue: c.hue });
     }
   }
 }
 
-// ---------- world ----------
+// ---------- moments worth seeing (page only: read from the world, never written to it) ----------
+// eat: food that moved since the last frame was eaten where it was; death: a creature newly dead;
+// a new food map or generation: the plate is renewed (one soft sweep of light across the dish).
+interface Fx { x: number; y: number; kind: "eat" | "poison" | "death"; hue: number; born: number }
+let fx: Fx[] = [];
+let prevFood: { x: number; y: number }[] = [];
+let plateKey = "";
+let plateSince = 0;
+const trails = new Map<number, { x: number; y: number }[]>();
+const effectsOn = () => !reducedMotion && speed !== "max";
+
+function addFx(e: Omit<Fx, "born">): void {
+  if (effectsOn()) fx.push({ ...e, born: performance.now() });
+}
+
+function watchFood(now: number): void {
+  const key = `${world.generation}:${world.layout}:${steps === 0 ? 0 : 1}`;
+  if (key !== plateKey || prevFood.length !== world.food.length) {
+    plateKey = key;
+    plateSince = now;
+    prevFood = world.food.map((f) => ({ x: f.x, y: f.y }));
+    trails.clear();
+    fx = fx.filter((e) => e.kind === "death");
+    return;
+  }
+  world.food.forEach((f, i) => {
+    const p = prevFood[i];
+    if (p.x !== f.x || p.y !== f.y) {
+      addFx({ x: p.x, y: p.y, kind: looksPoison(world, f) ? "poison" : "eat", hue: 0 });
+      p.x = f.x;
+      p.y = f.y;
+    }
+  });
+}
+
+// The agar: drawn once (pale straw, a little grain, darker towards the rim).
+let agar: HTMLCanvasElement | null = null;
+function agarPlate(): HTMLCanvasElement {
+  if (agar) return agar;
+  agar = document.createElement("canvas");
+  agar.width = W;
+  agar.height = H;
+  const g = agar.getContext("2d")!;
+  g.fillStyle = C.field;
+  g.fillRect(0, 0, W, H);
+  let seed = 12345; // a fixed grain, so the plate looks the same every time
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let i = 0; i < 2600; i++) {
+    g.fillStyle = rnd() < 0.5 ? "rgba(120,100,40,0.06)" : "rgba(255,255,255,0.10)";
+    g.fillRect(rnd() * W, rnd() * H, 1 + rnd() * 1.5, 1 + rnd() * 1.5);
+  }
+  const v = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.7);
+  v.addColorStop(0, "rgba(120,100,40,0)");
+  v.addColorStop(1, "rgba(120,100,40,0.16)");
+  g.fillStyle = v;
+  g.fillRect(0, 0, W, H);
+  return agar;
+}
+
+// ---------- world: the culture dish ----------
 function drawWorld(selected: Creature | null): void {
   const ctx = worldCtx;
-  ctx.fillStyle = C.field;
-  ctx.fillRect(0, 0, W, H);
-  ctx.lineWidth = 1.5;
-  for (const f of world.food) {
-    if (f.readyAt > world.tick) continue; // eaten, not regrown yet
+  const now = performance.now();
+  watchFood(now);
+  ctx.drawImage(agarPlate(), 0, 0);
+
+  // a renewed plate: one soft sweep of light across the dish
+  const sweep = (now - plateSince) / 700;
+  if (!reducedMotion && sweep < 1 && steps > 0) {
+    const x = -200 + sweep * (W + 400);
+    const g = ctx.createLinearGradient(x - 160, 0, x + 160, 0);
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(0.5, "rgba(255,255,255,0.35)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // where creatures died on this map: faint smudges
+  ctx.fillStyle = "rgba(70,50,30,0.10)";
+  for (const m of marks) {
     ctx.beginPath();
+    ctx.ellipse(m.x, m.y, 6, 4.5, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // food: pale yeast beads; poison: dark granules (a different shape, not just a different colour)
+  const pulse = !reducedMotion && speed !== "max";
+  world.food.forEach((f, i) => {
+    if (f.readyAt > world.tick) return; // eaten, not regrown yet
     if (looksPoison(world, f)) {
-      // a ring, not a dot: shape tells it apart from food and from any family colour
-      ctx.strokeStyle = C.poison;
-      ctx.arc(f.x, f.y, 3.2, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = C.poison;
+      for (const [dx, dy, r] of [[-1.6, -0.8, 1.7], [1.5, -1.1, 1.4], [0.1, 1.6, 1.6]]) {
+        ctx.beginPath();
+        ctx.arc(f.x + dx, f.y + dy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return;
+    }
+    const r = 3.3 + (pulse ? 0.35 * Math.sin(now / 650 + i * 1.7) : 0);
+    ctx.fillStyle = C.food;
+    ctx.strokeStyle = C.foodRim;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  // moments: eaten food ripples, deaths burst and fade
+  fx = fx.filter((e) => now - e.born < 800);
+  for (const e of fx) {
+    const t = (now - e.born) / (e.kind === "death" ? 800 : 450);
+    if (t >= 1) continue;
+    if (e.kind === "death") {
+      ctx.fillStyle = stain(e.hue, 0.55 * (1 - t));
+      for (let k = 0; k < 6; k++) {
+        const ang = (k * Math.PI) / 3 + 0.4;
+        ctx.beginPath();
+        ctx.arc(e.x + Math.cos(ang) * (3 + 10 * t), e.y + Math.sin(ang) * (3 + 10 * t), 1.8 * (1 - t) + 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else {
-      ctx.fillStyle = C.food;
-      ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.strokeStyle = e.kind === "eat" ? C.foodRim : C.poison;
+      ctx.globalAlpha = 0.7 * (1 - t);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 3 + 10 * t, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
-  // death marks: strong when fresh, fading to faint but staying until the next layout
-  ctx.strokeStyle = C.neg;
-  ctx.lineWidth = 1.5;
-  for (const m of marks) {
-    if (inEcosystem(world) && world.tick - m.tick > 600) continue; // ecosystem: only recent deaths
-    ctx.globalAlpha = Math.max(0.15, 0.7 - (world.tick - m.tick) / 600);
-    ctx.beginPath();
-    ctx.moveTo(m.x - 3.5, m.y - 3.5);
-    ctx.lineTo(m.x + 3.5, m.y + 3.5);
-    ctx.moveTo(m.x + 3.5, m.y - 3.5);
-    ctx.lineTo(m.x - 3.5, m.y + 3.5);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
+
+  // tracks in the agar: a short fading trail behind each creature
+  if (effectsOn()) {
+    for (const c of world.creatures) {
+      if (!c.alive) continue;
+      let t = trails.get(c.id);
+      if (!t) trails.set(c.id, (t = []));
+      const last = t[t.length - 1];
+      if (!last || last.x !== c.x || last.y !== c.y) {
+        if (last && (Math.abs(last.x - c.x) > 40 || Math.abs(last.y - c.y) > 40)) t.length = 0; // wrapped round the edge
+        t.push({ x: c.x, y: c.y });
+        if (t.length > 14) t.shift();
+      }
+      if (t.length < 2) continue;
+      ctx.strokeStyle = stain(c.hue, 0.13);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      t.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.stroke();
+    }
+  } else trails.clear();
+
+  // creatures: stained cells; the tail beats faster the faster they swim, they fade as they starve
   for (const c of world.creatures) {
     if (!c.alive) continue;
+    const swim = ((c.out[1] ?? 0) + 1) / 2; // 0..1
+    const a = 0.35 + Math.min(c.energy, 1) * 0.55;
     ctx.save();
     ctx.translate(c.x, c.y);
     ctx.rotate(c.a);
-    ctx.globalAlpha = 0.45 + Math.min(c.energy, 1) * 0.55; // fades as it starves
-    ctx.fillStyle = hsl(c.hue);
+    ctx.strokeStyle = stain(c.hue, a * 0.85);
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(8, 0);
-    ctx.lineTo(-5, 4.5);
-    ctx.lineTo(-5, -4.5);
-    ctx.closePath();
+    const phase = pulse ? (now / 1000) * (5 + swim * 14) + c.id : 0;
+    for (let j = 0; j <= 8; j++) {
+      const x = -6.5 - j * 1.5;
+      const y = Math.sin(phase - j * 0.9) * (0.6 + swim * 1.6) * (j / 8);
+      if (j) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = stain(c.hue, a * 0.55);
+    ctx.strokeStyle = stain(c.hue, Math.min(1, a + 0.25));
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 7.5, 4.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = stain(c.hue, Math.min(1, a + 0.35));
+    ctx.beginPath();
+    ctx.arc(1.8, 0, 1.7, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
-  // hunters (rules.hunters): hollow squares, dim while resting after a catch
-  ctx.strokeStyle = C.neg;
-  ctx.lineWidth = 2;
-  for (const h of world.hunters) {
-    ctx.globalAlpha = h.rest > 0 ? 0.4 : 1;
-    ctx.strokeRect(h.x - 5, h.y - 5, 10, 10);
-  }
-  ctx.globalAlpha = 1;
+
+  // hunters: dark amoebae with moving edges; paler while resting after a catch
+  world.hunters.forEach((h, idx) => {
+    // a smooth outline through 10 points whose distance from the centre drifts slowly (pseudopods)
+    const n = 10;
+    const pts: [number, number][] = [];
+    for (let k = 0; k < n; k++) {
+      const ang = (k / n) * Math.PI * 2;
+      const r = 10.5 + (pulse ? 1.3 * Math.sin(now / 700 + k * 1.37 + idx * 2.3) + 0.8 * Math.sin(now / 430 + k * 3.11 + idx) : 0);
+      pts.push([h.x + Math.cos(ang) * r, h.y + Math.sin(ang) * r]);
+    }
+    const mid = (i: number) => [(pts[i][0] + pts[(i + 1) % n][0]) / 2, (pts[i][1] + pts[(i + 1) % n][1]) / 2];
+    ctx.beginPath();
+    const m0 = mid(n - 1);
+    ctx.moveTo(m0[0], m0[1]);
+    for (let k = 0; k < n; k++) {
+      const m = mid(k);
+      ctx.quadraticCurveTo(pts[k][0], pts[k][1], m[0], m[1]);
+    }
+    ctx.closePath();
+    ctx.fillStyle = C.hunter;
+    ctx.globalAlpha = h.rest > 0 ? 0.25 : 0.5;
+    ctx.fill();
+    ctx.globalAlpha = h.rest > 0 ? 0.5 : 0.9;
+    ctx.strokeStyle = C.hunter;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = C.hunter; // nucleus
+    ctx.beginPath();
+    ctx.arc(h.x, h.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
   if (world.rules.walls) {
-    ctx.strokeStyle = C.muted;
+    ctx.strokeStyle = "rgba(30,43,48,0.35)";
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, W - 4, H - 4);
   }
   if (selected && selected.alive) {
     drawSightLines(selected);
-    ctx.strokeStyle = C.text;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = C.accent;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(selected.x, selected.y, 13, 0, Math.PI * 2);
+    ctx.arc(selected.x, selected.y, 14, 0, Math.PI * 2);
     ctx.stroke();
   }
 }
@@ -157,8 +334,8 @@ function drawSightLines(c: Creature): void {
   };
   const scan = scanFood(world, c.x, c.y, r.senseFood2 ? 2 : 1);
   const foods = scan.good;
-  if (foods[0]) line(foods[0].dx, foods[0].dy, C.food, []);
-  if (r.senseFood2 && foods[1]) line(foods[1].dx, foods[1].dy, C.food, [6, 5]);
+  if (foods[0]) line(foods[0].dx, foods[0].dy, C.foodRim, []);
+  if (r.senseFood2 && foods[1]) line(foods[1].dx, foods[1].dy, C.foodRim, [6, 5]);
   if (scan.poison) line(scan.poison.dx, scan.poison.dy, C.poison, [6, 5]);
   if (r.senseCreature) {
     const n = nearest(world.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
@@ -170,7 +347,7 @@ function drawSightLines(c: Creature): void {
 
 // ---------- chart ----------
 function drawChart(): void {
-  $("chartTitle").textContent = inEcosystem(world) ? "Population over time" : "Food eaten per layout, each generation";
+  $("chartTitle").textContent = inEcosystem(world) ? "Population over time" : `Food eaten${world.rules.layouts > 1 ? " per map" : ""}, each generation`;
   $("bandLegend").style.display = inEcosystem(world) ? "none" : "";
   $("lineLegend").textContent = inEcosystem(world) ? "Creatures alive" : "Average";
   if (inEcosystem(world)) return drawPopulationChart();
@@ -287,19 +464,17 @@ function drawFamilies(): void {
     (a, f) => (f.parent !== null && !f.newcomer && (!a || f.id > a.id) ? f : a), null);
   const crowns = [...world.families.values()].flatMap((f) => f.champions.map((ch) => ({ fam: f.id, gen: ch.generation })));
   const lastCrown = crowns.sort((a, b) => b.gen - a.gen)[0];
-  const crownText = lastCrown ? ` Latest champion: family ${lastCrown.fam + 1} adopted its champion's brain in generation ${lastCrown.gen}.` : "";
+  const crownText = lastCrown ? ` Latest champion: family ${lastCrown.fam + 1}, generation ${lastCrown.gen}.` : "";
   const trials = [...world.branches.values()];
   const proof = world.rules.splitProof;
   const trialText = proof > 0
-    ? ` ${trials.length ? `${trials.length} branch${trials.length > 1 ? "es are" : " is"} on trial` +
-        ` (best: family ${trials.reduce((a, b) => (b.wins > a.wins ? b : a)).family + 1}'s, ${Math.max(...trials.map((b) => b.wins))} of ${proof} wins)`
-      : "No branch is on trial"}; ${world.failedBranches} failed so far.`
+    ? ` Branches on trial: ${trials.length}` +
+      (trials.length ? ` (best ${Math.max(...trials.map((b) => b.wins))} of ${proof} wins)` : "") + `, ${world.failedBranches} failed.`
     : "";
   $("familyText").textContent =
-    (sorted.length === 1 ? "1 family has" : `${sorted.length} families have`) +
-    ` living members. The biggest is ${Math.round((lead[1] / living.length) * 100)}% of the living. ` +
-    (world.splits === 1 ? "1 new family has" : `${world.splits} new families have`) + " split off this run" +
-    (newest ? `; the newest is family ${newest.id + 1}, from family ${newest.parent! + 1} ${newest.bornInTicks ? "at tick" : "in generation"} ${newest.bornGeneration}.` : ".") +
+    `${sorted.length} alive, the biggest ${Math.round((lead[1] / living.length) * 100)}% of the living. ` +
+    `${world.splits} split off this run` +
+    (newest ? ` (newest: family ${newest.id + 1}, from ${newest.parent! + 1}).` : ".") +
     (inEcosystem(world) ? "" : trialText + newcomerText() + crownText); // trials, newcomers, champions: generations only
 }
 
@@ -307,8 +482,7 @@ function newcomerText(): string {
   if (!world.rules.newcomers && !world.newcomerCount) return "";
   const prot = [...world.families.values()].filter((f) => f.newcomer && world.generation < f.protectedUntil);
   const list = prot.map((f) => `family ${f.id + 1} (${f.protectedUntil - world.generation} more)`).join(", ");
-  return ` ${world.newcomerCount} newcomer famil${world.newcomerCount === 1 ? "y" : "ies"} so far` +
-    (prot.length ? `; protected now: ${list}.` : ".");
+  return ` Newcomers: ${world.newcomerCount}` + (prot.length ? ` (protected: ${list}).` : ".");
 }
 
 // ---------- legacy ----------
@@ -320,16 +494,23 @@ function drawLegacy(): void {
   list.innerHTML = "";
   for (const f of world.legacy.slice(-6).reverse()) {
     const li = document.createElement("li");
-    const from = f.parent === null ? "an original founder" : f.newcomer ? `a newcomer from family ${f.parent + 1}` : `from family ${f.parent + 1}`;
+    const from = f.parent === null ? "founder" : f.newcomer ? `newcomer from ${f.parent + 1}` : `from ${f.parent + 1}`;
     const champs = f.champions.length ? `, ${f.champions.length} champion${f.champions.length > 1 ? "s" : ""}` : "";
-    li.innerHTML = `<span class="dot" style="background:${hsl(founderHue(f.id))}"></span>` +
-      `Family ${f.id + 1}, ${from}: ${f.bornInTicks ? "tick" : "generation"} ${f.bornGeneration} to ${f.diedInTicks ? "tick" : "generation"} ${f.diedGeneration}, ` +
-      `peak ${f.peakSize} creature${f.peakSize === 1 ? "" : "s"}` +
-      (inEcosystem(world) ? "" : `, average ${mean(f.avgHist).toFixed(1)}, best ${food(f.bestEaten)} food${champs}`);
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = hsl(founderHue(f.id));
+    const what = document.createElement("span");
+    what.className = "what";
+    what.textContent = `Family ${f.id + 1}, ${from}` +
+      (inEcosystem(world) ? "" : `: average ${mean(f.avgHist).toFixed(1)}, best ${food(f.bestEaten)}${champs}`);
+    const when = document.createElement("span");
+    when.className = "when";
+    when.textContent = `${f.bornInTicks ? "tick" : "gen"} ${f.bornGeneration} to ${f.diedGeneration}, peak ${f.peakSize}`;
+    li.append(dot, what, when);
     list.append(li);
   }
   $("legacyText").textContent = world.legacy.length
-    ? `${world.legacy.length} families have died out this run. Newest first.`
+    ? `${world.legacy.length} died out this run; newest first.`
     : "No family has died out yet.";
 }
 
@@ -465,24 +646,62 @@ function draw(): void {
 
   if (inEcosystem(world)) {
     const e = world.eco;
-    $("genText").textContent = `Tick ${world.tick}`;
-    $("tickText").textContent = `Population ${world.creatures.length}. ${e.births} born, ${e.deaths} died` +
-      ` (${e.oldAge} of old age).` + (e.rescues ? ` Everyone died ${e.rescues} time${e.rescues === 1 ? "" : "s"}; fresh founders were put in.` : "");
+    setGen(`Tick ${world.tick}`, -1);
+    setStats([[String(world.creatures.length), "alive now"], [String(e.births), "born"], [String(e.deaths), "died"]]);
+    $("tickText").textContent = `${e.oldAge} died of old age.` +
+      (e.rescues ? ` Everyone died ${e.rescues} time${e.rescues === 1 ? "" : "s"}; fresh founders were put in.` : "");
     return;
   }
   const alive = world.creatures.filter((c) => c.alive).length;
   const many = world.rules.layouts > 1;
-  $("genText").textContent = world.rules.mode === 1
-    ? `Warm-up generation ${world.generation} of ${world.rules.ecoWarmup}` // ecosystem starts after these
-    : `Generation ${world.generation}`;
-  const layoutText = many ? `Food layout ${world.layout + 1} of ${world.rules.layouts}. ` : "";
-  const last = world.avgHist.length
-    ? ` Last generation: average ${world.avgHist.at(-1)!.toFixed(1)}, best ${food(world.bestHist.at(-1)!)}${many ? " food per layout" : ""}` +
-      (world.rules.poison > 0 ? `, poison ${world.poisonHist.at(-1)!.toFixed(1)} each.` : ".")
-    : "";
-  const swapText = world.swapped ? "This map: purple rings are the food, green dots the poison. " : "";
+  setGen(world.rules.mode === 1
+    ? `Warm-up ${world.generation} of ${world.rules.ecoWarmup}` // ecosystem starts after these
+    : `Generation ${world.generation}`, world.generation);
+  const last = world.avgHist.length > 0;
+  setStats([
+    [`${alive}/${world.rules.pop}`, "alive now"],
+    [last ? world.avgHist.at(-1)!.toFixed(1) : "-", "average food, last gen"],
+    [last ? food(world.bestHist.at(-1)!) : "-", "best, last gen"],
+  ]);
+  const mapText = many ? `Food map ${world.layout + 1} of ${world.rules.layouts}, tick ${world.tick} of ${world.rules.genTicks}.` : `Tick ${world.tick} of ${world.rules.genTicks}.`;
+  const poisonText = last && world.rules.poison > 0 ? ` Poison eaten last generation: ${world.poisonHist.at(-1)!.toFixed(1)} each.` : "";
+  const caughtText = world.caughtHist.length ? ` Caught by hunters: ${Math.round(100 * world.caughtHist.at(-1)!)}% per map.` : "";
+  const swapText = world.swapped ? " On this map the dark granules are the food and the pale beads the poison." : "";
   const note = runNote && world.generation === 1 ? `${runNote} ` : ""; // shown during the first generation
-  $("tickText").textContent = `${note}${swapText}${layoutText}Tick ${world.tick} of ${world.rules.genTicks}, ${alive} of ${world.rules.pop} alive.${last}`;
+  $("tickText").textContent = `${note}${mapText}${poisonText}${caughtText}${swapText}`;
+}
+
+// The generation number, written in the notebook; re-stamped (a small settle) when it changes.
+let shownGen = -2;
+function setGen(text: string, gen: number): void {
+  const el = $("genText");
+  if (el.textContent !== text) el.textContent = text;
+  if (gen !== shownGen) {
+    shownGen = gen;
+    if (!reducedMotion && speed !== "max") {
+      el.classList.remove("turn");
+      void el.offsetWidth; // restart the animation
+      el.classList.add("turn");
+    }
+  }
+}
+
+let statsShown = "";
+function setStats(items: [string, string][]): void {
+  const key = JSON.stringify(items);
+  if (key === statsShown) return;
+  statsShown = key;
+  const box = $("stats");
+  box.innerHTML = "";
+  for (const [value, label] of items) {
+    const d = document.createElement("div");
+    const b = document.createElement("b");
+    b.textContent = value;
+    const span = document.createElement("span");
+    span.textContent = label;
+    d.append(b, span);
+    box.append(d);
+  }
 }
 
 function advance(): void {
@@ -819,6 +1038,19 @@ if (!openLink()) {
 ({ list: fame, stored: fameStored } = loadFame());
 renderFame();
 renderRules();
+const rulesBox = $<HTMLDetailsElement>("rulesBox");
+try {
+  rulesBox.open = localStorage.getItem("evolution-lab.rules-open") === "1";
+} catch {
+  // no storage: closed
+}
+rulesBox.addEventListener("toggle", () => {
+  try {
+    localStorage.setItem("evolution-lab.rules-open", rulesBox.open ? "1" : "0");
+  } catch {
+    // no storage: not remembered
+  }
+});
 if (!rebuilding) setSpeed(1);
 frame();
 
