@@ -63,7 +63,7 @@ Rey 2026-10-21: lab speed and efficiency: (a) faster TypeScript and (b) a lab th
 Future feature (Rey 2026-10-21, parked): a game mode, roguelite style. Every few generations a disaster (food turns to poison, a plague wipes some out) and upgrade choices (add a brain node, add a sense). Open points from the review: generations mode has no game over (ecosystem mode can die out); pacing (a generation is over a minute at 1x); each disaster needs a counter card and a warning; new brain connections start at weight 0. Needs a BA brief before building. Desktop later by wrapping the page (Tauri/Electron), not a Godot rewrite.
 1. Rey: on his laptop, npm run bench-split -- --gens=30 (the 3b result) and npm run queue-demo (queue after hardening). Then pick the next step. Push to GitHub last.
 2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).
-2. Optional: open determinism.html in Edge and Firefox to confirm they match too.
+2. Optional: Optional: open determinism.html in Firefox (a different JavaScript engine; Edge is Chromium, same V8 as Chrome and Node, so it adds little). Chrome: matches (2026-10-21).
 3. Last: push to GitHub (author email already noreply). Rey asked to leave this to the end.
 
 ## Decision log
