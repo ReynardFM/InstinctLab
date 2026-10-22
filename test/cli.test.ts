@@ -14,6 +14,9 @@ test("reads options and lists of values", () => {
   assert.equal(parseArgs(["--workers=3"]).workers, 3);
   assert.equal(parseArgs([]).queue, null, "threads unless asked");
   assert.equal(parseArgs([]).ticks, 20000);
+  const auto = parseArgs(["--auto", "--care=2", "--looks=3"]);
+  assert.deepEqual([auto.auto, auto.care, auto.looks], [true, 2, 3]);
+  assert.equal(parseArgs([]).auto, false);
   assert.equal(parseArgs(["--ticks=5000"]).ticks, 5000);
   assert.equal(combinations({ mode: [1] })[0].regrow, 100, "ecosystem: food regrows after 100 ticks, like the page");
   assert.equal(combinations({ mode: [1], regrow: [0] })[0].regrow, 0, "unless asked");
@@ -70,7 +73,7 @@ test("bench tries 1, 2, 4 ... workers up to the core count", () => {
 test("margin95: zero spread gives 0, one seed gives no margin, more seeds give a narrower range", () => {
   assert.equal(margin95([5, 5, 5]), 0);
   assert.ok(Number.isNaN(margin95([5])));
-  assert.ok(Math.abs(margin95([1, 3]) - 12.71) < 1e-9); // sd 1.414, n 2, t 12.71
+  assert.ok(Math.abs(margin95([1, 3]) - 12.7062) < 1e-3); // sd 1.414, n 2, t 12.7062 (exact; the old table said 12.71)
   assert.ok(margin95([1, 3, 1, 3, 1, 3, 1]) < margin95([1, 3, 1]));
   assert.deepEqual(parseArgs([]).seeds, [1, 2, 3, 4, 5, 6, 7]);
 });

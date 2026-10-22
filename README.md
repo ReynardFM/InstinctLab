@@ -23,11 +23,14 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run bench-split -- --gens=30` | no | One run with its food maps on separate threads (stage 3b) vs one after another: checks they are identical, prints the speed-up |
 | `npm run queue-demo` | yes | Stage 4 check in one command: queue + Docker workers, one killed mid-run, compared with threads (below) |
 | `npm run queue-status` | yes | What the queue and its workers are doing right now: waiting and running runs, lease time left, attempt numbers, live workers |
+| `npm run lab -- --auto --gens=60 --mutation=0.15,0.3` | no | Like `lab`, but seeds run in batches and each setting stops once its answer is clear (real / no difference beyond `--care` / unclear after `--looks` batches) |
 | `npm run lab -- --queue --gens=60 --seeds=1-14` | yes | Same as `lab`, but the runs go through a Redis queue to worker containers (stage 4, below). Same table, same numbers |
 
 Run `npm install` once on your own machine before using `build`, `watch`, `typecheck` or `--queue` (and again after `package.json` changes).
 
 `npm run lab` takes any rule as a comma list: `pop`, `food`, `genTicks`, `elite`, `parents`, `mutation`, `splitDistance`, `splitProof`, `championStreak`, `layouts`, `senseFood2`, `senseCreature`, `walls`, `newcomers`, `newcomerMutation`, `protectGens`, `mutationRate`, `centreShare`, `hidden`, `poison`, `regrow`, `energyCost`, `birth`, `birthEnergy`, `ageScale`, `ecoWarmup`, `learnRate`, `inheritLearned`, `thinkCost`, `learnCost`, `forget`, `relativeReward`, `energyGate`, `swapKinds`, `plasticity`, plus `--gens=N`, `--seeds=1,2,3` (default: seeds 1-7) and `--workers=N` (default: all cores). The `±95%` column shows how much the score could move by luck alone. `early` is the average over the first 30 generations (how fast it learns). `vs 1st` compares each row with the first row seed by seed: the same seed gives the same food layouts in every setting, so that luck cancels and a `*` marks a difference that is probably real. Seeds take ranges: `--seeds=1-14`. Rows print as soon as each setting finishes, so the first answers arrive early; for a quick look use `--seeds=1-7 --gens=60` (about 4x faster).
+
+Stop when clear: `--auto` treats the `--seeds` list (default 1-7) as the first batch and adds the next seed numbers in batches of the same size, up to `--looks` batches (default 4). After each batch every open setting is judged against the first row: `real` when its range clears 0, `no difference beyond ±care` when the whole range fits inside `--care` (default 1 food), else more seeds. Each look uses a stricter bar (5% split over the looks), so looking several times doesn't raise false alarms. Real differences usually stop after 1-2 batches; "nothing" is costly to prove and often ends `unclear`.
 
 Ecosystem mode: `npm run lab -- --mode=1 --ticks=20000 --birth=0,1` runs the warm-up generations (`ecoWarmup`), then the given ticks, and shows the population after it settles (second half of the run) ±95%, its lowest point, births and deaths per 1000 ticks, share of deaths from old age, average age, rescues (times everyone died) and `pop vs 1st` (paired). Like the page, it uses `regrow` 100 unless `--regrow` is given. Generation and ecosystem runs can't share one table.
 
@@ -93,6 +96,8 @@ src/cli/split.ts     stage 3b: one run's food maps on separate threads, same num
 └── starts ──→ src/cli/layout-worker.ts   one thread: plays one food map of one generation
 src/cli/split-bench.ts  npm run bench-split: one run split vs not, identical check, speed-up
 
+src/cli/stats.ts     exact t distribution, margins, the --auto stop rule (decide)
+
 src/cli/bench.ts     generations/s vs number of workers (npm run bench)
 ├─→ src/cli/pool.ts
 └─→ src/engine/world.ts   (default rules)
@@ -133,6 +138,7 @@ scripts/queue-status.ts         ─→ src/queue/redis-queue.ts
 
 test/engine.test.ts ─→ engine/*, src/check/golden.ts, test/golden.json
 test/cli.test.ts    ─→ cli/run.ts, cli/job.ts, cli/pool.ts, cli/bench.ts, engine/world.ts
+test/stats.test.ts  ─→ cli/stats.ts: t values vs scipy, stop rule simulated (false alarms <= 5%)
 test/grid.test.ts   ─→ engine/space.ts, engine/senses.ts, golden: grid search = brute force
 test/split.test.ts  ─→ cli/split.ts, engine/world.ts: split = one after another
 test/queue.test.ts  ─→ queue/redis-queue.ts, queue/worker-main.ts (as processes), cli/pool.ts; needs redis-server
@@ -218,6 +224,8 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-21 | Profile, share of run time in the senses (food scan + nearest creature) | default world ~49%; 200 food + 200 creatures ~84%; ecosystem at ~390 creatures ~82% |
 | 2026-10-21 | Grid search (100 px squares) vs checking everything, 2-core cloud | First version with callbacks: 0.39x at default sizes (slower). Plain loops: food grid 0.84x at 100 pellets, 1.22x at 150, 2.37x at 300; creature grid 0.82x at 40, 1.10x at 80, 1.88x at 300. Switched on from 128 pellets / 64 creatures: default 1.01x (unchanged), 200 + 200 world 2.04x, ecosystem to ~390 creatures 2.34x. Identical results |
 | 2026-10-21 | Hot loop without per-tick garbage (buffers reused), cloud, median of 5 | default 4 generations 2.23 -> 1.57 s (1.42x); all senses + walls 1.39 -> 1.06 s (1.31x); 200 + 200 world 2.83 -> 2.57 s (1.10x). Identical results. Left: food search 24%, brain 21%, sense maths 20%, GC 4.6% |
+| 2026-10-21 | `--auto` stop rule simulated 4000x per case (difference spread 2, care 1, 4 looks of 7 seeds) | no true difference: called real 3.1% (<= 5%), none 11.9%, unclear 85% (27.4 seeds); true 1.5: real 90.5% (17.8 seeds), wrongly none 0.1%; true 2: real 99.3% (13.6 seeds) |
+| 2026-10-21 | `--auto --gens=30 --seeds=1-7 --senseCreature=1,0`, cloud | decided after the first batch: real -1.9 ±1.7; 14 runs instead of 56 (25%) |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

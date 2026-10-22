@@ -5,12 +5,15 @@
 // Any rule (pop, food, genTicks, elite, parents, mutation, layouts, ...) can take a comma-separated list.
 // Every combination is run once per seed. Runs are spread over all CPU cores; --workers=N to change.
 // --mode=1 compares ecosystem runs instead: warm-up generations, then --ticks=N ticks (default 20000).
+// --auto runs seeds in batches and stops each setting once the answer is clear (see stats.ts decide):
+// --care=N is the smallest difference that matters (default 1), --looks=N the most batches (default 4).
 // --queue (or --queue=redis://host:port) sends the runs to a Redis queue instead, for the worker
 // containers to do (stage 4, see README): same table, same numbers.
 import { availableParallelism } from "node:os";
 import { DEFAULT_RULES, type Rules } from "../engine/world.ts";
 import type { Job, JobResult } from "./job.ts";
 import { runJobs } from "./pool.ts";
+import { decide, margin } from "./stats.ts";
 
 interface Options {
   gens: number;
@@ -18,13 +21,20 @@ interface Options {
   seeds: number[];
   workers: number;
   queue: string | null; // Redis URL: run through the queue instead of threads
+  auto: boolean; // seeds in batches until each setting's answer is clear
+  care: number; // --auto: smallest difference that matters
+  looks: number; // --auto: most batches of seeds
   grid: Partial<Record<keyof Rules, number[]>>;
 }
 
 export function parseArgs(argv: string[]): Options {
   // 7 seeds by default: with 3, differences of about 2 food were indistinguishable from luck
-  const opts: Options = { gens: 100, ticks: 20000, seeds: [1, 2, 3, 4, 5, 6, 7], workers: availableParallelism(), queue: null, grid: {} };
+  const opts: Options = { gens: 100, ticks: 20000, seeds: [1, 2, 3, 4, 5, 6, 7], workers: availableParallelism(), queue: null, auto: false, care: 1, looks: 4, grid: {} };
   for (const arg of argv) {
+    if (arg === "--auto") {
+      opts.auto = true;
+      continue;
+    }
     if (arg === "--queue") opts.queue = "redis://localhost:6379";
     if (arg === "--queue" || arg.startsWith("--queue=")) {
       opts.queue ??= arg.slice("--queue=".length);
@@ -37,6 +47,8 @@ export function parseArgs(argv: string[]): Options {
     if (values.some((v) => !Number.isFinite(v))) throw new Error(`--${key} needs numbers, got "${raw}"`);
     if (key === "gens") opts.gens = values[0];
     else if (key === "ticks") opts.ticks = values[0];
+    else if (key === "care") opts.care = values[0];
+    else if (key === "looks") opts.looks = Math.max(1, Math.floor(values[0]));
     else if (key === "seeds") opts.seeds = seedList(raw);
     else if (key === "workers") opts.workers = Math.max(1, Math.floor(values[0]));
     else if (key in DEFAULT_RULES) opts.grid[key as keyof Rules] = values;
@@ -82,17 +94,11 @@ export function pairedDiff(xs: number[], ref: number[]): { mean: number; margin:
   return { mean: d.reduce((s, x) => s + x, 0) / d.length, margin: margin95(d) };
 }
 
-// Two-sided 95% t-values by degrees of freedom (n - 1), for the ± column.
-const T95 = [NaN, 12.71, 4.3, 3.18, 2.78, 2.57, 2.45, 2.36, 2.31, 2.26, 2.23, 2.2, 2.18, 2.16, 2.14, 2.13, 2.12, 2.11, 2.1, 2.09, 2.09];
-
 // Half-width of the 95% confidence interval of the mean across seeds: the score is probably within
 // mean ± this. Two settings whose intervals overlap a lot are not shown to differ. NaN with one seed.
+// Exact t value for any number of seeds (stats.ts); a table up to 21 seeds was used before 2026-10-21.
 export function margin95(xs: number[]): number {
-  const n = xs.length;
-  if (n < 2) return NaN;
-  const mean = xs.reduce((s, x) => s + x, 0) / n;
-  const sd = Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1));
-  return ((T95[n - 1] ?? 1.96) * sd) / Math.sqrt(n);
+  return margin(xs, 0.05);
 }
 
 // Score of one run: average food eaten over its last 10 generations (less noisy than the last one alone).
@@ -163,10 +169,10 @@ async function main(): Promise<void> {
     const learn = mine.map((r) => learning(r.avgHist));
     return [
       ...varied.map((k) => String(combos[i][k])),
-      (scores.reduce((s, x) => s + x, 0) / S).toFixed(1),
+      (scores.reduce((s, x) => s + x, 0) / mine.length).toFixed(1),
       pm(margin95(scores)),
-      (mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / S).toFixed(1),
-      (learn.reduce((s, x) => s + x, 0) / S).toFixed(1),
+      (mine.map((r) => score(r.topHalfHist)).reduce((s, x) => s + x, 0) / mine.length).toFixed(1),
+      (learn.reduce((s, x) => s + x, 0) / mine.length).toFixed(1),
       pm(margin95(learn)),
       i === 0 ? "reference" : diffText(scores, ref.map((r) => score(r.avgHist))),
       i === 0 ? "reference" : diffText(learn, ref.map((r) => learning(r.avgHist))),
@@ -186,6 +192,73 @@ async function main(): Promise<void> {
   else widths[varied.length + 5] = widths[varied.length + 6] = 13;
   const line = (cells: string[]) => cells.map((c, i) => c.padStart(widths[i])).join("  ");
   const clearProgress = () => process.stderr.isTTY && process.stderr.write("\r\x1b[K");
+  const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
+  const runAll = async (list: Job[], onResult?: (index: number, result: JobResult) => void): Promise<JobResult[]> => {
+    const progress = process.stderr.isTTY ? (done: number) => process.stderr.write(`\r${done} of ${list.length} runs done`) : undefined;
+    let out: JobResult[];
+    if (opts.queue) {
+      // loaded only when used: the thread version needs no Redis client
+      const { runJobsOnQueue } = await import("../queue/redis-queue.ts");
+      out = await runJobsOnQueue(list, opts.queue, progress, onResult, report);
+    } else out = await runJobs(list, Math.min(opts.workers, list.length), progress, onResult);
+    clearProgress();
+    return out;
+  };
+
+  if (opts.auto) {
+    // Seeds in batches; after each batch, every setting still open is judged against the first row
+    // (stats.decide). Decided settings get no more seeds; the first row runs as long as any is open.
+    const metric = (r: JobResult) => (eco ? mean(settled(r.eco!.popHist)) : score(r.avgHist));
+    const mk = (rules: Rules, seed: number): Job => (eco ? { seed, rules, gens: 0, ticks: opts.ticks } : { seed, rules, gens: opts.gens });
+    const res: JobResult[][] = combos.map(() => []);
+    const verdicts: (ReturnType<typeof decide> | null)[] = combos.map(() => null);
+    const open = new Set(combos.map((_, i) => i).filter((i) => i > 0));
+    const batch = opts.seeds.length;
+    let next = Math.max(...opts.seeds) + 1;
+    let runs = 0;
+    const t0 = performance.now();
+    for (let look = 1; look <= opts.looks && open.size > 0; look++) {
+      const seeds = look === 1 ? opts.seeds : Array.from({ length: batch }, () => next++);
+      const rows = [0, ...open];
+      const list = rows.flatMap((i) => seeds.map((seed) => mk(combos[i], seed)));
+      const out = await runAll(list);
+      runs += list.length;
+      rows.forEach((i, r) => res[i].push(...out.slice(r * seeds.length, (r + 1) * seeds.length)));
+      for (const i of [...open]) {
+        const d = res[i].map((x, k) => metric(x) - metric(res[0][k]));
+        const v = decide(d, opts.looks, opts.care);
+        if (v.verdict !== "unclear" || look === opts.looks) {
+          verdicts[i] = v;
+          open.delete(i);
+        }
+      }
+      const decided = combos.length - 1 - open.size;
+      console.log(`after ${res[0].length} seeds: ${decided} of ${combos.length - 1} setting(s) decided`);
+    }
+    const autoHeader = [...header, "seeds", "verdict"];
+    const autoWidths = [...widths, 5, 34];
+    const autoLine = (cells: string[]) => cells.map((c, i) => c.padStart(autoWidths[i])).join("  ");
+    console.log("\n" + autoLine(autoHeader));
+    combos.forEach((_, i) => {
+      const mine = res[i];
+      const cells = (eco ? ecoRow : rowFor)(i, mine, res[0].slice(0, mine.length));
+      const v = verdicts[i];
+      const sign = (x: number) => `${x >= 0 ? "+" : ""}${x.toFixed(1)}`;
+      const text = i === 0 ? "reference"
+        : v!.verdict === "real" ? `real: ${sign(v!.mean)} ±${v!.margin.toFixed(1)}`
+        : v!.verdict === "none" ? `no difference beyond ±${opts.care}`
+        : `unclear (${sign(v!.mean)} ±${v!.margin.toFixed(1)})`;
+      console.log(autoLine([...cells, String(mine.length), text]));
+    });
+    const secs = (performance.now() - t0) / 1000;
+    const full = combos.length * batch * opts.looks;
+    console.log(`\nverdict: each batch of ${batch} seeds is a look; a setting stops when its range (stricter at each look, so that`);
+    console.log(`  ${opts.looks} looks together keep false alarms at or under 5%) clears 0 ("real") or fits inside ±${opts.care} ("no difference`);
+    console.log(`  beyond"); after ${opts.looks} looks it is "unclear". The verdict's ± is wider than the vs 1st column's, by design.`);
+    console.log(`${runs} runs instead of ${full} (${Math.round((100 * runs) / full)}%) in ${secs.toFixed(1)} s`);
+    return;
+  }
+
   console.log(line(header));
 
   const got: (JobResult | undefined)[] = new Array(jobs.length);
@@ -200,21 +273,12 @@ async function main(): Promise<void> {
     }
   };
   const t0 = performance.now();
-  const progress = process.stderr.isTTY
-    ? (done: number) => process.stderr.write(`\r${done} of ${jobs.length} runs done`)
-    : undefined;
   const onResult = (index: number, result: JobResult) => {
     got[index] = result;
     left[Math.floor(index / S)]--;
     printReady();
   };
-  const report = { retries: 0, quiet: 0, handedBack: 0, repeats: 0 };
-  if (opts.queue) {
-    // loaded only when used: the thread version needs no Redis client
-    const { runJobsOnQueue } = await import("../queue/redis-queue.ts");
-    await runJobsOnQueue(jobs, opts.queue, progress, onResult, report);
-  } else await runJobs(jobs, workers, progress, onResult);
-  clearProgress();
+  await runAll(jobs, onResult);
   const secs = (performance.now() - t0) / 1000;
   if (eco) {
     console.log(`\npopulation = average number alive over the second half of the ${opts.ticks} ticks (after it settles), averaged over seeds`);
