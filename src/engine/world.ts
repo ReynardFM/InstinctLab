@@ -6,7 +6,7 @@ import { cos, sin } from "./dmath.ts";
 import { centre, inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
 import { live } from "./life.ts";
-import { moveHunters, placeHunters, type Hunter } from "./hunters.ts";
+import { breedHunters, huntersArrived, moveHunters, placeHunters, type Hunter, type HunterBrain, type HunterStats } from "./hunters.ts";
 import { inEcosystem } from "./mode.ts";
 export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
@@ -62,6 +62,9 @@ export interface Rules {
   hunterSense: number; // 1 = prey sense the nearest hunter (when there are hunters); 2 = blind: the same 3 inputs, always
   // reading "nothing there" (a fair control: same brain size, no information)
   hunterSpeed: number; // hunters' speed (prey: up to 3)
+  hunterBrains: number; // 1 = hunters have brains and evolve, scored by prey caught (hunters.ts); 0 = chasers
+  hunterFrom: number; // generation the hunters arrive in (1 = from the start). With brains, half of the first
+  // hunters borrow the main brains of extinct prey families, so give the prey some generations first
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
 }
@@ -76,7 +79,7 @@ export const DEFAULT_RULES: Rules = {
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
-  hunters: 0, hunterSense: 1, hunterSpeed: 2,
+  hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterFrom: 1,
 };
 
 export interface World {
@@ -94,6 +97,10 @@ export interface World {
   layout: number; // which food layout of this generation is running, from 0
   swapped: boolean; // rules.swapKinds: on this food map, purple rings are the food and green dots the poison
   hunters: Hunter[]; // rules.hunters: where the hunters are on this food map
+  hunterBrains: HunterBrain[]; // rules.hunterBrains: the hunters' brains, kept across maps and generations
+  hunterHist: HunterStats[]; // rules.hunterBrains: how the hunters did, one entry per generation they hunted in
+  nextHunterId: number;
+  hrng: Rng; // the hunters' random numbers (first brains, breeding): separate, so the prey's draws don't change
   caughtHist: number[]; // share of prey caught per food map, one entry per finished generation
   grids: Grids | null; // where food and creatures are, for fast senses; rebuilt at the start of each tick
   avgHist: number[]; // average food eaten per layout, one entry per finished generation
@@ -147,6 +154,10 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     swapped: false,
     grids: null,
     hunters: [],
+    hunterBrains: [],
+    hunterHist: [],
+    nextHunterId: 0,
+    hrng: createRng(hunterSeed(seed)),
     caughtHist: [],
     avgHist: [],
     bestHist: [],
@@ -227,7 +238,8 @@ export function startLayout(w: World): void {
     }
   }
   w.food = newFoodLayout(w);
-  if (w.rules.hunters > 0) placeHunters(w); // drawn last: the food is the same as without hunters
+  if (huntersArrived(w)) placeHunters(w); // drawn last: the food is the same as without hunters
+  else w.hunters = [];
   w.tick = 0;
 }
 
@@ -236,6 +248,13 @@ export function envSeed(seed: number): number {
   let h = Math.imul((seed | 0) ^ 0x5bd1e995, 0x27d4eb2d);
   h ^= h >>> 15;
   return Math.imul(h, 0x165667b1) | 0;
+}
+
+// The seed of the hunters' random numbers (World.hrng).
+export function hunterSeed(seed: number): number {
+  let h = Math.imul((seed | 0) ^ 0x68756e74, 0x9e3779b1);
+  h ^= h >>> 16;
+  return Math.imul(h, 0x85ebca6b) | 0;
 }
 
 // The seed of one food map: the run's seed, the generation and the map number, mixed (integer hash).
@@ -266,7 +285,8 @@ export function nextGeneration(w: World): void {
   const half = ranked.slice(0, Math.ceil(ranked.length / 2));
   w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
   w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
-  if (rules.hunters > 0) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
+  if (huntersArrived(w)) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
+  if (rules.hunterBrains > 0) breedHunters(w, per); // own random numbers: the prey's draws below are unchanged
 
   const elite = Math.min(rules.elite, rules.pop);
   const parents = Math.max(1, Math.min(rules.parents, rules.pop));

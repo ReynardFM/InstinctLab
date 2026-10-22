@@ -1048,11 +1048,56 @@
   // src/engine/hunters.ts
   var CATCH = 6;
   var REST = 30;
+  var TURN = 0.2;
+  var huntersArrived = (w) => w.rules.hunters > 0 && w.generation >= w.rules.hunterFrom;
   function placeHunters(w) {
     w.hunters = [];
-    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0 });
+    if (!huntersArrived(w)) return;
+    if (w.rules.hunterBrains > 0) {
+      if (w.hunterBrains.length === 0) w.hunterBrains = firstHunterBrains(w);
+      for (const b of w.hunterBrains) {
+        b.a = w.env.next() * Math.PI * 2;
+        w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b });
+      }
+      return;
+    }
+    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null });
+  }
+  var hunterGenomeLength = (w) => genomeSize(inputCount(w.rules), w.rules.hidden);
+  function newHunterBrain(w, g, origin, from) {
+    return {
+      id: w.nextHunterId++,
+      g,
+      origin,
+      from,
+      caught: 0,
+      a: 0,
+      inputs: new Array(inputCount(w.rules)).fill(0),
+      hidden: new Array(w.rules.hidden).fill(0),
+      out: [0, 0]
+    };
+  }
+  function firstHunterBrains(w) {
+    const n = w.rules.hunters;
+    const len = hunterGenomeLength(w);
+    const dead = w.legacy.filter((f) => f.ref.length >= len).reverse();
+    const out = [];
+    let used = 0;
+    for (let i = 0; i < n; i++) {
+      if (i % 2 === 0 && used < dead.length) {
+        const fam = dead[used++];
+        out.push(newHunterBrain(w, fam.ref.slice(0, len), "borrowed", fam.id));
+      } else {
+        out.push(newHunterBrain(w, Array.from({ length: len }, () => w.hrng.gauss() * 0.5), "random", null));
+      }
+    }
+    return out;
   }
   function moveHunters(w) {
+    if (w.rules.hunterBrains > 0) moveBrainHunters(w);
+    else moveChasers(w);
+  }
+  function moveChasers(w) {
     const walls = w.rules.walls > 0;
     const speed2 = w.rules.hunterSpeed;
     for (const h of w.hunters) {
@@ -1085,13 +1130,121 @@
         h.x = walls ? Math.min(Math.max(nx, 0), W) : (nx + W) % W;
         h.y = walls ? Math.min(Math.max(ny, 0), H) : (ny + H) % H;
       }
-      if (d - step2 < CATCH) {
-        prey.alive = false;
-        prey.diedAt = w.tick;
-        prey.caught++;
-        h.rest = REST;
+      if (d - step2 < CATCH) catchPrey(w, h, prey);
+    }
+  }
+  function catchPrey(w, h, prey) {
+    prey.alive = false;
+    prey.diedAt = w.tick;
+    prey.caught++;
+    h.rest = REST;
+    if (h.brain) h.brain.caught++;
+  }
+  var near = { i1: -1, dx1: 0, dy1: 0, d21: Infinity, i2: -1, dx2: 0, dy2: 0, d22: Infinity };
+  function nearestPrey(w, x, y, walls) {
+    near.i1 = near.i2 = -1;
+    near.d21 = near.d22 = Infinity;
+    const cs = w.creatures;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (!c.alive) continue;
+      const dx = offset(c.x - x, W, walls);
+      const dy = offset(c.y - y, H, walls);
+      const d2 = dx * dx + dy * dy;
+      if (d2 < near.d21) {
+        near.i2 = near.i1;
+        near.dx2 = near.dx1;
+        near.dy2 = near.dy1;
+        near.d22 = near.d21;
+        near.i1 = i;
+        near.dx1 = dx;
+        near.dy1 = dy;
+        near.d21 = d2;
+      } else if (d2 < near.d22) {
+        near.i2 = i;
+        near.dx2 = dx;
+        near.dy2 = dy;
+        near.d22 = d2;
       }
     }
+  }
+  function moveBrainHunters(w) {
+    const r = w.rules;
+    const walls = r.walls > 0;
+    const hs = w.hunters;
+    for (let n = 0; n < hs.length; n++) {
+      const h = hs[n];
+      const b = h.brain;
+      if (h.rest > 0) {
+        h.rest--;
+        continue;
+      }
+      nearestPrey(w, h.x, h.y, walls);
+      if (near.i1 < 0) continue;
+      const inputs = b.inputs;
+      const cosH = cos(b.a);
+      const sinH = sin(b.a);
+      let k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH);
+      inputs[k++] = 1;
+      if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
+      if (r.senseCreature) {
+        let bdx = 0;
+        let bdy = 0;
+        let bd2 = Infinity;
+        for (let m = 0; m < hs.length; m++) {
+          if (m === n) continue;
+          const dx = offset(hs[m].x - h.x, W, walls);
+          const dy = offset(hs[m].y - h.y, H, walls);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bd2) {
+            bd2 = d2;
+            bdx = dx;
+            bdy = dy;
+          }
+        }
+        k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
+      }
+      if (r.poison > 0) k = writeNothing(inputs, k);
+      if (r.hunterSense > 0) k = writeNothing(inputs, k);
+      if (walls) inputs[k++] = wallAhead(h.x, h.y, b.a);
+      if (inputs.length !== k) inputs.length = k;
+      thinkInto(b.g, inputs, b.hidden, b.out);
+      b.a += b.out[0] * TURN;
+      const speed2 = (b.out[1] + 1) / 2 * r.hunterSpeed;
+      if (walls) {
+        h.x = Math.min(Math.max(h.x + cos(b.a) * speed2, 0), W);
+        h.y = Math.min(Math.max(h.y + sin(b.a) * speed2, 0), H);
+      } else {
+        h.x = (h.x + cos(b.a) * speed2 + W) % W;
+        h.y = (h.y + sin(b.a) * speed2 + H) % H;
+      }
+      nearestPrey(w, h.x, h.y, walls);
+      if (near.i1 >= 0 && near.d21 < CATCH * CATCH) catchPrey(w, h, w.creatures[near.i1]);
+    }
+  }
+  function breedHunters(w, per) {
+    const bs = w.hunterBrains;
+    if (bs.length === 0) return;
+    const ranked = [...bs].sort((a, b) => b.caught - a.caught);
+    const avgOf = (o) => {
+      const xs = bs.filter((b) => b.origin === o);
+      return xs.length ? xs.reduce((s, b) => s + b.caught, 0) / xs.length / per : null;
+    };
+    w.hunterHist.push({
+      avg: bs.reduce((s, b) => s + b.caught, 0) / bs.length / per,
+      best: ranked[0].caught / per,
+      borrowed: bs.filter((b) => b.origin === "borrowed").length / bs.length,
+      avgBorrowed: avgOf("borrowed"),
+      avgRandom: avgOf("random")
+    });
+    const n = w.rules.hunters;
+    const parents = Math.max(1, Math.ceil(ranked.length / 2));
+    const next = [newHunterBrain(w, ranked[0].g, ranked[0].origin, ranked[0].from)];
+    while (next.length < n) {
+      const p = ranked[Math.floor(w.hrng.next() * parents)];
+      next.push(newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), p.origin, p.from));
+    }
+    w.hunterBrains = next;
   }
 
   // src/engine/world.ts
@@ -1135,7 +1288,9 @@
     plasticity: 0,
     hunters: 0,
     hunterSense: 1,
-    hunterSpeed: 2
+    hunterSpeed: 2,
+    hunterBrains: 0,
+    hunterFrom: 1
   };
   function createWorld(seed, rules, start) {
     const each = start && Array.isArray(start[0]) ? start : null;
@@ -1159,6 +1314,10 @@
       swapped: false,
       grids: null,
       hunters: [],
+      hunterBrains: [],
+      hunterHist: [],
+      nextHunterId: 0,
+      hrng: createRng(hunterSeed(seed)),
       caughtHist: [],
       avgHist: [],
       bestHist: [],
@@ -1222,13 +1381,19 @@
       }
     }
     w.food = newFoodLayout(w);
-    if (w.rules.hunters > 0) placeHunters(w);
+    if (huntersArrived(w)) placeHunters(w);
+    else w.hunters = [];
     w.tick = 0;
   }
   function envSeed(seed) {
     let h = Math.imul((seed | 0) ^ 1540483477, 668265261);
     h ^= h >>> 15;
     return Math.imul(h, 374761393) | 0;
+  }
+  function hunterSeed(seed) {
+    let h = Math.imul((seed | 0) ^ 1752526452, 2654435761);
+    h ^= h >>> 16;
+    return Math.imul(h, 2246822507) | 0;
   }
   function layoutSeed(seed, generation, layout) {
     let h = envSeed(seed);
@@ -1248,7 +1413,8 @@
     const half = ranked.slice(0, Math.ceil(ranked.length / 2));
     w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
     w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
-    if (rules.hunters > 0) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
+    if (huntersArrived(w)) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
+    if (rules.hunterBrains > 0) breedHunters(w, per);
     const elite = Math.min(rules.elite, rules.pop);
     const parents = Math.max(1, Math.min(rules.parents, rules.pop));
     const next = [];
@@ -1971,9 +2137,11 @@
     const mapText = many ? `Food map ${world.layout + 1} of ${world.rules.layouts}, tick ${world.tick} of ${world.rules.genTicks}.` : `Tick ${world.tick} of ${world.rules.genTicks}.`;
     const poisonText = last && world.rules.poison > 0 ? ` Poison eaten last generation: ${world.poisonHist.at(-1).toFixed(1)} each.` : "";
     const caughtText = world.caughtHist.length ? ` Caught by hunters: ${Math.round(100 * world.caughtHist.at(-1))}% per map.` : "";
+    const hb = world.hunterBrains;
+    const brainText = hb.length && world.hunters.length ? ` Hunter brains: ${hb.filter((b) => b.origin === "borrowed").length} of ${hb.length} descend from a family that died out.` : world.rules.hunters > 0 && !world.hunters.length ? ` Hunters arrive in generation ${world.rules.hunterFrom}.` : "";
     const swapText = world.swapped ? " On this map the dark granules are the food and the pale beads the poison." : "";
     const note = runNote && world.generation === 1 ? `${runNote} ` : "";
-    $("tickText").textContent = `${note}${mapText}${poisonText}${caughtText}${swapText}`;
+    $("tickText").textContent = `${note}${mapText}${poisonText}${caughtText}${brainText}${swapText}`;
   }
   var shownGen = -2;
   function setGen(text, gen) {
@@ -2083,8 +2251,10 @@
     ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
     ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
     ["plasticity", "Evolve how each connection learns", 0, 1, 1, "1 = every connection gets its own learning rate, evolved in the genome (doubles it). Needs learning on."],
-    ["hunters", "Hunters", 0, 20, 1, "Red squares chase the nearest creature (speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
+    ["hunters", "Hunters", 0, 20, 1, "Dark amoebae that hunt creatures (top speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
     ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
+    ["hunterBrains", "Hunters evolve brains", 0, 1, 1, "Off = hunters chase the nearest creature. On = each hunter has a brain shaped like a creature's (its 'food' sense points at creatures) and the best catchers breed."],
+    ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
     ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
     ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
@@ -2104,7 +2274,7 @@
     ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
     ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
     ["Families", ["splitDistance", "splitProof", "championStreak"]],
-    ["Hunters", ["hunters", "hunterSense"]],
+    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterFrom"]],
     ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
     ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]]
   ];

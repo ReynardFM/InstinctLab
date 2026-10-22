@@ -277,7 +277,7 @@ export function scanFoodGridInto(h: FoodHits, w: World, g: Grids, x: number, y: 
 
 // Writes (dx, dy) as seen from the creature into inputs[k..k+2]: left/right, ahead, distance. Same
 // numbers as towards() (nothing there: d2 = Infinity).
-function writeTowards(inputs: number[], k: number, dx: number, dy: number, d2: number, cosH: number, sinH: number): number {
+export function writeTowards(inputs: number[], k: number, dx: number, dy: number, d2: number, cosH: number, sinH: number): number {
   const d = Math.sqrt(d2);
   const ok = d > 0 && d !== Infinity;
   const st = ok ? dy / d : 0;
@@ -288,7 +288,7 @@ function writeTowards(inputs: number[], k: number, dx: number, dy: number, d2: n
   return k + 3;
 }
 
-function writeNothing(inputs: number[], k: number): number {
+export function writeNothing(inputs: number[], k: number): number {
   inputs[k] = NOTHING[0];
   inputs[k + 1] = NOTHING[1];
   inputs[k + 2] = NOTHING[2];

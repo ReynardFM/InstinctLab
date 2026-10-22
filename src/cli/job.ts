@@ -1,6 +1,7 @@
 // One experiment run: a seed, a set of rules, a number of generations. Pure: same job, same result,
 // whichever thread runs it. This is why runs can be spread across CPU cores without changing the numbers.
 import { createWorld, inEcosystem, runGenerations, runTicks, step, type Rules } from "../engine/world.ts";
+import type { HunterStats } from "../engine/hunters.ts";
 
 export interface Job {
   seed: number;
@@ -25,6 +26,7 @@ export interface JobResult {
   topHalfHist: number[];
   poisonHist: number[];
   caughtHist?: number[]; // with hunters: share of prey caught per food map, per generation
+  hunterHist?: HunterStats[]; // hunters with brains: how they did, per generation they hunted in
   eco?: EcoResult; // ecosystem mode only
 }
 
@@ -36,6 +38,7 @@ export function runJob(job: Job): JobResult {
   } else runGenerations(w, job.gens);
   const result: JobResult = { avgHist: w.avgHist, bestHist: w.bestHist, topHalfHist: w.topHalfHist, poisonHist: w.poisonHist };
   if (job.rules.hunters > 0) result.caughtHist = w.caughtHist;
+  if (job.rules.hunters > 0 && job.rules.hunterBrains > 0) result.hunterHist = w.hunterHist;
   if (job.rules.mode === 1) {
     const { popHist, ageHist, births, deaths, oldAge, rescues } = w.eco;
     result.eco = { popHist, ageHist, births, deaths, oldAge, rescues };

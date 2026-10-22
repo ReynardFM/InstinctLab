@@ -54,6 +54,7 @@ export async function runGenerationsSplit(w: World, generations: number, pool: L
   const maps = Math.max(1, r.layouts);
   for (let g = 0; g < generations; g++) {
     if (inEcosystem(w)) throw new Error("ecosystem mode has no food maps to split");
+    if (r.hunters > 0 && r.hunterBrains > 0) throw new Error("hunters with brains can't be split yet (their brains don't travel to the map threads)");
     const genomes = w.creatures.map((c) => c.g);
     const learning = r.learnRate > 0;
     const results = await Promise.all(

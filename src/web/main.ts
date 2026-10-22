@@ -666,9 +666,13 @@ function draw(): void {
   const mapText = many ? `Food map ${world.layout + 1} of ${world.rules.layouts}, tick ${world.tick} of ${world.rules.genTicks}.` : `Tick ${world.tick} of ${world.rules.genTicks}.`;
   const poisonText = last && world.rules.poison > 0 ? ` Poison eaten last generation: ${world.poisonHist.at(-1)!.toFixed(1)} each.` : "";
   const caughtText = world.caughtHist.length ? ` Caught by hunters: ${Math.round(100 * world.caughtHist.at(-1)!)}% per map.` : "";
+  const hb = world.hunterBrains;
+  const brainText = hb.length && world.hunters.length
+    ? ` Hunter brains: ${hb.filter((b) => b.origin === "borrowed").length} of ${hb.length} descend from a family that died out.`
+    : world.rules.hunters > 0 && !world.hunters.length ? ` Hunters arrive in generation ${world.rules.hunterFrom}.` : "";
   const swapText = world.swapped ? " On this map the dark granules are the food and the pale beads the poison." : "";
   const note = runNote && world.generation === 1 ? `${runNote} ` : ""; // shown during the first generation
-  $("tickText").textContent = `${note}${mapText}${poisonText}${caughtText}${swapText}`;
+  $("tickText").textContent = `${note}${mapText}${poisonText}${caughtText}${brainText}${swapText}`;
 }
 
 // The generation number, written in the notebook; re-stamped (a small settle) when it changes.
@@ -788,8 +792,10 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
   ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
   ["plasticity", "Evolve how each connection learns", 0, 1, 1, "1 = every connection gets its own learning rate, evolved in the genome (doubles it). Needs learning on."],
-  ["hunters", "Hunters", 0, 20, 1, "Red squares chase the nearest creature (speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
+  ["hunters", "Hunters", 0, 20, 1, "Dark amoebae that hunt creatures (top speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
   ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
+  ["hunterBrains", "Hunters evolve brains", 0, 1, 1, "Off = hunters chase the nearest creature. On = each hunter has a brain shaped like a creature's (its 'food' sense points at creatures) and the best catchers breed."],
+  ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
   ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
@@ -811,7 +817,7 @@ const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
   ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],
-  ["Hunters", ["hunters", "hunterSense"]],
+  ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterFrom"]],
   ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
   ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]],
 ];
