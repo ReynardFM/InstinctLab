@@ -4,17 +4,21 @@ import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearestBruteInto, nearestOneInto, type Hit, type Near } from "./space.ts";
+import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearestBruteInto, nearestOneInto, offset, type Hit, type Near } from "./space.ts";
 
 export interface SenseRules {
   senseFood2: number; // 1 = also sense the second-nearest food
   senseCreature: number; // 1 = sense the nearest other living creature
   walls: number; // 1 = the map has walls instead of wrapping around, and creatures sense the wall ahead
   poison: number; // share of food that is poison; above 0, creatures also sense the nearest poison
+  hunters?: number; // hunters on the map; above 0 (with hunterSense), prey sense the nearest one
+  hunterSense?: number;
 }
 
+const sensesHunter = (r: SenseRules) => (r.hunters ?? 0) > 0 && (r.hunterSense ?? 1) > 0;
+
 export function inputCount(r: SenseRules): number {
-  return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (r.walls ? 1 : 0);
+  return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
 }
 
 export function inputLabels(r: SenseRules): string[] {
@@ -22,6 +26,7 @@ export function inputLabels(r: SenseRules): string[] {
   if (r.senseFood2) labels.push("2nd food left/right", "2nd food ahead", "2nd food distance");
   if (r.senseCreature) labels.push("Neighbour left/right", "Neighbour ahead", "Neighbour distance");
   if (r.poison > 0) labels.push("Poison left/right", "Poison ahead", "Poison distance");
+  if (sensesHunter(r)) labels.push("Hunter left/right", "Hunter ahead", "Hunter distance");
   if (r.walls) labels.push("Wall distance ahead");
   return labels;
 }
@@ -332,6 +337,22 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   }
   const p = h.hasPoison ? h.poison : null;
   if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
+  if (sensesHunter(r)) {
+    let bdx = 0;
+    let bdy = 0;
+    let bd2 = Infinity;
+    for (const hu of w.hunters) {
+      const dx = offset(hu.x - c.x, W, walls);
+      const dy = offset(hu.y - c.y, H, walls);
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bd2) {
+        bd2 = d2;
+        bdx = dx;
+        bdy = dy;
+      }
+    }
+    k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
+  }
   if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
   if (inputs.length !== k) inputs.length = k;
   // what it would eat: the nearest pellet of either kind (good wins a tie)

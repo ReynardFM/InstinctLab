@@ -24,6 +24,7 @@ export interface JobResult {
   bestHist: number[];
   topHalfHist: number[];
   poisonHist: number[];
+  caughtHist?: number[]; // with hunters: share of prey caught per food map, per generation
   eco?: EcoResult; // ecosystem mode only
 }
 
@@ -34,6 +35,7 @@ export function runJob(job: Job): JobResult {
     runTicks(w, job.ticks ?? 20000);
   } else runGenerations(w, job.gens);
   const result: JobResult = { avgHist: w.avgHist, bestHist: w.bestHist, topHalfHist: w.topHalfHist, poisonHist: w.poisonHist };
+  if (job.rules.hunters > 0) result.caughtHist = w.caughtHist;
   if (job.rules.mode === 1) {
     const { popHist, ageHist, births, deaths, oldAge, rescues } = w.eco;
     result.eco = { popHist, ageHist, births, deaths, oldAge, rescues };

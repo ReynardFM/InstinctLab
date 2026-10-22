@@ -116,6 +116,14 @@ function drawWorld(selected: Creature | null): void {
     ctx.fill();
     ctx.restore();
   }
+  // hunters (rules.hunters): hollow squares, dim while resting after a catch
+  ctx.strokeStyle = C.neg;
+  ctx.lineWidth = 2;
+  for (const h of world.hunters) {
+    ctx.globalAlpha = h.rest > 0 ? 0.4 : 1;
+    ctx.strokeRect(h.x - 5, h.y - 5, 10, 10);
+  }
+  ctx.globalAlpha = 1;
   if (world.rules.walls) {
     ctx.strokeStyle = C.muted;
     ctx.lineWidth = 4;
@@ -560,6 +568,8 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
   ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
   ["plasticity", "Evolve how each connection learns", 0, 1, 1, "1 = every connection gets its own learning rate, evolved in the genome (doubles it). Needs learning on."],
+  ["hunters", "Hunters", 0, 20, 1, "Red squares chase the nearest creature (speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
+  ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
   ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
   ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],

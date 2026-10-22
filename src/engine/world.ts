@@ -6,6 +6,7 @@ import { cos, sin } from "./dmath.ts";
 import { centre, inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
 import { live } from "./life.ts";
+import { moveHunters, placeHunters, type Hunter } from "./hunters.ts";
 import { inEcosystem } from "./mode.ts";
 export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
@@ -57,6 +58,9 @@ export interface Rules {
   forget: number; // learning: share of the learned change that fades back toward the inborn brain each tick (0.002 = about 350 ticks to halve); 0 = never
   relativeReward: number; // learning: 1 = a meal counts only as better or worse than the creature's usual intake; 0 = food +1, poison -1
   plasticity: number; // learning: 1 = every connection has its own learning rate, evolved in the genome (genome doubles); 0 = one rate for all
+  hunters: number; // dumb hunters that chase the nearest prey (generations mode); 0 = none
+  hunterSense: number; // 1 = prey sense the nearest hunter (when there are hunters)
+  hunterSpeed: number; // hunters' speed (prey: up to 3)
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
 }
@@ -71,6 +75,7 @@ export const DEFAULT_RULES: Rules = {
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
+  hunters: 0, hunterSense: 1, hunterSpeed: 2,
 };
 
 export interface World {
@@ -87,6 +92,8 @@ export interface World {
   generation: number;
   layout: number; // which food layout of this generation is running, from 0
   swapped: boolean; // rules.swapKinds: on this food map, purple rings are the food and green dots the poison
+  hunters: Hunter[]; // rules.hunters: where the hunters are on this food map
+  caughtHist: number[]; // share of prey caught per food map, one entry per finished generation
   grids: Grids | null; // where food and creatures are, for fast senses; rebuilt at the start of each tick
   avgHist: number[]; // average food eaten per layout, one entry per finished generation
   bestHist: number[];
@@ -138,6 +145,8 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     layout: 0,
     swapped: false,
     grids: null,
+    hunters: [],
+    caughtHist: [],
     avgHist: [],
     bestHist: [],
     worstHist: [],
@@ -179,6 +188,7 @@ export function tickLayout(w: World): boolean {
   prepareGrids(w);
   for (const c of w.creatures) if (c.alive) live(w, c, 1);
   w.grids = null;
+  if (w.hunters.length) moveHunters(w);
   w.tick++;
   return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
 }
@@ -216,6 +226,7 @@ export function startLayout(w: World): void {
     }
   }
   w.food = newFoodLayout(w);
+  if (w.rules.hunters > 0) placeHunters(w); // drawn last: the food is the same as without hunters
   w.tick = 0;
 }
 
@@ -254,6 +265,7 @@ export function nextGeneration(w: World): void {
   const half = ranked.slice(0, Math.ceil(ranked.length / 2));
   w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
   w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
+  if (rules.hunters > 0) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
 
   const elite = Math.min(rules.elite, rules.pop);
   const parents = Math.max(1, Math.min(rules.parents, rules.pop));

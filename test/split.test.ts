@@ -34,6 +34,10 @@ test("split: with learning on (each map starts from the inborn brain; children i
   await compare({ ...DEFAULT_RULES, genTicks: 500, learnRate: 0.01, plasticity: 1, swapKinds: 1, poison: 0.5 }, 3, 3);
 });
 
+test("split: with hunters (caught prey are added up across maps too)", async () => {
+  await compare({ ...DEFAULT_RULES, genTicks: 500, hunters: 8 }, 3, 3);
+});
+
 test("each food map starts the same way whatever came before it", () => {
   const a = createWorld(3, DEFAULT_RULES);
   const b = createWorld(3, DEFAULT_RULES);

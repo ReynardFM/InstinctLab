@@ -63,10 +63,12 @@ export async function runGenerationsSplit(w: World, generations: number, pool: L
     w.creatures.forEach((c, i) => {
       c.eaten = 0;
       c.poisoned = 0;
+      c.caught = 0;
       c.learned = 0;
       for (const res of results) {
         c.eaten += res.eaten[i];
         c.poisoned += res.poisoned[i];
+        c.caught += res.caught[i];
         c.learned += res.learned[i];
       }
       const brains = results[maps - 1].brains; // what was learned on the last map is what children inherit

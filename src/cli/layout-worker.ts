@@ -15,6 +15,7 @@ export interface LayoutTask {
 export interface LayoutResult {
   eaten: number[];
   poisoned: number[];
+  caught: number[];
   learned: number[];
   brains: number[][] | null;
 }
@@ -28,6 +29,7 @@ export function playLayout(t: LayoutTask): LayoutResult {
   return {
     eaten: w.creatures.map((c) => c.eaten),
     poisoned: w.creatures.map((c) => c.poisoned),
+    caught: w.creatures.map((c) => c.caught),
     learned: w.creatures.map((c) => c.learned),
     brains: t.wantBrains ? w.creatures.map((c) => c.w) : null,
   };

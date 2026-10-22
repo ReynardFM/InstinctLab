@@ -10,6 +10,7 @@ import * as dmath from "../src/engine/dmath.ts";
 import { centre, inherited, mutate } from "../src/engine/breed.ts";
 import type { Creature } from "../src/engine/creature.ts";
 import { mergeFame, parseFame } from "../src/web/fame.ts";
+import { moveHunters, REST } from "../src/engine/hunters.ts";
 import { decodeLink, encodeLink } from "../src/web/share.ts";
 
 const DMATH_FINGERPRINT = "2eece01a"; // recorded 2026-10-18; must never change
@@ -556,6 +557,28 @@ test("run links: seed, changed rules, steps and a start brain come back exactly;
   for (let i = 0; i < back.steps; i++) step(b);
   assert.deepEqual(b.creatures.map((c) => [c.x, c.y, c.eaten]), a.creatures.map((c) => [c.x, c.y, c.eaten]));
   assert.equal(b.generation, a.generation);
+});
+
+test("hunters: chase the nearest prey, catch it when close, rest; prey sense the nearest hunter", () => {
+  const rules = { ...ONE, hunters: 1, hunterSpeed: 2 };
+  const w = createWorld(3, rules);
+  assert.equal(w.hunters.length, 1);
+  assert.equal(inputCount(rules), inputCount(ONE) + 3, "prey get a hunter sense");
+  assert.equal(inputCount({ ...rules, hunterSense: 0 }), inputCount(ONE), "unless it is switched off");
+  const h = w.hunters[0];
+  const prey = w.creatures[2];
+  for (const c of w.creatures) c.x = c.y = 300; // everyone far away...
+  prey.x = h.x + 7; // ...except one, just out of reach
+  prey.y = h.y;
+  for (const c of w.creatures) c.energy = 1;
+  const tick = w.tick;
+  // a tick of hunting only (no prey movement), using the engine's own step for hunters
+  moveHunters(w);
+  assert.equal(prey.alive, false, "caught: it was within reach after one step");
+  assert.equal(prey.caught, 1);
+  assert.equal(prey.diedAt, tick);
+  assert.equal(h.rest, REST, "resting after the catch");
+  assert.equal(createWorld(3, ONE).hunters.length, 0, "no hunters by default");
 });
 
 test("thinking and learning can cost energy", () => {

@@ -125,6 +125,9 @@ async function main(): Promise<void> {
   console.log(`${combos.length} setting(s) x ${opts.seeds.length} seed(s) x ${what}, ${where}\n`);
 
   const anyPoison = combos.some((r) => r.poison > 0);
+  const anyHunters = combos.some((r) => r.hunters > 0);
+  // share of prey caught per food map, last 10 generations, averaged over seeds
+  const caughtShare = (rs: JobResult[]) => rs[0].caughtHist ? `${(100 * rs.reduce((s, r) => s + score(r.caughtHist!), 0) / rs.length).toFixed(1)}%` : "-";
   // share of everything eaten that was poison, last 10 generations. Eating blindly gives about the
   // poison share of the map; much lower means creatures learned to avoid it.
   const poisonShare = (rs: { avgHist: number[]; poisonHist: number[] }[]) => {
@@ -177,6 +180,7 @@ async function main(): Promise<void> {
       i === 0 ? "reference" : diffText(scores, ref.map((r) => score(r.avgHist))),
       i === 0 ? "reference" : diffText(learn, ref.map((r) => learning(r.avgHist))),
       ...(anyPoison ? [poisonShare(mine)] : []),
+      ...(anyHunters ? [caughtShare(mine)] : []),
       `${Math.min(...scores).toFixed(1)}..${Math.max(...scores).toFixed(1)}`,
     ];
   };
@@ -186,7 +190,7 @@ async function main(): Promise<void> {
   const header = eco
     ? [...varied, "population", "±95%", "lowest", "births/1k", "deaths/1k", "old age", "avg age", "rescues", "pop vs 1st", "seed range"]
     : [...varied, "score", "±95%", "top half", "early", "±95% ", "score vs 1st", "early vs 1st",
-      ...(anyPoison ? ["poison eaten"] : []), "seed range"];
+      ...(anyPoison ? ["poison eaten"] : []), ...(anyHunters ? ["caught"] : []), "seed range"];
   const widths = header.map((h) => Math.max(h.length, 8));
   if (eco) widths[varied.length + 8] = 13;
   else widths[varied.length + 5] = widths[varied.length + 6] = 13;
@@ -295,6 +299,7 @@ async function main(): Promise<void> {
   console.log(`early = average food over the first ${EARLY} generations: higher = learned faster`);
   console.log(`vs 1st = paired difference from the first row, seed by seed (same seed = same food layouts). * = probably real.`);
   console.log(`  With many rows, expect about 1 in 20 rows to get a * by chance alone.`);
+  if (anyHunters) console.log(`caught = share of prey caught by a hunter per food map (last 10 generations)`);
   if (anyPoison) console.log(`poison eaten = share of everything eaten that was poison (last 10 generations); eating blindly ≈ the poison share`);
   const how = opts.queue ? "Redis queue" : `${workers} worker${workers > 1 ? "s" : ""}`;
   console.log(`${totalGens} generations in ${secs.toFixed(1)} s = ${(totalGens / secs).toFixed(1)} generations/s (${how})`);

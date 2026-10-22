@@ -346,8 +346,9 @@
   }
 
   // src/engine/senses.ts
+  var sensesHunter = (r) => (r.hunters ?? 0) > 0 && (r.hunterSense ?? 1) > 0;
   function inputCount(r) {
-    return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (r.walls ? 1 : 0);
+    return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
   }
   var NOTHING = [0, 0, 1];
   function wallAhead(x, y, heading) {
@@ -555,6 +556,22 @@
     }
     const p = h.hasPoison ? h.poison : null;
     if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
+    if (sensesHunter(r)) {
+      let bdx = 0;
+      let bdy = 0;
+      let bd2 = Infinity;
+      for (const hu of w.hunters) {
+        const dx = offset(hu.x - c.x, W, walls);
+        const dy = offset(hu.y - c.y, H, walls);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bd2) {
+          bd2 = d2;
+          bdx = dx;
+          bdy = dy;
+        }
+      }
+      k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
+    }
     if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
     if (inputs.length !== k) inputs.length = k;
     const eat = p && (!f || p.d2 < f.d2) ? p : f;
@@ -599,6 +616,7 @@
       energy: 1,
       eaten: 0,
       poisoned: 0,
+      caught: 0,
       alive: true,
       diedAt: null,
       age: 0,
@@ -973,6 +991,55 @@
     }
   }
 
+  // src/engine/hunters.ts
+  var CATCH = 6;
+  var REST = 30;
+  function placeHunters(w) {
+    w.hunters = [];
+    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0 });
+  }
+  function moveHunters(w) {
+    const walls = w.rules.walls > 0;
+    const speed = w.rules.hunterSpeed;
+    for (const h of w.hunters) {
+      if (h.rest > 0) {
+        h.rest--;
+        continue;
+      }
+      let prey = null;
+      let bdx = 0;
+      let bdy = 0;
+      let bd2 = Infinity;
+      for (const c of w.creatures) {
+        if (!c.alive) continue;
+        const dx = offset(c.x - h.x, W, walls);
+        const dy = offset(c.y - h.y, H, walls);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bd2) {
+          bd2 = d2;
+          bdx = dx;
+          bdy = dy;
+          prey = c;
+        }
+      }
+      if (!prey) continue;
+      const d = Math.sqrt(bd2);
+      const step2 = Math.min(speed, d);
+      if (d > 0) {
+        const nx = h.x + bdx / d * step2;
+        const ny = h.y + bdy / d * step2;
+        h.x = walls ? Math.min(Math.max(nx, 0), W) : (nx + W) % W;
+        h.y = walls ? Math.min(Math.max(ny, 0), H) : (ny + H) % H;
+      }
+      if (d - step2 < CATCH) {
+        prey.alive = false;
+        prey.diedAt = w.tick;
+        prey.caught++;
+        h.rest = REST;
+      }
+    }
+  }
+
   // src/engine/world.ts
   var DEFAULT_RULES = {
     pop: 40,
@@ -1011,7 +1078,10 @@
     relativeReward: 1,
     energyGate: 0,
     swapKinds: 0,
-    plasticity: 0
+    plasticity: 0,
+    hunters: 0,
+    hunterSense: 1,
+    hunterSpeed: 2
   };
   function createWorld(seed, rules, start) {
     const each = start && Array.isArray(start[0]) ? start : null;
@@ -1034,6 +1104,8 @@
       layout: 0,
       swapped: false,
       grids: null,
+      hunters: [],
+      caughtHist: [],
       avgHist: [],
       bestHist: [],
       worstHist: [],
@@ -1072,6 +1144,7 @@
     prepareGrids(w);
     for (const c of w.creatures) if (c.alive) live(w, c, 1);
     w.grids = null;
+    if (w.hunters.length) moveHunters(w);
     w.tick++;
     return w.tick >= w.rules.genTicks || w.creatures.every((c) => !c.alive);
   }
@@ -1098,6 +1171,7 @@
       }
     }
     w.food = newFoodLayout(w);
+    if (w.rules.hunters > 0) placeHunters(w);
     w.tick = 0;
   }
   function envSeed(seed) {
@@ -1127,6 +1201,7 @@
     const half = ranked.slice(0, Math.ceil(ranked.length / 2));
     w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
     w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
+    if (rules.hunters > 0) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
     const elite = Math.min(rules.elite, rules.pop);
     const parents = Math.max(1, Math.min(rules.parents, rules.pop));
     const next = [];
