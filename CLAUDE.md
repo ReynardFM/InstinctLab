@@ -12,7 +12,7 @@ Two goals: (1) fun to experiment with, (2) a vehicle for system design and scali
 - `test/golden.json` pins the basic rules ("42", "7", "hello", "custom"), the current defaults, "learning" (every learning option and the swap world on; added 2026-10-20 to lock that code) and "ecosystem". Re-record with `npm run record-golden` only for a deliberate behaviour change, and say so in the commit. All engine math goes through `src/engine/dmath.ts` (identical bits in every JS engine); never call Math.sin/cos/tan/atan2/exp/log/pow or ** in the engine.
 - Machine: Rey's laptop is an Intel Core Ultra 7 155U (2 P-cores + 8 E-cores + 2 low-power E-cores, 15 W). Parallel efficiency: 100% to 2 workers, 74% at 4, 36% at 14 (unequal cores + power limit; start-up only 201 ms).
 - Before every commit: `npm run check` (types + tests + dist up to date). One commit per reviewed change; message says what changed and what was measured.
-- Baseline, current defaults (2026-10-19: 30% poison, separate world randomness), Rey's laptop, 14 seeds x 100 generations: score 31.6 ±1.2, top half 35.5, early 21.5, poison 5.0% of intake.
+- Baseline, current defaults (re-measured 2026-10-21 after stage 3b), Rey's laptop, 14 seeds x 100 generations: score 32.2 ±1.3, top half 36.0, early 20.9, poison 4.7% of intake (before 3b: 31.6 ±1.2).
 - Git author email is the GitHub noreply address (182705433+ReynardFM@users.noreply.github.com), set for this repo only.
 
 ## Plan check (2026-10-19)
@@ -58,7 +58,8 @@ Rey 2026-10-21: lab speed and efficiency: (a) faster TypeScript and (b) a lab th
    (a) done: no garbage per creature per tick (thinkInto, senseInto, *Into searches). Default 1.42x, all senses 1.31x, big world 1.10x; identical.
    (b) done: npm run lab -- --auto (stats.ts: exact t, Bonferroni over looks, care band). margin95 now exact for any seed count (the old table stopped at 21 seeds).
    Predators cheapest test done (hunters.ts, rules.hunters/hunterSense/hunterSpeed, off by default): prey learn to flee (caught 82.9% -> 69.0% over 30 generations with the sense; no change without; -27.8 ±11.0 points vs no sense). PASS: P2 can go ahead. Open for P2: hunters still catch most prey and fleeing costs eating (food the same): tune hunter speed/count before evolving predators; then alarm, group defence, borrowed + random predator brains.
-1. Rey: next step for P2 (tune, then evolving predators), or the laptop checks.
+   Laptop checks 2026-10-21 all pass: npm run check, determinism.html, bench-split 3.04x (ceiling 3x), queue-demo PASS, baseline 32.2 ±1.3, page by eye.
+1. Rey: next step for P2: tune hunters (speed / count) so fleeing pays, then evolving predators.
 Future feature (Rey 2026-10-21, parked): a game mode, roguelite style. Every few generations a disaster (food turns to poison, a plague wipes some out) and upgrade choices (add a brain node, add a sense). Open points from the review: generations mode has no game over (ecosystem mode can die out); pacing (a generation is over a minute at 1x); each disaster needs a counter card and a warning; new brain connections start at weight 0. Needs a BA brief before building. Desktop later by wrapping the page (Tauri/Electron), not a Godot rewrite.
 1. Rey: on his laptop, npm run bench-split -- --gens=30 (the 3b result) and npm run queue-demo (queue after hardening). Then pick the next step. Push to GitHub last.
 2. Not decided: whether the BA brief becomes a standing rule (every feature / big ones only / no).

@@ -228,6 +228,9 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-21 | `--auto` stop rule simulated 4000x per case (difference spread 2, care 1, 4 looks of 7 seeds) | no true difference: called real 3.1% (<= 5%), none 11.9%, unclear 85% (27.4 seeds); true 1.5: real 90.5% (17.8 seeds), wrongly none 0.1%; true 2: real 99.3% (13.6 seeds) |
 | 2026-10-21 | `--auto --gens=30 --seeds=1-7 --senseCreature=1,0`, cloud | decided after the first batch: real -1.9 ±1.7; 14 runs instead of 56 (25%) |
 | 2026-10-21 | Predators cheapest test: 8 dumb hunters (speed 2), 7 seeds x 30 generations, with vs without the prey's hunter sense, cloud | With the sense, caught on 82.9% of maps in gens 1-5 -> 69.0% in gens 26-30 (drop 13.9 ±8.5: prey learn to flee); without it 93.8% -> 94.5%. Gens 21-30, with minus without: -27.8 ±11.0 points, lower in all 7 seeds. Food about the same (8.9 vs 8.8). 11.2 generations/s (maps end early when everyone is caught) |
+| 2026-10-21 | Rey's laptop: `npm run bench-split -- --gens=30` (one run, seed 1) | maps one after another 14.8 s (2.03 gens/s), maps on 3 threads 4.9 s (6.18 gens/s): 3.04x, identical. The ceiling is 3x (3 maps); the extra 0.04 is noise (the one-after-another run goes first, cold) |
+| 2026-10-21 | Rey's laptop: new baseline after stage 3b, default rules, 14 seeds x 100 generations | score 32.2 ±1.3, top half 36.0, early 20.9 ±0.9, poison 4.7% of intake, seeds 27.5..35.3 (before 3b: 31.6 ±1.2; same within noise). 1400 generations in 114.7 s (12.2 gens/s, 14 workers) |
+| 2026-10-21 | Rey's laptop: npm run check, determinism.html, queue-demo after hardening, page (hall of fame, run link, hunters) | all pass |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 
