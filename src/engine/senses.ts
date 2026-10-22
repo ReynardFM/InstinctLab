@@ -337,7 +337,8 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   }
   const p = h.hasPoison ? h.poison : null;
   if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
-  if (sensesHunter(r)) {
+  if (sensesHunter(r) && r.hunterSense === 2) k = writeNothing(inputs, k);
+  else if (sensesHunter(r)) {
     let bdx = 0;
     let bdy = 0;
     let bd2 = Infinity;

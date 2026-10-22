@@ -579,6 +579,12 @@ test("hunters: chase the nearest prey, catch it when close, rest; prey sense the
   assert.equal(prey.diedAt, tick);
   assert.equal(h.rest, REST, "resting after the catch");
   assert.equal(createWorld(3, ONE).hunters.length, 0, "no hunters by default");
+  // blind (hunterSense 2): the same 3 inputs, always reading "nothing there": same brain size, no information
+  assert.equal(inputCount({ ...rules, hunterSense: 2 }), inputCount(rules));
+  const blind = createWorld(3, { ...rules, hunterSense: 2 });
+  runTicks(blind, 3);
+  const n = blind.creatures[0].inputs.length;
+  assert.deepEqual(blind.creatures[0].inputs.slice(n - 3), [0, 0, 1]);
 });
 
 test("thinking and learning can cost energy", () => {

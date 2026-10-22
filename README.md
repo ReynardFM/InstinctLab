@@ -231,6 +231,9 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-21 | Rey's laptop: `npm run bench-split -- --gens=30` (one run, seed 1) | maps one after another 14.8 s (2.03 gens/s), maps on 3 threads 4.9 s (6.18 gens/s): 3.04x, identical. The ceiling is 3x (3 maps); the extra 0.04 is noise (the one-after-another run goes first, cold) |
 | 2026-10-21 | Rey's laptop: new baseline after stage 3b, default rules, 14 seeds x 100 generations | score 32.2 ±1.3, top half 36.0, early 20.9 ±0.9, poison 4.7% of intake, seeds 27.5..35.3 (before 3b: 31.6 ±1.2; same within noise). 1400 generations in 114.7 s (12.2 gens/s, 14 workers) |
 | 2026-10-21 | Rey's laptop: npm run check, determinism.html, queue-demo after hardening, page (hall of fame, run link, hunters) | all pass |
+| 2026-10-21 | Hunter tuning, 2/4/8 hunters x speed 1.5/2, sense vs no sense, 7 seeds x 30 generations | The sense never raised food (8 hunters at 1.5: -2.0 ±1.7 *). Unfair control: no sense = a smaller brain, which learns to forage faster |
+| 2026-10-21 | Same with a fair blind control (hunterSense 2: same inputs, always empty), 60 generations | sense minus blind: 4/1.5 +1.0 ±2.6, 4/2 +1.6 ±1.7, 8/2 +1.1 ±1.5; caught 53/61/68% with the sense vs 66/78/93% blind |
+| 2026-10-21 | `--auto`, 4 hunters at speed 2, blind vs sense, 60 generations | real after 14 seeds: +1.4 ±1.2 food; caught 62.6% vs 78.1%; 28 runs instead of 56 |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

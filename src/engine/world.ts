@@ -59,7 +59,8 @@ export interface Rules {
   relativeReward: number; // learning: 1 = a meal counts only as better or worse than the creature's usual intake; 0 = food +1, poison -1
   plasticity: number; // learning: 1 = every connection has its own learning rate, evolved in the genome (genome doubles); 0 = one rate for all
   hunters: number; // dumb hunters that chase the nearest prey (generations mode); 0 = none
-  hunterSense: number; // 1 = prey sense the nearest hunter (when there are hunters)
+  hunterSense: number; // 1 = prey sense the nearest hunter (when there are hunters); 2 = blind: the same 3 inputs, always
+  // reading "nothing there" (a fair control: same brain size, no information)
   hunterSpeed: number; // hunters' speed (prey: up to 3)
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
