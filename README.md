@@ -217,6 +217,7 @@ Suggested reading order: `world.ts` → `lineage.ts` → `creature.ts` → `sens
 | 2026-10-21 | `npm run bench-split -- --gens=20`, 2-core cloud machine | 1.56x on 2 threads (1.5x is the ceiling for 3 maps on 2 cores), 1.50x on 3 threads; identical results. Rey's laptop: to measure (at most 3x) |
 | 2026-10-21 | Profile, share of run time in the senses (food scan + nearest creature) | default world ~49%; 200 food + 200 creatures ~84%; ecosystem at ~390 creatures ~82% |
 | 2026-10-21 | Grid search (100 px squares) vs checking everything, 2-core cloud | First version with callbacks: 0.39x at default sizes (slower). Plain loops: food grid 0.84x at 100 pellets, 1.22x at 150, 2.37x at 300; creature grid 0.82x at 40, 1.10x at 80, 1.88x at 300. Switched on from 128 pellets / 64 creatures: default 1.01x (unchanged), 200 + 200 world 2.04x, ecosystem to ~390 creatures 2.34x. Identical results |
+| 2026-10-21 | Hot loop without per-tick garbage (buffers reused), cloud, median of 5 | default 4 generations 2.23 -> 1.57 s (1.42x); all senses + walls 1.39 -> 1.06 s (1.31x); 200 + 200 world 2.83 -> 2.57 s (1.10x). Identical results. Left: food search 24%, brain 21%, sense maths 20%, GC 4.6% |
 
 Rows above 2026-10-19 (paired comparison) used one random stream for everything; since then food and starting spots have their own stream, so the same seed gives different exact numbers than before.
 

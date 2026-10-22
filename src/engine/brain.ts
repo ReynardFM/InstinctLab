@@ -15,22 +15,29 @@ export interface Thought {
 }
 
 export function think(g: Genome, inputs: number[]): Thought {
-  let k = 0;
   const hidden: number[] = [];
-  const out: number[] = [];
+  const out: number[] = [0, 0];
+  thinkInto(g, inputs, hidden, out);
+  return { hidden, out };
+}
+
+// think() writing into arrays the caller keeps (each creature has its own), so the every-tick path
+// makes no garbage. Same arithmetic in the same order as always: identical results.
+export function thinkInto(g: Genome, inputs: number[], hidden: number[], out: number[]): void {
+  let k = 0;
   const n = inputs.length;
   const nh = (g.length - OUT) / (n + 1 + OUT); // middle neurons, read from the genome's length
+  if (hidden.length !== nh) hidden.length = nh;
   for (let h = 0; h < nh; h++) {
     let s = 0;
     for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
-    hidden.push(tanh(s + g[k++]));
+    hidden[h] = tanh(s + g[k++]);
   }
   for (let o = 0; o < OUT; o++) {
     let s = 0;
     for (let h = 0; h < nh; h++) s += hidden[h] * g[k++];
-    out.push(tanh(s + g[k++]));
+    out[o] = tanh(s + g[k++]);
   }
-  return { hidden, out };
 }
 
 // Learning during life: connections that were active shortly before a reward get stronger (food,

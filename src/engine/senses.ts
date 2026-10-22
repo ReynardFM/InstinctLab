@@ -4,7 +4,7 @@ import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearest, nearestOne, type Near } from "./space.ts";
+import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearestBruteInto, nearestOneInto, type Hit, type Near } from "./space.ts";
 
 export interface SenseRules {
   senseFood2: number; // 1 = also sense the second-nearest food
@@ -68,14 +68,75 @@ export interface FoodScan {
 // One pass over the food finds the nearest good pellet(s) and the nearest poison together. (It used to be
 // one nearest() call per kind, each scanning every pellet: the senses were 2/3 of all run time.)
 // Pellets that have not regrown yet are skipped. Same answers as nearest(): ties keep the earlier pellet.
+// What a food search found, kept in one reusable object (the every-tick path makes no garbage):
+// good[0..goodN-1] = nearest pellets that look like food, nearest first; poison = nearest that looks
+// like poison (when hasPoison). idx = the pellet's index in w.food (ties go to the lower index).
+export interface FoodHits {
+  goodN: number;
+  good: [Hit<Food> & { idx: number }, Hit<Food> & { idx: number }];
+  hasPoison: boolean;
+  poison: Hit<Food> & { idx: number };
+}
+
+export function newFoodHits(): FoodHits {
+  const h = () => ({ item: null as Food | null, dx: 0, dy: 0, d2: 0, idx: -1 });
+  return { goodN: 0, good: [h(), h()], hasPoison: false, poison: h() };
+}
+
+// Puts pellet j (at dx, dy, d2) into the good list if it belongs there. byIndex: break equal distances
+// by index (the grid visits pellets out of order); the one-pass scan visits them in order, so an equal
+// distance found later never moves ahead.
+function addGood(h: FoodHits, goodCount: number, f: Food, j: number, dx: number, dy: number, d2: number, byIndex: boolean): void {
+  const g = h.good;
+  let i = h.goodN;
+  if (i === goodCount) {
+    const last = g[i - 1];
+    if (!(d2 < last.d2 || (byIndex && d2 === last.d2 && j < last.idx))) return;
+    i--;
+  } else h.goodN++;
+  while (i > 0 && (d2 < g[i - 1].d2 || (byIndex && d2 === g[i - 1].d2 && j < g[i - 1].idx))) {
+    const from = g[i - 1];
+    const to = g[i];
+    to.item = from.item;
+    to.dx = from.dx;
+    to.dy = from.dy;
+    to.d2 = from.d2;
+    to.idx = from.idx;
+    i--;
+  }
+  const t = g[i];
+  t.item = f;
+  t.dx = dx;
+  t.dy = dy;
+  t.d2 = d2;
+  t.idx = j;
+}
+
+function toScan(h: FoodHits): FoodScan {
+  const good: Near<Food>[] = [];
+  for (let i = 0; i < h.goodN; i++) good.push({ item: h.good[i].item!, dx: h.good[i].dx, dy: h.good[i].dy, d2: h.good[i].d2 });
+  const p = h.poison;
+  return { good, poison: h.hasPoison ? { item: p.item!, dx: p.dx, dy: p.dy, d2: p.d2 } : undefined };
+}
+
 export function scanFood(w: World, x: number, y: number, goodCount: number): FoodScan {
+  const h = newFoodHits();
+  scanFoodInto(h, w, x, y, goodCount);
+  return toScan(h);
+}
+
+export function scanFoodInto(h: FoodHits, w: World, x: number, y: number, goodCount: number): void {
   const walls = w.rules.walls > 0;
   const tick = w.tick;
+  const swapped = w.swapped;
+  const food = w.food;
   const halfW = W / 2;
   const halfH = H / 2;
-  const good: Near<Food>[] = [];
-  let poison: Near<Food> | undefined;
-  for (const f of w.food) {
+  h.goodN = 0;
+  h.hasPoison = false;
+  const p = h.poison;
+  for (let j = 0; j < food.length; j++) {
+    const f = food[j];
     if (f.readyAt > tick) continue;
     let dx = f.x - x;
     let dy = f.y - y;
@@ -86,19 +147,19 @@ export function scanFood(w: World, x: number, y: number, goodCount: number): Foo
       else if (dy < -halfH) dy += H;
     }
     const d2 = dx * dx + dy * dy;
-    if (looksPoison(w, f)) {
-      if (poison === undefined || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
+    if (f.poison !== swapped) { // looksPoison, inlined
+      if (!h.hasPoison || d2 < p.d2) {
+        h.hasPoison = true;
+        p.item = f;
+        p.dx = dx;
+        p.dy = dy;
+        p.d2 = d2;
+        p.idx = j;
+      }
       continue;
     }
-    if (good.length === goodCount && d2 >= good[goodCount - 1].d2) continue;
-    let i = good.length === goodCount ? goodCount - 1 : good.length;
-    while (i > 0 && d2 < good[i - 1].d2) {
-      good[i] = good[i - 1];
-      i--;
-    }
-    good[i] = { item: f, dx, dy, d2 };
+    addGood(h, goodCount, f, j, dx, dy, d2, false);
   }
-  return { good, poison };
 }
 
 // The grids for one tick: built before anyone moves, kept up to date as creatures move and food respawns
@@ -142,16 +203,21 @@ export function prepareGrids(w: World): void {
 
 // scanFood with the grid: same answers (ties go to the lower index, as in the one-pass scan).
 export function scanFoodGrid(w: World, g: Grids, x: number, y: number, goodCount: number): FoodScan {
+  const h = newFoodHits();
+  scanFoodGridInto(h, w, g, x, y, goodCount);
+  return toScan(h);
+}
+
+export function scanFoodGridInto(h: FoodHits, w: World, g: Grids, x: number, y: number, goodCount: number): void {
   const walls = w.rules.walls > 0;
   const tick = w.tick;
   const food = w.food;
   const swapped = w.swapped;
   const halfW = W / 2;
   const halfH = H / 2;
-  const good: Near<Food>[] = [];
-  const goodIdx: number[] = [];
-  let poison: Near<Food> | undefined;
-  let poisonIdx = -1;
+  h.goodN = 0;
+  h.hasPoison = false;
+  const p = h.poison;
   const goodLooks = food.length - g.poisonLooks;
   let goodSeen = 0;
   let poisonSeen = 0;
@@ -184,64 +250,93 @@ export function scanFoodGrid(w: World, g: Grids, x: number, y: number, goodCount
         }
         const d2 = dx * dx + dy * dy;
         if (isP) {
-          if (poison === undefined || d2 < poison.d2 || (d2 === poison.d2 && j < poisonIdx)) {
-            poison = { item: f, dx, dy, d2 };
-            poisonIdx = j;
+          if (!h.hasPoison || d2 < p.d2 || (d2 === p.d2 && j < p.idx)) {
+            h.hasPoison = true;
+            p.item = f;
+            p.dx = dx;
+            p.dy = dy;
+            p.d2 = d2;
+            p.idx = j;
           }
           continue;
         }
-        // insert into good (nearest first; equal distance: lower index first), keeping goodCount
-        let i = good.length;
-        if (i === goodCount) {
-          const last = good[i - 1];
-          if (d2 > last.d2 || (d2 === last.d2 && j > goodIdx[i - 1])) continue;
-          i--;
-        }
-        while (i > 0 && (d2 < good[i - 1].d2 || (d2 === good[i - 1].d2 && j < goodIdx[i - 1]))) {
-          good[i] = good[i - 1];
-          goodIdx[i] = goodIdx[i - 1];
-          i--;
-        }
-        good[i] = { item: f, dx, dy, d2 };
-        goodIdx[i] = j;
+        addGood(h, goodCount, f, j, dx, dy, d2, true);
       }
     }
     const bound = r * r * CELL * CELL;
-    const goodDone = goodSeen === goodLooks || (good.length === goodCount && good[goodCount - 1].d2 < bound);
-    const poisonDone = poisonSeen === g.poisonLooks || (poison !== undefined && poison.d2 < bound);
+    const goodDone = goodSeen === goodLooks || (h.goodN === goodCount && h.good[goodCount - 1].d2 < bound);
+    const poisonDone = poisonSeen === g.poisonLooks || (h.hasPoison && p.d2 < bound);
     if (goodDone && poisonDone) break;
   }
-  return { good, poison };
+}
+
+// Writes (dx, dy) as seen from the creature into inputs[k..k+2]: left/right, ahead, distance. Same
+// numbers as towards() (nothing there: d2 = Infinity).
+function writeTowards(inputs: number[], k: number, dx: number, dy: number, d2: number, cosH: number, sinH: number): number {
+  const d = Math.sqrt(d2);
+  const ok = d > 0 && d !== Infinity;
+  const st = ok ? dy / d : 0;
+  const ct = ok ? dx / d : 1;
+  inputs[k] = st * cosH - ct * sinH;
+  inputs[k + 1] = ct * cosH + st * sinH;
+  inputs[k + 2] = Math.min(d / 200, 1);
+  return k + 3;
+}
+
+function writeNothing(inputs: number[], k: number): number {
+  inputs[k] = NOTHING[0];
+  inputs[k + 1] = NOTHING[1];
+  inputs[k + 2] = NOTHING[2];
+  return k + 3;
 }
 
 export function sense(w: World, c: Creature): Perception {
+  const saved = c.inputs;
+  c.inputs = new Array(inputCount(w.rules)).fill(0);
+  const seen = senseInto(w, c);
+  const result = { inputs: c.inputs, food: seen.food, foodDist: seen.foodDist };
+  c.inputs = saved;
+  return result;
+}
+
+// Reused by senseInto (one creature at a time, never two at once).
+const foodHits = newFoodHits();
+const creatureHit: Hit<Creature> = { item: null, dx: 0, dy: 0, d2: 0 };
+const perceived: { food: Food | null; foodDist: number } = { food: null, foodDist: Infinity };
+
+// sense() for the every-tick path: writes the inputs into c.inputs and returns what it would eat in a
+// reused object (read it before the next creature senses). Identical numbers, no garbage.
+export function senseInto(w: World, c: Creature): { food: Food | null; foodDist: number } {
   const r = w.rules;
   const walls = r.walls > 0;
   const g = w.grids;
-  const useFood = g !== null && g.foodOn;
-  const useCreatures = g !== null && g.creaturesOn;
-  const scan = useFood ? scanFoodGrid(w, g!, c.x, c.y, r.senseFood2 ? 2 : 1) : scanFood(w, c.x, c.y, r.senseFood2 ? 2 : 1);
-  const foods = scan.good;
-  const f = foods[0];
-  const p = scan.poison;
-  // no food at all: same numbers as before senses were split out (distance reads as far)
+  const h = foodHits;
+  if (g !== null && g.foodOn) scanFoodGridInto(h, w, g, c.x, c.y, r.senseFood2 ? 2 : 1);
+  else scanFoodInto(h, w, c.x, c.y, r.senseFood2 ? 2 : 1);
+  const inputs = c.inputs;
   const cosH = cos(c.a);
   const sinH = sin(c.a);
-  const first = f ? towards(f.dx, f.dy, f.d2, cosH, sinH) : towards(0, 0, Infinity, cosH, sinH);
-  const inputs = [...first, c.energy];
+  const f = h.goodN > 0 ? h.good[0] : null;
+  // no food at all: the distance reads as far (same numbers as always)
+  let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
+  inputs[k++] = c.energy;
   if (r.senseFood2) {
-    const s = foods[1];
-    inputs.push(...(s ? towards(s.dx, s.dy, s.d2, cosH, sinH) : NOTHING));
+    const s2 = h.goodN > 1 ? h.good[1] : null;
+    k = s2 ? writeTowards(inputs, k, s2.dx, s2.dy, s2.d2, cosH, sinH) : writeNothing(inputs, k);
   }
   if (r.senseCreature) {
-    const n = useCreatures
-      ? nearestOne(g!.creatures, w.creatures, c.x, c.y, walls, c, true)
-      : nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
-    inputs.push(...(n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING));
+    const found = g !== null && g.creaturesOn
+      ? nearestOneInto(creatureHit, g.creatures, w.creatures, c.x, c.y, walls, c, true)
+      : nearestBruteInto(creatureHit, w.creatures, c.x, c.y, walls, c, true);
+    k = found ? writeTowards(inputs, k, creatureHit.dx, creatureHit.dy, creatureHit.d2, cosH, sinH) : writeNothing(inputs, k);
   }
-  if (r.poison > 0) inputs.push(...(p ? towards(p.dx, p.dy, p.d2, cosH, sinH) : NOTHING));
-  if (walls) inputs.push(wallAhead(c.x, c.y, c.a));
+  const p = h.hasPoison ? h.poison : null;
+  if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
+  if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
+  if (inputs.length !== k) inputs.length = k;
   // what it would eat: the nearest pellet of either kind (good wins a tie)
   const eat = p && (!f || p.d2 < f.d2) ? p : f;
-  return { inputs, food: eat ? eat.item : null, foodDist: eat ? Math.sqrt(eat.d2) : Infinity };
+  perceived.food = eat ? eat.item : null;
+  perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
+  return perceived;
 }

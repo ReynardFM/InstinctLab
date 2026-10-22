@@ -106,23 +106,21 @@
   var OUT = 2;
   var genomeSize = (inputs, hidden = HID) => inputs * hidden + hidden + hidden * OUT + OUT;
   var GENOME = genomeSize(IN);
-  function think(g, inputs) {
+  function thinkInto(g, inputs, hidden, out) {
     let k = 0;
-    const hidden = [];
-    const out = [];
     const n = inputs.length;
     const nh = (g.length - OUT) / (n + 1 + OUT);
+    if (hidden.length !== nh) hidden.length = nh;
     for (let h = 0; h < nh; h++) {
       let s = 0;
       for (let i = 0; i < n; i++) s += inputs[i] * g[k++];
-      hidden.push(tanh(s + g[k++]));
+      hidden[h] = tanh(s + g[k++]);
     }
     for (let o = 0; o < OUT; o++) {
       let s = 0;
       for (let h = 0; h < nh; h++) s += hidden[h] * g[k++];
-      out.push(tanh(s + g[k++]));
+      out[o] = tanh(s + g[k++]);
     }
-    return { hidden, out };
   }
   function learn(weights, trace, inputs, hidden, out, reward, rate, decay, rates = null, ratesAt = 0) {
     let k = 0;
@@ -298,7 +296,7 @@
       return this.stamp;
     }
   };
-  function nearestOne(grid, items, x, y, walls, skipItem, skipDead) {
+  function nearestOneInto(hit, grid, items, x, y, walls, skipItem, skipDead) {
     let best = -1;
     let bdx = 0;
     let bdy = 0;
@@ -339,7 +337,45 @@
       }
       if (best >= 0 && bd2 < r * r * CELL * CELL) break;
     }
-    return best >= 0 ? { item: items[best], dx: bdx, dy: bdy, d2: bd2 } : void 0;
+    if (best < 0) return false;
+    hit.item = items[best];
+    hit.dx = bdx;
+    hit.dy = bdy;
+    hit.d2 = bd2;
+    return true;
+  }
+  function nearestBruteInto(hit, items, x, y, walls, skipItem, skipDead) {
+    let best = -1;
+    let bdx = 0;
+    let bdy = 0;
+    let bd2 = 0;
+    const halfW = W / 2;
+    const halfH = H / 2;
+    for (let j = 0; j < items.length; j++) {
+      const item = items[j];
+      if (item === skipItem || skipDead && !item.alive) continue;
+      let dx = item.x - x;
+      let dy = item.y - y;
+      if (!walls) {
+        if (dx > halfW) dx -= W;
+        else if (dx < -halfW) dx += W;
+        if (dy > halfH) dy -= H;
+        else if (dy < -halfH) dy += H;
+      }
+      const d2 = dx * dx + dy * dy;
+      if (best < 0 || d2 < bd2) {
+        best = j;
+        bdx = dx;
+        bdy = dy;
+        bd2 = d2;
+      }
+    }
+    if (best < 0) return false;
+    hit.item = items[best];
+    hit.dx = bdx;
+    hit.dy = bdy;
+    hit.d2 = bd2;
+    return true;
   }
 
   // src/engine/senses.ts
@@ -354,13 +390,6 @@
     if (r.walls) labels.push("Wall distance ahead");
     return labels;
   }
-  function towards(dx, dy, d2, cosH, sinH) {
-    const d = Math.sqrt(d2);
-    const ok = d > 0 && d !== Infinity;
-    const st = ok ? dy / d : 0;
-    const ct = ok ? dx / d : 1;
-    return [st * cosH - ct * sinH, ct * cosH + st * sinH, Math.min(d / 200, 1)];
-  }
   var NOTHING = [0, 0, 1];
   function wallAhead(x, y, heading) {
     const cx = cos(heading);
@@ -372,14 +401,58 @@
   function looksPoison(w, f) {
     return f.poison !== w.swapped;
   }
+  function newFoodHits() {
+    const h = () => ({ item: null, dx: 0, dy: 0, d2: 0, idx: -1 });
+    return { goodN: 0, good: [h(), h()], hasPoison: false, poison: h() };
+  }
+  function addGood(h, goodCount, f, j, dx, dy, d2, byIndex) {
+    const g = h.good;
+    let i = h.goodN;
+    if (i === goodCount) {
+      const last = g[i - 1];
+      if (!(d2 < last.d2 || byIndex && d2 === last.d2 && j < last.idx)) return;
+      i--;
+    } else h.goodN++;
+    while (i > 0 && (d2 < g[i - 1].d2 || byIndex && d2 === g[i - 1].d2 && j < g[i - 1].idx)) {
+      const from = g[i - 1];
+      const to = g[i];
+      to.item = from.item;
+      to.dx = from.dx;
+      to.dy = from.dy;
+      to.d2 = from.d2;
+      to.idx = from.idx;
+      i--;
+    }
+    const t = g[i];
+    t.item = f;
+    t.dx = dx;
+    t.dy = dy;
+    t.d2 = d2;
+    t.idx = j;
+  }
+  function toScan(h) {
+    const good = [];
+    for (let i = 0; i < h.goodN; i++) good.push({ item: h.good[i].item, dx: h.good[i].dx, dy: h.good[i].dy, d2: h.good[i].d2 });
+    const p = h.poison;
+    return { good, poison: h.hasPoison ? { item: p.item, dx: p.dx, dy: p.dy, d2: p.d2 } : void 0 };
+  }
   function scanFood(w, x, y, goodCount) {
+    const h = newFoodHits();
+    scanFoodInto(h, w, x, y, goodCount);
+    return toScan(h);
+  }
+  function scanFoodInto(h, w, x, y, goodCount) {
     const walls = w.rules.walls > 0;
     const tick = w.tick;
+    const swapped = w.swapped;
+    const food2 = w.food;
     const halfW = W / 2;
     const halfH = H / 2;
-    const good = [];
-    let poison;
-    for (const f of w.food) {
+    h.goodN = 0;
+    h.hasPoison = false;
+    const p = h.poison;
+    for (let j = 0; j < food2.length; j++) {
+      const f = food2[j];
       if (f.readyAt > tick) continue;
       let dx = f.x - x;
       let dy = f.y - y;
@@ -390,19 +463,19 @@
         else if (dy < -halfH) dy += H;
       }
       const d2 = dx * dx + dy * dy;
-      if (looksPoison(w, f)) {
-        if (poison === void 0 || d2 < poison.d2) poison = { item: f, dx, dy, d2 };
+      if (f.poison !== swapped) {
+        if (!h.hasPoison || d2 < p.d2) {
+          h.hasPoison = true;
+          p.item = f;
+          p.dx = dx;
+          p.dy = dy;
+          p.d2 = d2;
+          p.idx = j;
+        }
         continue;
       }
-      if (good.length === goodCount && d2 >= good[goodCount - 1].d2) continue;
-      let i = good.length === goodCount ? goodCount - 1 : good.length;
-      while (i > 0 && d2 < good[i - 1].d2) {
-        good[i] = good[i - 1];
-        i--;
-      }
-      good[i] = { item: f, dx, dy, d2 };
+      addGood(h, goodCount, f, j, dx, dy, d2, false);
     }
-    return { good, poison };
   }
   var gridCache = /* @__PURE__ */ new WeakMap();
   function prepareGrids(w) {
@@ -431,17 +504,16 @@
       for (let i = 0; i < w.creatures.length; i++) w.creatures[i].slot = i;
     }
   }
-  function scanFoodGrid(w, g, x, y, goodCount) {
+  function scanFoodGridInto(h, w, g, x, y, goodCount) {
     const walls = w.rules.walls > 0;
     const tick = w.tick;
     const food2 = w.food;
     const swapped = w.swapped;
     const halfW = W / 2;
     const halfH = H / 2;
-    const good = [];
-    const goodIdx = [];
-    let poison;
-    let poisonIdx = -1;
+    h.goodN = 0;
+    h.hasPoison = false;
+    const p = h.poison;
     const goodLooks = food2.length - g.poisonLooks;
     let goodSeen = 0;
     let poisonSeen = 0;
@@ -474,60 +546,73 @@
           }
           const d2 = dx * dx + dy * dy;
           if (isP) {
-            if (poison === void 0 || d2 < poison.d2 || d2 === poison.d2 && j < poisonIdx) {
-              poison = { item: f, dx, dy, d2 };
-              poisonIdx = j;
+            if (!h.hasPoison || d2 < p.d2 || d2 === p.d2 && j < p.idx) {
+              h.hasPoison = true;
+              p.item = f;
+              p.dx = dx;
+              p.dy = dy;
+              p.d2 = d2;
+              p.idx = j;
             }
             continue;
           }
-          let i = good.length;
-          if (i === goodCount) {
-            const last = good[i - 1];
-            if (d2 > last.d2 || d2 === last.d2 && j > goodIdx[i - 1]) continue;
-            i--;
-          }
-          while (i > 0 && (d2 < good[i - 1].d2 || d2 === good[i - 1].d2 && j < goodIdx[i - 1])) {
-            good[i] = good[i - 1];
-            goodIdx[i] = goodIdx[i - 1];
-            i--;
-          }
-          good[i] = { item: f, dx, dy, d2 };
-          goodIdx[i] = j;
+          addGood(h, goodCount, f, j, dx, dy, d2, true);
         }
       }
       const bound = r * r * CELL * CELL;
-      const goodDone = goodSeen === goodLooks || good.length === goodCount && good[goodCount - 1].d2 < bound;
-      const poisonDone = poisonSeen === g.poisonLooks || poison !== void 0 && poison.d2 < bound;
+      const goodDone = goodSeen === goodLooks || h.goodN === goodCount && h.good[goodCount - 1].d2 < bound;
+      const poisonDone = poisonSeen === g.poisonLooks || h.hasPoison && p.d2 < bound;
       if (goodDone && poisonDone) break;
     }
-    return { good, poison };
   }
-  function sense(w, c) {
+  function writeTowards(inputs, k, dx, dy, d2, cosH, sinH) {
+    const d = Math.sqrt(d2);
+    const ok = d > 0 && d !== Infinity;
+    const st = ok ? dy / d : 0;
+    const ct = ok ? dx / d : 1;
+    inputs[k] = st * cosH - ct * sinH;
+    inputs[k + 1] = ct * cosH + st * sinH;
+    inputs[k + 2] = Math.min(d / 200, 1);
+    return k + 3;
+  }
+  function writeNothing(inputs, k) {
+    inputs[k] = NOTHING[0];
+    inputs[k + 1] = NOTHING[1];
+    inputs[k + 2] = NOTHING[2];
+    return k + 3;
+  }
+  var foodHits = newFoodHits();
+  var creatureHit = { item: null, dx: 0, dy: 0, d2: 0 };
+  var perceived = { food: null, foodDist: Infinity };
+  function senseInto(w, c) {
     const r = w.rules;
     const walls = r.walls > 0;
     const g = w.grids;
-    const useFood = g !== null && g.foodOn;
-    const useCreatures = g !== null && g.creaturesOn;
-    const scan = useFood ? scanFoodGrid(w, g, c.x, c.y, r.senseFood2 ? 2 : 1) : scanFood(w, c.x, c.y, r.senseFood2 ? 2 : 1);
-    const foods = scan.good;
-    const f = foods[0];
-    const p = scan.poison;
+    const h = foodHits;
+    if (g !== null && g.foodOn) scanFoodGridInto(h, w, g, c.x, c.y, r.senseFood2 ? 2 : 1);
+    else scanFoodInto(h, w, c.x, c.y, r.senseFood2 ? 2 : 1);
+    const inputs = c.inputs;
     const cosH = cos(c.a);
     const sinH = sin(c.a);
-    const first = f ? towards(f.dx, f.dy, f.d2, cosH, sinH) : towards(0, 0, Infinity, cosH, sinH);
-    const inputs = [...first, c.energy];
+    const f = h.goodN > 0 ? h.good[0] : null;
+    let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
+    inputs[k++] = c.energy;
     if (r.senseFood2) {
-      const s = foods[1];
-      inputs.push(...s ? towards(s.dx, s.dy, s.d2, cosH, sinH) : NOTHING);
+      const s2 = h.goodN > 1 ? h.good[1] : null;
+      k = s2 ? writeTowards(inputs, k, s2.dx, s2.dy, s2.d2, cosH, sinH) : writeNothing(inputs, k);
     }
     if (r.senseCreature) {
-      const n = useCreatures ? nearestOne(g.creatures, w.creatures, c.x, c.y, walls, c, true) : nearest(w.creatures, c.x, c.y, walls, 1, (o) => o === c || !o.alive)[0];
-      inputs.push(...n ? towards(n.dx, n.dy, n.d2, cosH, sinH) : NOTHING);
+      const found = g !== null && g.creaturesOn ? nearestOneInto(creatureHit, g.creatures, w.creatures, c.x, c.y, walls, c, true) : nearestBruteInto(creatureHit, w.creatures, c.x, c.y, walls, c, true);
+      k = found ? writeTowards(inputs, k, creatureHit.dx, creatureHit.dy, creatureHit.d2, cosH, sinH) : writeNothing(inputs, k);
     }
-    if (r.poison > 0) inputs.push(...p ? towards(p.dx, p.dy, p.d2, cosH, sinH) : NOTHING);
-    if (walls) inputs.push(wallAhead(c.x, c.y, c.a));
+    const p = h.hasPoison ? h.poison : null;
+    if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
+    if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
+    if (inputs.length !== k) inputs.length = k;
     const eat = p && (!f || p.d2 < f.d2) ? p : f;
-    return { inputs, food: eat ? eat.item : null, foodDist: eat ? Math.sqrt(eat.d2) : Infinity };
+    perceived.food = eat ? eat.item : null;
+    perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
+    return perceived;
   }
 
   // src/engine/creature.ts
@@ -773,11 +858,10 @@
   var USUAL_RATE = 2e-3;
   function live(w, c, costFactor) {
     const walls = w.rules.walls > 0;
-    const seen = sense(w, c);
-    c.inputs = seen.inputs;
-    const { hidden, out } = think(c.w, c.inputs);
-    c.hidden = hidden;
-    c.out = out;
+    const seen = senseInto(w, c);
+    thinkInto(c.w, c.inputs, c.hidden, c.out);
+    const hidden = c.hidden;
+    const out = c.out;
     const speed2 = (out[1] + 1) / 2 * 3;
     c.a += out[0] * 0.2;
     if (walls) {

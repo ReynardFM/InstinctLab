@@ -173,6 +173,24 @@ export class Grid {
 export function nearestOne<T extends Point>(
   grid: Grid, items: readonly T[], x: number, y: number, walls: boolean, skipItem: T | null, skipDead: boolean,
 ): Near<T> | undefined {
+  const hit = { item: null as T | null, dx: 0, dy: 0, d2: 0 };
+  return nearestOneInto(hit, grid, items, x, y, walls, skipItem, skipDead)
+    ? { item: hit.item!, dx: hit.dx, dy: hit.dy, d2: hit.d2 }
+    : undefined;
+}
+
+// A found item and its offset; reused by the every-tick searches so they make no garbage.
+export interface Hit<T> {
+  item: T | null;
+  dx: number;
+  dy: number;
+  d2: number;
+}
+
+// nearestOne() writing into `hit`; false when nothing was found.
+export function nearestOneInto<T extends Point>(
+  hit: Hit<T>, grid: Grid, items: readonly T[], x: number, y: number, walls: boolean, skipItem: T | null, skipDead: boolean,
+): boolean {
   let best = -1;
   let bdx = 0;
   let bdy = 0;
@@ -213,5 +231,48 @@ export function nearestOne<T extends Point>(
     }
     if (best >= 0 && bd2 < r * r * CELL * CELL) break;
   }
-  return best >= 0 ? { item: items[best], dx: bdx, dy: bdy, d2: bd2 } : undefined;
+  if (best < 0) return false;
+  hit.item = items[best];
+  hit.dx = bdx;
+  hit.dy = bdy;
+  hit.d2 = bd2;
+  return true;
+}
+
+// The nearest item that is not skipped, checking every one (brute force), into `hit`: same answer as
+// nearest(items, x, y, walls, 1, skip)[0], without the arrays and the skip function.
+export function nearestBruteInto<T extends Point>(
+  hit: Hit<T>, items: readonly T[], x: number, y: number, walls: boolean, skipItem: T | null, skipDead: boolean,
+): boolean {
+  let best = -1;
+  let bdx = 0;
+  let bdy = 0;
+  let bd2 = 0;
+  const halfW = W / 2;
+  const halfH = H / 2;
+  for (let j = 0; j < items.length; j++) {
+    const item = items[j];
+    if (item === skipItem || (skipDead && !(item as unknown as { alive: boolean }).alive)) continue;
+    let dx = item.x - x;
+    let dy = item.y - y;
+    if (!walls) {
+      if (dx > halfW) dx -= W;
+      else if (dx < -halfW) dx += W;
+      if (dy > halfH) dy -= H;
+      else if (dy < -halfH) dy += H;
+    }
+    const d2 = dx * dx + dy * dy;
+    if (best < 0 || d2 < bd2) {
+      best = j;
+      bdx = dx;
+      bdy = dy;
+      bd2 = d2;
+    }
+  }
+  if (best < 0) return false;
+  hit.item = items[best];
+  hit.dx = bdx;
+  hit.dy = bdy;
+  hit.d2 = bd2;
+  return true;
 }

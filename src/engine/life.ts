@@ -3,9 +3,9 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { newFood } from "./creature.ts";
-import { learn, think } from "./brain.ts";
+import { learn, thinkInto } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { sense } from "./senses.ts";
+import { senseInto } from "./senses.ts";
 import { H, W } from "./space.ts";
 
 // Energy a creature loses by eating poison (good food gives +0.3).
@@ -19,11 +19,10 @@ export const USUAL_RATE = 0.002;
 // costFactor multiplies the energy cost (ageing in ecosystem mode; 1 otherwise).
 export function live(w: World, c: Creature, costFactor: number): void {
   const walls = w.rules.walls > 0;
-  const seen = sense(w, c);
-  c.inputs = seen.inputs;
-  const { hidden, out } = think(c.w, c.inputs);
-  c.hidden = hidden;
-  c.out = out;
+  const seen = senseInto(w, c); // fills c.inputs
+  thinkInto(c.w, c.inputs, c.hidden, c.out); // fills c.hidden, c.out
+  const hidden = c.hidden;
+  const out = c.out;
 
   const speed = ((out[1] + 1) / 2) * 3;
   c.a += out[0] * 0.2;
