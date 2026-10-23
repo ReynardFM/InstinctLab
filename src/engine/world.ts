@@ -45,6 +45,7 @@ export interface Rules {
   hidden: number; // middle neurons in each brain (more = can learn more complex behaviour, more weights to evolve)
   poison: number; // share of food that is poison (costs POISON_HIT energy, worth nothing); 0 = none
   regrow: number; // ticks before eaten food reappears somewhere new; 0 = at once
+  foodSpread: number; // ecosystem: food spreads like plants: chance per tick that a pellet sprouts a new one nearby; 0 = off (plants.ts). With hunters: 0.0005 and food 60 (or food 120 without it)
   energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
   mode: number; // 0 = generations (everyone replaced together); 1 = ecosystem (continuous births and deaths)
   birth: number; // ecosystem: 0 = a full creature splits off a child; 1 = two full creatures that meet have one
@@ -68,6 +69,9 @@ export interface Rules {
   hunterMeal: number; // ecosystem: energy a hunter gains per catch (it holds at most 1.5)
   hunterBirth: number; // ecosystem: energy at which a hunter splits off a baby (half its energy goes to it)
   hunterAge: number; // ecosystem: a hunter dies at this age (ticks)
+  hunterMature: number; // ecosystem: age before a hunter can have babies
+  hunterBirthChance: number; // ecosystem: chance per tick that a full adult hunter has a baby, just after it
+  // matures; it falls in a straight line to 0 at hunterAge (older = harder)
   hunterFrom: number; // generation the hunters arrive in (1 = from the start). With brains, half of the first
   // hunters borrow the main brains of extinct prey families, so give the prey some generations first
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
@@ -85,7 +89,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, // tuned with food 120 (README 2026-10-23)
+  foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
 export interface World {

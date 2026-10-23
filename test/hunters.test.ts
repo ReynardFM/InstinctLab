@@ -106,7 +106,7 @@ test("gene pool: when the maps don't reach every brain, turns carry over to the 
 });
 
 // ---------- ecosystem hunters (Rey's brief 2026-10-23) ----------
-import { BEST_KEEP, HUNTER_CAP, remember, thinHunters, type BestBrain } from "../src/engine/hunters.ts";
+import { BEST_KEEP, HUNTER_CAP, liveEcoHunters, remember, thinHunters, type BestBrain } from "../src/engine/hunters.ts";
 import { runTicks } from "../src/engine/world.ts";
 import { inEcosystem } from "../src/engine/mode.ts";
 
@@ -156,7 +156,7 @@ test("ecosystem hunters: starving hunters end the round; the hunters restart fro
 });
 
 test("ecosystem hunters: births stop at the safety cap", () => {
-  const w = toEco(4, { hunterHunger: 0, hunterBirth: 0.001 }); // every hunter splits every tick (a baby takes half: 10 halvings to go below 0.001)
+  const w = toEco(4, { hunterHunger: 0, hunterBirth: 0.001, hunterMature: 0, hunterBirthChance: 1 }); // every hunter splits every tick (a baby takes half: 10 halvings to go below 0.001)
   runTicks(w, 30);
   assert.equal(w.hunters.length, HUNTER_CAP);
 });
@@ -190,4 +190,23 @@ test("after a prey wipe the hunters are cut back to 4: the best, the 2 nearest t
   assert.equal(w.hunters[0].brain!.id, 101);
   assert.equal(w.hunters[3].brain!.origin, "random");
   assert.equal(w.hunters[3].brain!.caught, 0);
+});
+
+test("ecosystem hunters: no babies before rules.hunterMature", () => {
+  const w = toEco(9, { hunterHunger: 0, hunterBirth: 0.5, hunterMature: 40, hunterBirthChance: 1, hunterAge: 100000 });
+  runTicks(w, 39); // a hunter's age goes up before the baby check: after tick k it is k, so 39 here
+  assert.equal(w.eco.hunterBirths, 0, "all still young");
+  runTicks(w, 2);
+  assert.ok(w.eco.hunterBirths > 0, "adults now");
+});
+
+test("ecosystem hunters: older is harder; at old age no babies at all", () => {
+  // fertility falls from 1 at maturity to 0 at hunterAge: with chance 1, a full hunter just grown up always
+  // has a baby; one 1 tick before old age almost never does
+  const w = toEco(9, { hunterHunger: 0, hunterBirth: 0.5, hunterMature: 0, hunterBirthChance: 1, hunterAge: 1000 });
+  runTicks(w, 1);
+  for (const h of w.hunters) { h.age = 999; h.energy = 1.5; }
+  const births = w.eco.hunterBirths;
+  liveEcoHunters(w); // age becomes 1000 = hunterAge: fertility 0 -> no babies, and they die of old age
+  assert.equal(w.eco.hunterBirths, births);
 });

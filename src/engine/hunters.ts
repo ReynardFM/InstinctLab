@@ -293,13 +293,15 @@ export function breedHunters(w: World): void {
 
 // ---------- ecosystem mode (Rey's brief 2026-10-23) ----------
 // Hunters live like prey: energy drains every tick (rules.hunterHunger), a catch refills it
-// (rules.hunterMeal), a hunter with rules.hunterBirth energy splits off a baby with half its energy and a
-// mutated copy of its brain, and a hunter dies when its energy runs out or at rules.hunterAge. When one
+// (rules.hunterMeal), a hunter with rules.hunterBirth energy may split off a baby with half its energy and a
+// mutated copy of its brain, and a hunter dies when its energy runs out or at rules.hunterAge.
+// Babies (Rey 2026-10-23): only adults (age rules.hunterMature or more), and older is harder: a full adult
+// has a baby with chance rules.hunterBirthChance per tick just after maturing, falling to 0 at hunterAge. When one
 // side dies out, the round ends and that side restarts from its best brains so far (hunters: most prey
 // caught in a lifetime; prey: longest life); the other side carries on as it is.
 
 export const MAX_ENERGY = 1.5; // the most a hunter can hold (the same as prey)
-export const HUNTER_CAP = 60; // safety limit for speed, not a game rule: hunter births pause at it
+export const HUNTER_CAP = 300; // safety limit for speed, not a game rule: hunter births pause at it
 export const BEST_KEEP = 8; // best brains remembered per side for a restart
 
 export interface BestBrain {
@@ -338,7 +340,9 @@ export function liveEcoHunters(w: World): void {
   for (const h of w.hunters) {
     h.energy -= r.hunterHunger;
     h.age++;
-    if (h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP) {
+    const adult = h.age >= r.hunterMature;
+    const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
+    if (adult && h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP && w.hrng.next() < r.hunterBirthChance * fertile) {
       const half = h.energy / 2;
       h.energy -= half;
       const p = h.brain!;

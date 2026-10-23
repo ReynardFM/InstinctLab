@@ -9,6 +9,7 @@ import { maybeSplit, newFamily, retire } from "./lineage.ts";
 import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
+import { spreadFood, spreading } from "./plants.ts";
 import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
@@ -21,6 +22,7 @@ export function stepEcosystem(w: World): void {
   const { rules } = w;
   const scale = rules.ageScale;
   const hunting = rules.hunters > 0;
+  if (spreading(w)) spreadFood(w);
   if (hunting && !w.eco.huntersStarted) {
     startEcoHunters(w); // the ecosystem's first tick: the hunters come in
     w.eco.roundStart = w.tick;

@@ -872,6 +872,54 @@
     return Math.sqrt(s / a.length);
   }
 
+  // src/engine/plants.ts
+  var SPREAD_RANGE = 25;
+  var PLANT_CAP = 3;
+  var spreading = (w) => w.rules.foodSpread > 0 && inEcosystem(w);
+  function spreadFood(w) {
+    const r = w.rules;
+    const food2 = w.food;
+    const tick = w.tick;
+    const walls = r.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    const free = [];
+    let good = 0;
+    let active = 0;
+    for (let i = 0; i < food2.length; i++) {
+      const f = food2[i];
+      if (f.poison) continue;
+      good++;
+      if (f.readyAt === Infinity) free.push(i);
+      else if (f.readyAt <= tick) active++;
+    }
+    const cap = Math.round(r.food * PLANT_CAP);
+    const n = food2.length;
+    for (let i = 0; i < n; i++) {
+      const f = food2[i];
+      if (f.poison || f.readyAt > tick) continue;
+      if (w.env.next() >= r.foodSpread) continue;
+      let slot = free.pop();
+      if (slot === void 0) {
+        if (good >= cap) continue;
+        slot = food2.length;
+        food2.push({ x: 0, y: 0, poison: false, readyAt: 0 });
+        good++;
+      }
+      const a = w.env.next() * Math.PI * 2;
+      const d = w.env.next() * SPREAD_RANGE;
+      const s = food2[slot];
+      s.x = place(f.x + cos(a) * d, W);
+      s.y = place(f.y + sin(a) * d, H);
+      s.readyAt = tick + 1;
+    }
+    if (active === 0 && free.length) {
+      const s = food2[free.pop()];
+      s.x = w.env.next() * W;
+      s.y = w.env.next() * H;
+      s.readyAt = tick + 1;
+    }
+  }
+
   // src/engine/life.ts
   var POISON_HIT = 0.5;
   var LEARN_DECAY = 0.9;
@@ -903,9 +951,13 @@
         c.eaten++;
         c.energy = Math.min(c.energy + 0.3, 1.5);
       }
-      Object.assign(seen.food, newFood(w, seen.food.poison));
-      if (w.grids?.foodOn) w.grids.food.move(seen.food.slot, seen.food.x, seen.food.y);
-      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+      if (!seen.food.poison && spreading(w)) {
+        seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow);
+      } else {
+        Object.assign(seen.food, newFood(w, seen.food.poison));
+        if (w.grids?.foodOn) w.grids.food.move(seen.food.slot, seen.food.x, seen.food.y);
+        if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+      }
     }
     const r = w.rules;
     if (r.thinkCost > 0) {
@@ -1147,7 +1199,7 @@
     w.hunterBrains = next;
   }
   var MAX_ENERGY = 1.5;
-  var HUNTER_CAP = 60;
+  var HUNTER_CAP = 300;
   var BEST_KEEP = 8;
   function remember(list, b) {
     if (list.length === BEST_KEEP && b.score <= list[list.length - 1].score) return;
@@ -1172,7 +1224,9 @@
     for (const h of w.hunters) {
       h.energy -= r.hunterHunger;
       h.age++;
-      if (h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP) {
+      const adult = h.age >= r.hunterMature;
+      const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
+      if (adult && h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP && w.hrng.next() < r.hunterBirthChance * fertile) {
         const half = h.energy / 2;
         h.energy -= half;
         const p = h.brain;
@@ -1237,6 +1291,7 @@
     const { rules } = w;
     const scale = rules.ageScale;
     const hunting = rules.hunters > 0;
+    if (spreading(w)) spreadFood(w);
     if (hunting && !w.eco.huntersStarted) {
       startEcoHunters(w);
       w.eco.roundStart = w.tick;
@@ -1420,10 +1475,13 @@
     hunterBrains: 0,
     hunterPool: 12,
     hunterFrom: 1,
+    foodSpread: 0,
     hunterHunger: 25e-4,
     hunterMeal: 0.5,
     hunterBirth: 1.4,
-    hunterAge: 6e3
+    hunterAge: 6e3,
+    hunterMature: 1e3,
+    hunterBirthChance: 0.03
     // tuned with food 120 (README 2026-10-23)
   };
   function createWorld(seed, rules, start) {
@@ -2411,6 +2469,8 @@
     ["hunterMeal", "Hunter energy per catch", 0.1, 1, 0.05, "Ecosystem mode. A hunter holds at most 1.5."],
     ["hunterBirth", "Hunter energy for a baby", 0.6, 1.5, 0.05, "Ecosystem mode: a hunter this full splits off a baby with half its energy."],
     ["hunterAge", "Hunters die of old age at", 1e3, 2e4, 500, "Ecosystem mode, in ticks."],
+    ["hunterMature", "Hunters can have babies from age", 0, 5e3, 100, "Ecosystem mode, in ticks: young hunters can't have babies."],
+    ["hunterBirthChance", "Hunter baby chance per tick", 1e-3, 0.1, 1e-3, "Ecosystem mode: for a full adult hunter just grown up; it falls to 0 at old age (older = harder)."],
     ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
     ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
@@ -2419,6 +2479,7 @@
     ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
     ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
     ["poison", "Share of food that is poison", 0, 0.5, 0.05, "Purple rings. Cost 0.5 energy, worth nothing. Adds a poison sense."],
+    ["foodSpread", "Food spreads like plants", 0, 0.01, 5e-4, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x); an eaten one regrows in place. Poison doesn't spread. 0 = off."],
     ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
     ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
     ["senseFood2", "Sense the second-nearest food", 0, 1, 1, "Adds 3 inputs to the brain."],
@@ -2427,11 +2488,11 @@
   ];
   var RULE_GROUPS = [
     ["Population and time", ["pop", "genTicks", "layouts"]],
-    ["Food", ["food", "poison", "regrow", "energyCost", "swapKinds"]],
+    ["Food", ["food", "poison", "regrow", "foodSpread", "energyCost", "swapKinds"]],
     ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
     ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
     ["Families", ["splitDistance", "splitProof", "championStreak"]],
-    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom", "hunterHunger", "hunterMeal", "hunterBirth", "hunterAge"]],
+    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom", "hunterHunger", "hunterMeal", "hunterBirth", "hunterAge", "hunterMature", "hunterBirthChance"]],
     ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
     ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]]
   ];

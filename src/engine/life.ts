@@ -7,6 +7,7 @@ import { learn, thinkInto } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { senseInto } from "./senses.ts";
 import { H, W } from "./space.ts";
+import { spreading } from "./plants.ts";
 
 // Energy a creature loses by eating poison (good food gives +0.3).
 export const POISON_HIT = 0.5;
@@ -46,9 +47,13 @@ export function live(w: World, c: Creature, costFactor: number): void {
       c.eaten++;
       c.energy = Math.min(c.energy + 0.3, 1.5);
     }
-    Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new
-    if (w.grids?.foodOn) w.grids.food.move(seen.food.slot!, seen.food.x, seen.food.y);
-    if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+    if (!seen.food.poison && spreading(w)) {
+      seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow); // spreading food (plants.ts): an eaten plant regrows where it was
+    } else {
+      Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new
+      if (w.grids?.foodOn) w.grids.food.move(seen.food.slot!, seen.food.x, seen.food.y);
+      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+    }
   }
   const r = w.rules;
   if (r.thinkCost > 0) {

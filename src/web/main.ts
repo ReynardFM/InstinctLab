@@ -800,6 +800,8 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["hunterMeal", "Hunter energy per catch", 0.1, 1, 0.05, "Ecosystem mode. A hunter holds at most 1.5."],
   ["hunterBirth", "Hunter energy for a baby", 0.6, 1.5, 0.05, "Ecosystem mode: a hunter this full splits off a baby with half its energy."],
   ["hunterAge", "Hunters die of old age at", 1000, 20000, 500, "Ecosystem mode, in ticks."],
+  ["hunterMature", "Hunters can have babies from age", 0, 5000, 100, "Ecosystem mode, in ticks: young hunters can't have babies."],
+  ["hunterBirthChance", "Hunter baby chance per tick", 0.001, 0.1, 0.001, "Ecosystem mode: for a full adult hunter just grown up; it falls to 0 at old age (older = harder)."],
   ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
   ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
@@ -808,6 +810,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
   ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
   ["poison", "Share of food that is poison", 0, 0.5, 0.05, "Purple rings. Cost 0.5 energy, worth nothing. Adds a poison sense."],
+  ["foodSpread", "Food spreads like plants", 0, 0.01, 0.0005, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x); an eaten one regrows in place. Poison doesn't spread. 0 = off."],
   ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
   ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
   ["senseFood2", "Sense the second-nearest food", 0, 1, 1, "Adds 3 inputs to the brain."],
@@ -818,11 +821,11 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
 // The rules drawer, in groups. A rule left out of every group still shows, under "Other" (so a new rule is never hidden).
 const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Population and time", ["pop", "genTicks", "layouts"]],
-  ["Food", ["food", "poison", "regrow", "energyCost", "swapKinds"]],
+  ["Food", ["food", "poison", "regrow", "foodSpread", "energyCost", "swapKinds"]],
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
   ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],
-  ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom", "hunterHunger", "hunterMeal", "hunterBirth", "hunterAge"]],
+  ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom", "hunterHunger", "hunterMeal", "hunterBirth", "hunterAge", "hunterMature", "hunterBirthChance"]],
   ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
   ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]],
 ];
