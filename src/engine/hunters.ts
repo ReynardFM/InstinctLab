@@ -10,6 +10,9 @@
 // of the most recently extinct prey families ("borrowed"), half random brains ("random"). Every hunter keeps
 // the tag of the brain its line started from, so the lab can see which start wins.
 // Hunters have their own random numbers (World.hrng): turning them on doesn't change the prey's draws.
+// Gene pool (rules.hunterPool): more brains are kept than hunt at once; each food map takes the next
+// rules.hunters of them in turn, and a brain is scored by catches per map it played. With 4 brains for 4
+// hunters the pool stopped improving after about 10 generations; 12 kept improving (README, 2026-10-22).
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { genomeSize, thinkInto, type Genome } from "./brain.ts";
@@ -32,7 +35,8 @@ export interface HunterBrain {
   g: Genome; // weights only (a borrowed brain's evolved learning rates, if any, are left behind)
   origin: Origin; // what its line started from
   from: number | null; // borrowed: the prey family whose main brain it started as
-  caught: number; // prey caught this generation, all food maps
+  caught: number; // prey caught this generation, all food maps it played
+  maps: number; // food maps it played this generation
   a: number; // heading on the current map
   // last senses and thoughts (like a creature's), for the page
   inputs: number[];
@@ -61,7 +65,14 @@ export function placeHunters(w: World): void {
   if (!huntersArrived(w)) return;
   if (w.rules.hunterBrains > 0) {
     if (w.hunterBrains.length === 0) w.hunterBrains = firstHunterBrains(w);
-    for (const b of w.hunterBrains) {
+    const pool = w.hunterBrains.length;
+    const onMap = Math.min(w.rules.hunters, pool);
+    // in turn: map 0 takes brains 0..3, map 1 brains 4..7 and so on; when a generation's maps don't reach
+    // every brain, the next generation carries on where this one stopped
+    const start = (w.generation * Math.max(1, w.rules.layouts) + w.layout) * onMap;
+    for (let i = 0; i < onMap; i++) {
+      const b = w.hunterBrains[(start + i) % pool];
+      b.maps++;
       b.a = w.env.next() * Math.PI * 2;
       w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b });
     }
@@ -74,7 +85,7 @@ const hunterGenomeLength = (w: World) => genomeSize(inputCount(w.rules), w.rules
 
 function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null): HunterBrain {
   return {
-    id: w.nextHunterId++, g, origin, from, caught: 0, a: 0,
+    id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0,
     inputs: new Array(inputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
   };
 }
@@ -82,8 +93,10 @@ function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null
 // The first hunters: borrowed and random alternate (borrowed first), the borrowed ones from the most
 // recently extinct families, newest first. With fewer extinct families than borrowed seats, the rest are
 // random (and tagged random: the tag says what the brain is, not what the seat was meant for).
+export const poolSize = (w: World) => Math.max(w.rules.hunters, w.rules.hunterPool);
+
 export function firstHunterBrains(w: World): HunterBrain[] {
-  const n = w.rules.hunters;
+  const n = poolSize(w);
   const len = hunterGenomeLength(w);
   const dead = w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
   const out: HunterBrain[] = [];
@@ -239,24 +252,27 @@ function moveBrainHunters(w: World): void {
 }
 
 // After a generation (brain hunters that have arrived): record how they did, then breed the next hunters.
-// The best is copied unchanged; the others are children of the better half, nudged by rules.mutation.
-// A child keeps its parent's origin tag. Same count as before (rules.hunters).
-export function breedHunters(w: World, per: number): void {
+// Score = catches per map played (a brain that played no map this generation ranks last). The best is
+// copied unchanged; the others are children of the better half, nudged by rules.mutation. A child keeps
+// its parent's origin tag. The pool keeps its size (poolSize).
+export function breedHunters(w: World): void {
   const bs = w.hunterBrains;
   if (bs.length === 0) return;
-  const ranked = [...bs].sort((a, b) => b.caught - a.caught); // stable: ties keep the earlier hunter
-  const avgOf = (o: Origin) => {
-    const xs = bs.filter((b) => b.origin === o);
-    return xs.length ? xs.reduce((s, b) => s + b.caught, 0) / xs.length / per : null;
+  const rate = (b: HunterBrain) => (b.maps > 0 ? b.caught / b.maps : -1);
+  const ranked = [...bs].sort((a, b) => rate(b) - rate(a)); // stable: ties keep the earlier hunter
+  const perMap = (xs: HunterBrain[]) => {
+    const maps = xs.reduce((s, b) => s + b.maps, 0);
+    return maps > 0 ? xs.reduce((s, b) => s + b.caught, 0) / maps : null;
   };
+  const avgOf = (o: Origin) => perMap(bs.filter((b) => b.origin === o));
   w.hunterHist.push({
-    avg: bs.reduce((s, b) => s + b.caught, 0) / bs.length / per,
-    best: ranked[0].caught / per,
+    avg: perMap(bs) ?? 0,
+    best: Math.max(0, rate(ranked[0])),
     borrowed: bs.filter((b) => b.origin === "borrowed").length / bs.length,
     avgBorrowed: avgOf("borrowed"),
     avgRandom: avgOf("random"),
   });
-  const n = w.rules.hunters;
+  const n = poolSize(w);
   const parents = Math.max(1, Math.ceil(ranked.length / 2));
   const next: HunterBrain[] = [newHunterBrain(w, ranked[0].g, ranked[0].origin, ranked[0].from)];
   while (next.length < n) {

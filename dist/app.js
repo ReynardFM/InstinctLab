@@ -1055,7 +1055,12 @@
     if (!huntersArrived(w)) return;
     if (w.rules.hunterBrains > 0) {
       if (w.hunterBrains.length === 0) w.hunterBrains = firstHunterBrains(w);
-      for (const b of w.hunterBrains) {
+      const pool = w.hunterBrains.length;
+      const onMap = Math.min(w.rules.hunters, pool);
+      const start = (w.generation * Math.max(1, w.rules.layouts) + w.layout) * onMap;
+      for (let i = 0; i < onMap; i++) {
+        const b = w.hunterBrains[(start + i) % pool];
+        b.maps++;
         b.a = w.env.next() * Math.PI * 2;
         w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b });
       }
@@ -1071,14 +1076,16 @@
       origin,
       from,
       caught: 0,
+      maps: 0,
       a: 0,
       inputs: new Array(inputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
     };
   }
+  var poolSize = (w) => Math.max(w.rules.hunters, w.rules.hunterPool);
   function firstHunterBrains(w) {
-    const n = w.rules.hunters;
+    const n = poolSize(w);
     const len = hunterGenomeLength(w);
     const dead = w.legacy.filter((f) => f.ref.length >= len).reverse();
     const out = [];
@@ -1222,22 +1229,24 @@
       if (near.i1 >= 0 && near.d21 < CATCH * CATCH) catchPrey(w, h, w.creatures[near.i1]);
     }
   }
-  function breedHunters(w, per) {
+  function breedHunters(w) {
     const bs = w.hunterBrains;
     if (bs.length === 0) return;
-    const ranked = [...bs].sort((a, b) => b.caught - a.caught);
-    const avgOf = (o) => {
-      const xs = bs.filter((b) => b.origin === o);
-      return xs.length ? xs.reduce((s, b) => s + b.caught, 0) / xs.length / per : null;
+    const rate = (b) => b.maps > 0 ? b.caught / b.maps : -1;
+    const ranked = [...bs].sort((a, b) => rate(b) - rate(a));
+    const perMap = (xs) => {
+      const maps = xs.reduce((s, b) => s + b.maps, 0);
+      return maps > 0 ? xs.reduce((s, b) => s + b.caught, 0) / maps : null;
     };
+    const avgOf = (o) => perMap(bs.filter((b) => b.origin === o));
     w.hunterHist.push({
-      avg: bs.reduce((s, b) => s + b.caught, 0) / bs.length / per,
-      best: ranked[0].caught / per,
+      avg: perMap(bs) ?? 0,
+      best: Math.max(0, rate(ranked[0])),
       borrowed: bs.filter((b) => b.origin === "borrowed").length / bs.length,
       avgBorrowed: avgOf("borrowed"),
       avgRandom: avgOf("random")
     });
-    const n = w.rules.hunters;
+    const n = poolSize(w);
     const parents = Math.max(1, Math.ceil(ranked.length / 2));
     const next = [newHunterBrain(w, ranked[0].g, ranked[0].origin, ranked[0].from)];
     while (next.length < n) {
@@ -1290,6 +1299,7 @@
     hunterSense: 1,
     hunterSpeed: 2,
     hunterBrains: 0,
+    hunterPool: 12,
     hunterFrom: 1
   };
   function createWorld(seed, rules, start) {
@@ -1414,7 +1424,7 @@
     w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
     w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
     if (huntersArrived(w)) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
-    if (rules.hunterBrains > 0) breedHunters(w, per);
+    if (rules.hunterBrains > 0) breedHunters(w);
     const elite = Math.min(rules.elite, rules.pop);
     const parents = Math.max(1, Math.min(rules.parents, rules.pop));
     const next = [];
@@ -2254,6 +2264,7 @@
     ["hunters", "Hunters", 0, 20, 1, "Dark amoebae that hunt creatures (top speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
     ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
     ["hunterBrains", "Hunters evolve brains", 0, 1, 1, "Off = hunters chase the nearest creature. On = each hunter has a brain shaped like a creature's (its 'food' sense points at creatures) and the best catchers breed."],
+    ["hunterPool", "Hunter brains in the gene pool", 1, 40, 1, "With brains: more brains are kept than hunt at once; each food map uses the next ones in turn. Fewer than the hunters = the hunters."],
     ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
     ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
@@ -2274,7 +2285,7 @@
     ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
     ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
     ["Families", ["splitDistance", "splitProof", "championStreak"]],
-    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterFrom"]],
+    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom"]],
     ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
     ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]]
   ];

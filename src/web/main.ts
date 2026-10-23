@@ -795,6 +795,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["hunters", "Hunters", 0, 20, 1, "Dark amoebae that hunt creatures (top speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
   ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
   ["hunterBrains", "Hunters evolve brains", 0, 1, 1, "Off = hunters chase the nearest creature. On = each hunter has a brain shaped like a creature's (its 'food' sense points at creatures) and the best catchers breed."],
+  ["hunterPool", "Hunter brains in the gene pool", 1, 40, 1, "With brains: more brains are kept than hunt at once; each food map uses the next ones in turn. Fewer than the hunters = the hunters."],
   ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
   ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
   ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
@@ -817,7 +818,7 @@ const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
   ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],
-  ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterFrom"]],
+  ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom"]],
   ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
   ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]],
 ];

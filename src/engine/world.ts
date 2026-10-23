@@ -63,6 +63,7 @@ export interface Rules {
   // reading "nothing there" (a fair control: same brain size, no information)
   hunterSpeed: number; // hunters' speed (prey: up to 3)
   hunterBrains: number; // 1 = hunters have brains and evolve, scored by prey caught (hunters.ts); 0 = chasers
+  hunterPool: number; // hunters with brains: brains kept (gene pool); each food map uses rules.hunters of them in turn
   hunterFrom: number; // generation the hunters arrive in (1 = from the start). With brains, half of the first
   // hunters borrow the main brains of extinct prey families, so give the prey some generations first
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
@@ -79,7 +80,7 @@ export const DEFAULT_RULES: Rules = {
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
-  hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterFrom: 1,
+  hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
 };
 
 export interface World {
@@ -286,7 +287,7 @@ export function nextGeneration(w: World): void {
   w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
   w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
   if (huntersArrived(w)) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
-  if (rules.hunterBrains > 0) breedHunters(w, per); // own random numbers: the prey's draws below are unchanged
+  if (rules.hunterBrains > 0) breedHunters(w); // own random numbers: the prey's draws below are unchanged
 
   const elite = Math.min(rules.elite, rules.pop);
   const parents = Math.max(1, Math.min(rules.parents, rules.pop));
