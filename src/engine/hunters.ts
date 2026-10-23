@@ -375,3 +375,30 @@ export function restartHunters(w: World): void {
     w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
   }
 }
+
+// After a prey wipe (Rey's call 2026-10-23): the surviving hunters are cut back to rules.hunters, so the
+// new prey get a chance: the best catcher, the ones closest to the average catch (at or below it first),
+// and one new random brain. With 4: 1 best, 2 average, 1 random. Scores are prey caught in a lifetime;
+// ties keep the earlier hunter. The hunters cut are remembered like any that died.
+export function thinHunters(w: World): void {
+  const n = w.rules.hunters;
+  const hs = w.hunters;
+  if (hs.length <= n) return;
+  const score = (h: Hunter) => h.brain!.caught;
+  let best = hs[0];
+  for (const h of hs) if (score(h) > score(best)) best = h;
+  const mean = hs.reduce((s, h) => s + score(h), 0) / hs.length;
+  const key = (h: Hunter) => (score(h) <= mean ? mean - score(h) : 1e9 + score(h) - mean); // at or below the average first
+  const average = hs.filter((h) => h !== best).sort((a, b) => key(a) - key(b)).slice(0, Math.max(0, n - 2));
+  const keep = n >= 1 ? [best, ...average] : [];
+  for (const h of hs) {
+    if (keep.includes(h)) continue;
+    const b = h.brain!;
+    remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+  }
+  if (n >= 2) {
+    const g = Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5);
+    keep.push(newEcoHunter(w, newHunterBrain(w, g, "random", null), w.hrng.next() * W, w.hrng.next() * H, 1));
+  }
+  w.hunters = keep;
+}

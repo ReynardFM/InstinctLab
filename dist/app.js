@@ -1204,6 +1204,28 @@
       w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
     }
   }
+  function thinHunters(w) {
+    const n = w.rules.hunters;
+    const hs = w.hunters;
+    if (hs.length <= n) return;
+    const score = (h) => h.brain.caught;
+    let best = hs[0];
+    for (const h of hs) if (score(h) > score(best)) best = h;
+    const mean2 = hs.reduce((s, h) => s + score(h), 0) / hs.length;
+    const key = (h) => score(h) <= mean2 ? mean2 - score(h) : 1e9 + score(h) - mean2;
+    const average = hs.filter((h) => h !== best).sort((a, b) => key(a) - key(b)).slice(0, Math.max(0, n - 2));
+    const keep = n >= 1 ? [best, ...average] : [];
+    for (const h of hs) {
+      if (keep.includes(h)) continue;
+      const b = h.brain;
+      remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+    }
+    if (n >= 2) {
+      const g = Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5);
+      keep.push(newEcoHunter(w, newHunterBrain(w, g, "random", null), w.hrng.next() * W, w.hrng.next() * H, 1));
+    }
+    w.hunters = keep;
+  }
 
   // src/engine/ecosystem.ts
   var ECO_SAMPLE = 100;
@@ -1292,6 +1314,7 @@
         w.eco.rounds.push({ start: w.eco.roundStart, end: w.tick, died: preyGone && huntersGone ? "both" : preyGone ? "prey" : "hunters" });
         w.eco.roundStart = w.tick;
         if (preyGone) restartPrey(w);
+        if (preyGone && !huntersGone) thinHunters(w);
         if (huntersGone) restartHunters(w);
       }
     } else if (w.creatures.length === 0) rescue(w);

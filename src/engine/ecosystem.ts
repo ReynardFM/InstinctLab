@@ -9,7 +9,7 @@ import { maybeSplit, newFamily, retire } from "./lineage.ts";
 import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
-import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters } from "./hunters.ts";
+import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
 export const RESCUE = 40; // fresh random founders put in when everyone has died (same as the starting population)
@@ -106,6 +106,7 @@ export function stepEcosystem(w: World): void {
       w.eco.rounds.push({ start: w.eco.roundStart, end: w.tick, died: preyGone && huntersGone ? "both" : preyGone ? "prey" : "hunters" });
       w.eco.roundStart = w.tick;
       if (preyGone) restartPrey(w);
+      if (preyGone && !huntersGone) thinHunters(w); // so the new prey aren't eaten at once
       if (huntersGone) restartHunters(w);
     }
   } else if (w.creatures.length === 0) rescue(w);

@@ -106,7 +106,7 @@ test("gene pool: when the maps don't reach every brain, turns carry over to the 
 });
 
 // ---------- ecosystem hunters (Rey's brief 2026-10-23) ----------
-import { BEST_KEEP, HUNTER_CAP, remember, type BestBrain } from "../src/engine/hunters.ts";
+import { BEST_KEEP, HUNTER_CAP, remember, thinHunters, type BestBrain } from "../src/engine/hunters.ts";
 import { runTicks } from "../src/engine/world.ts";
 import { inEcosystem } from "../src/engine/mode.ts";
 
@@ -177,4 +177,17 @@ test("ecosystem hunters: when all prey die, prey restart from the longest-lived 
   assert.ok(r && (r.died === "prey" || r.died === "both"), JSON.stringify(w.eco.rounds));
   assert.ok(w.creatures.length > 0, "new prey");
   assert.ok(w.nextFamilyId > before, "each restart brain starts a family");
+});
+
+test("after a prey wipe the hunters are cut back to 4: the best, the 2 nearest the average (at or below), 1 new random", () => {
+  const w = toEco(8, {});
+  runTicks(w, 1);
+  const catches = [5, 9, 2, 4, 9, 6, 1, 3]; // average 4.875: at or below it, nearest first: 4, 3, 2, 1
+  w.hunters = catches.map((c, i) => ({ ...w.hunters[0], brain: { ...w.hunters[0].brain!, id: 100 + i, caught: c } }));
+  thinHunters(w);
+  assert.equal(w.hunters.length, 4);
+  assert.deepEqual(w.hunters.slice(0, 3).map((h) => h.brain!.caught), [9, 4, 3], "the first 9 (earlier), then 4 and 3");
+  assert.equal(w.hunters[0].brain!.id, 101);
+  assert.equal(w.hunters[3].brain!.origin, "random");
+  assert.equal(w.hunters[3].brain!.caught, 0);
 });
