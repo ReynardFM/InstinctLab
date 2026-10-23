@@ -6,7 +6,7 @@ import { cos, sin } from "./dmath.ts";
 import { centre, inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
 import { live } from "./life.ts";
-import { breedHunters, huntersArrived, moveHunters, placeHunters, type Hunter, type HunterBrain, type HunterStats } from "./hunters.ts";
+import { breedHunters, huntersArrived, moveHunters, placeHunters, type BestBrain, type Hunter, type HunterBrain, type HunterStats } from "./hunters.ts";
 import { inEcosystem } from "./mode.ts";
 export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
@@ -64,6 +64,10 @@ export interface Rules {
   hunterSpeed: number; // hunters' speed (prey: up to 3)
   hunterBrains: number; // 1 = hunters have brains and evolve, scored by prey caught (hunters.ts); 0 = chasers
   hunterPool: number; // hunters with brains: brains kept (gene pool); each food map uses rules.hunters of them in turn
+  hunterHunger: number; // ecosystem: energy a hunter loses each tick
+  hunterMeal: number; // ecosystem: energy a hunter gains per catch (it holds at most 1.5)
+  hunterBirth: number; // ecosystem: energy at which a hunter splits off a baby (half its energy goes to it)
+  hunterAge: number; // ecosystem: a hunter dies at this age (ticks)
   hunterFrom: number; // generation the hunters arrive in (1 = from the start). With brains, half of the first
   // hunters borrow the main brains of extinct prey families, so give the prey some generations first
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
@@ -81,6 +85,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
+  hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, // tuned with food 120 (README 2026-10-23)
 };
 
 export interface World {
@@ -121,6 +126,13 @@ export interface World {
   eco: EcoStats; // ecosystem mode only
 }
 
+// A round of the ecosystem with hunters: from its start until one side (or both) died out.
+export interface Round {
+  start: number;
+  end: number;
+  died: "prey" | "hunters" | "both";
+}
+
 export interface EcoStats {
   births: number;
   deaths: number;
@@ -129,6 +141,17 @@ export interface EcoStats {
   popHist: number[]; // population, sampled every ECO_SAMPLE ticks
   ageHist: number[]; // average age, same samples
   recentDeaths: { x: number; y: number; tick: number }[]; // for the page's death marks (last 200)
+  // hunters (rules.hunters > 0)
+  huntersStarted: boolean;
+  hunterPopHist: number[]; // hunters alive, same samples as popHist
+  caught: number; // prey caught
+  hunterBirths: number;
+  hunterDeaths: number;
+  hunterOldAge: number; // hunter deaths from old age (rules.hunterAge)
+  rounds: Round[]; // finished rounds: one side died out
+  roundStart: number; // tick the current round started
+  bestPrey: BestBrain[]; // longest-lived prey so far (restart brains)
+  bestHunters: BestBrain[]; // hunters that caught the most in their life so far (restart brains)
 }
 
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
@@ -174,7 +197,11 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     nextBranchId: 0,
     failedBranches: 0,
     newcomerCount: 0,
-    eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] },
+    eco: {
+      births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [],
+      huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
+      rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
+    },
   };
   for (let i = 0; i < rules.pop; i++) {
     const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);

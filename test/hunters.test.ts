@@ -104,3 +104,77 @@ test("gene pool: when the maps don't reach every brain, turns carry over to the 
   for (const maps of mapsPlayed(rules, 5)) maps.forEach((m, i) => (total[i] += m)); // 20 seats
   assert.deepEqual(total, new Array(10).fill(2), "each brain got 2 turns in 5 generations");
 });
+
+// ---------- ecosystem hunters (Rey's brief 2026-10-23) ----------
+import { BEST_KEEP, HUNTER_CAP, remember, type BestBrain } from "../src/engine/hunters.ts";
+import { runTicks } from "../src/engine/world.ts";
+import { inEcosystem } from "../src/engine/mode.ts";
+
+const ECO = { ...DEFAULT_RULES, mode: 1, regrow: 100, pop: 20, genTicks: 300, ecoWarmup: 2, hunters: 4 };
+const toEco = (seed: number, extra = {}) => {
+  const w = createWorld(seed, { ...ECO, ...extra });
+  while (!inEcosystem(w)) runTicks(w, 1);
+  return w;
+};
+
+test("remember keeps the best 8, highest first; a tie doesn't push out an earlier brain", () => {
+  const list: BestBrain[] = [];
+  const b = (score: number, tag: number) => ({ g: [tag], score, origin: "random" as const, from: null });
+  [5, 9, 1, 7, 7, 3, 8, 2, 6, 4, 9].forEach((s, i) => remember(list, b(s, i)));
+  assert.equal(list.length, BEST_KEEP);
+  assert.deepEqual(list.map((x) => x.score), [9, 9, 8, 7, 7, 6, 5, 4]);
+  assert.deepEqual(list.slice(0, 2).map((x) => x.g[0]), [1, 10], "the earlier 9 stays ahead");
+});
+
+test("ecosystem hunters: none in the warm-up, rules.hunters come in on the first ecosystem tick", () => {
+  const w = createWorld(3, ECO);
+  runTicks(w, 10);
+  assert.equal(w.hunters.length, 0, "warm-up generation: no hunters");
+  while (!inEcosystem(w)) runTicks(w, 1);
+  runTicks(w, 1);
+  assert.ok(w.eco.huntersStarted);
+  assert.ok(w.hunters.length >= 1 && w.hunters.length <= 5, `about 4 hunters after one tick (${w.hunters.length})`);
+});
+
+test("ecosystem hunters: same seed, same run (populations, rounds, brains)", () => {
+  const snap = (w: World) => JSON.stringify([w.eco.popHist, w.eco.hunterPopHist, w.eco.rounds, w.eco.caught, w.hunters.map((h) => [h.x, h.energy, h.brain!.g])]);
+  const a = toEco(5);
+  const b = toEco(5);
+  runTicks(a, 3000);
+  runTicks(b, 3000);
+  assert.equal(snap(a), snap(b));
+  assert.ok(a.eco.caught > 0, "they catch something");
+});
+
+test("ecosystem hunters: starving hunters end the round; the hunters restart from the best catchers", () => {
+  const w = toEco(2, { hunterHunger: 0.4 }); // empty in 3 ticks unless they eat
+  runTicks(w, 3);
+  const r = w.eco.rounds[0];
+  assert.ok(r && (r.died === "hunters" || r.died === "both"), JSON.stringify(w.eco.rounds));
+  assert.equal(w.hunters.length, 4, "rules.hunters new hunters");
+  assert.ok(w.hunters.every((h) => h.energy === 1 && h.age === 0));
+});
+
+test("ecosystem hunters: births stop at the safety cap", () => {
+  const w = toEco(4, { hunterHunger: 0, hunterBirth: 0.001 }); // every hunter splits every tick (a baby takes half: 10 halvings to go below 0.001)
+  runTicks(w, 30);
+  assert.equal(w.hunters.length, HUNTER_CAP);
+});
+
+test("ecosystem hunters: hunters die of old age", () => {
+  const w = toEco(6, { hunterHunger: 0, hunterAge: 50, hunterBirth: 2 }); // no hunger, no babies
+  runTicks(w, 49);
+  assert.equal(w.eco.hunterOldAge, 0);
+  runTicks(w, 2);
+  assert.equal(w.eco.hunterOldAge, 4, "the first 4 died at age 50");
+});
+
+test("ecosystem hunters: when all prey die, prey restart from the longest-lived brains", () => {
+  const w = toEco(7, { energyCost: 400 }); // prey starve within a few ticks
+  const before = w.nextFamilyId;
+  runTicks(w, 30);
+  const r = w.eco.rounds.find((x) => x.died !== "hunters");
+  assert.ok(r && (r.died === "prey" || r.died === "both"), JSON.stringify(w.eco.rounds));
+  assert.ok(w.creatures.length > 0, "new prey");
+  assert.ok(w.nextFamilyId > before, "each restart brain starts a family");
+});

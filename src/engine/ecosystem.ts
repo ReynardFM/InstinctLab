@@ -9,6 +9,7 @@ import { maybeSplit, newFamily, retire } from "./lineage.ts";
 import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
+import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
 export const RESCUE = 40; // fresh random founders put in when everyone has died (same as the starting population)
@@ -19,6 +20,11 @@ const KEEP_DEATHS = 200;
 export function stepEcosystem(w: World): void {
   const { rules } = w;
   const scale = rules.ageScale;
+  const hunting = rules.hunters > 0;
+  if (hunting && !w.eco.huntersStarted) {
+    startEcoHunters(w); // the ecosystem's first tick: the hunters come in
+    w.eco.roundStart = w.tick;
+  }
   prepareGrids(w);
   for (const c of w.creatures) {
     if (!c.alive) continue;
@@ -26,6 +32,7 @@ export function stepEcosystem(w: World): void {
     c.age++;
   }
   w.grids = null; // births and deaths below change the creature list
+  if (hunting) moveHunters(w); // caught prey are marked dead and leave with the starved below
 
   // births: children are added after everyone has moved, and act from the next tick
   const born: Creature[] = [];
@@ -84,12 +91,24 @@ export function stepEcosystem(w: World): void {
     }
     w.eco.deaths++;
     if (scale > 0 && c.age >= scale) w.eco.oldAge++;
+    if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
     w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
   }
   if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
   w.creatures = alive.concat(born);
 
-  if (w.creatures.length === 0) rescue(w);
+  if (hunting) {
+    liveEcoHunters(w);
+    // a side died out: the round ends, and that side restarts from its best brains
+    const preyGone = w.creatures.length === 0;
+    const huntersGone = w.hunters.length === 0;
+    if (preyGone || huntersGone) {
+      w.eco.rounds.push({ start: w.eco.roundStart, end: w.tick, died: preyGone && huntersGone ? "both" : preyGone ? "prey" : "hunters" });
+      w.eco.roundStart = w.tick;
+      if (preyGone) restartPrey(w);
+      if (huntersGone) restartHunters(w);
+    }
+  } else if (w.creatures.length === 0) rescue(w);
 
   // families with no members left move to the legacy record (stamped with the tick)
   const present = new Set(w.creatures.map((c) => c.family));
@@ -125,8 +144,28 @@ function rescue(w: World): void {
   w.eco.rescues++;
 }
 
+// With hunters, all prey died: RESCUE new prey from the longest-lived brains so far (each as it is once,
+// then mutated copies, round-robin), each source brain starting its own family. Random if none recorded.
+function restartPrey(w: World): void {
+  const best = w.eco.bestPrey;
+  if (!best.length) return rescue(w);
+  const { rules } = w;
+  const fams = best.map((b) => {
+    const id = w.nextFamilyId++;
+    w.families.set(id, newFamily(id, b.g, null, w.tick, true));
+    return id;
+  });
+  for (let i = 0; i < RESCUE; i++) {
+    const k = i % best.length;
+    const genome = i < best.length ? best[k].g.slice() : mutate(w, best[k].g, rules.mutation);
+    w.creatures.push(newCreature(w, genome, fams[k], false, null));
+  }
+  w.eco.rescues++;
+}
+
 function sample(w: World): void {
   const n = w.creatures.length;
+  if (w.rules.hunters > 0) w.eco.hunterPopHist.push(w.hunters.length);
   w.eco.popHist.push(n);
   w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
   const sizes = new Map<number, number>();

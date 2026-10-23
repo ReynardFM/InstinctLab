@@ -1,6 +1,6 @@
 // One experiment run: a seed, a set of rules, a number of generations. Pure: same job, same result,
 // whichever thread runs it. This is why runs can be spread across CPU cores without changing the numbers.
-import { createWorld, inEcosystem, runGenerations, runTicks, step, type Rules } from "../engine/world.ts";
+import { createWorld, inEcosystem, runGenerations, runTicks, step, type Round, type Rules } from "../engine/world.ts";
 import type { HunterStats } from "../engine/hunters.ts";
 
 export interface Job {
@@ -18,6 +18,15 @@ export interface EcoResult {
   deaths: number;
   oldAge: number; // deaths of creatures older than rules.ageScale
   rescues: number; // times everyone died and fresh founders were put in
+  // with hunters (rules.hunters > 0)
+  hunterPopHist?: number[]; // hunters alive, same samples as popHist
+  rounds?: Round[]; // finished rounds (one side died out)
+  roundStart?: number; // start of the round still running at the end
+  caught?: number;
+  hunterBirths?: number;
+  hunterDeaths?: number;
+  hunterOldAge?: number;
+  ticks?: number; // ecosystem ticks run (after the warm-up)
 }
 
 export interface JobResult {
@@ -42,6 +51,13 @@ export function runJob(job: Job): JobResult {
   if (job.rules.mode === 1) {
     const { popHist, ageHist, births, deaths, oldAge, rescues } = w.eco;
     result.eco = { popHist, ageHist, births, deaths, oldAge, rescues };
+    if (job.rules.hunters > 0) {
+      const e = w.eco;
+      Object.assign(result.eco, {
+        hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
+        hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick,
+      });
+    }
   }
   return result;
 }

@@ -19,12 +19,15 @@ import { genomeSize, thinkInto, type Genome } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { inputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
+import { inEcosystem } from "./mode.ts";
 
 export interface Hunter {
   x: number;
   y: number;
   rest: number; // ticks left digesting after a catch (doesn't move or catch)
   brain: HunterBrain | null; // null for chasers
+  energy: number; // ecosystem mode: drains each tick, a catch refills it; at 0 the hunter dies (1 elsewhere, unused)
+  age: number; // ecosystem mode: ticks lived
 }
 
 export type Origin = "borrowed" | "random";
@@ -56,7 +59,9 @@ export const CATCH = 6; // a hunter this close to a prey catches it (same reach 
 export const REST = 30; // ticks a hunter rests after a catch
 export const TURN = 0.2; // most a brain hunter turns per tick (radians), the same as prey
 
-export const huntersArrived = (w: World) => w.rules.hunters > 0 && w.generation >= w.rules.hunterFrom;
+// Generations mode only: in ecosystem mode the hunters come in when the ecosystem starts (startEcoHunters),
+// not during its warm-up generations.
+export const huntersArrived = (w: World) => w.rules.hunters > 0 && w.rules.mode !== 1 && w.generation >= w.rules.hunterFrom;
 
 // Hunters' starting spots for a new food map, drawn after the food so the food is the same as without hunters.
 // Chasers draw exactly what they always did (x, y), so old runs replay unchanged.
@@ -74,11 +79,11 @@ export function placeHunters(w: World): void {
       const b = w.hunterBrains[(start + i) % pool];
       b.maps++;
       b.a = w.env.next() * Math.PI * 2;
-      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b });
+      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0 });
     }
     return;
   }
-  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null });
+  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0 });
 }
 
 const hunterGenomeLength = (w: World) => genomeSize(inputCount(w.rules), w.rules.hidden);
@@ -95,8 +100,7 @@ function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null
 // random (and tagged random: the tag says what the brain is, not what the seat was meant for).
 export const poolSize = (w: World) => Math.max(w.rules.hunters, w.rules.hunterPool);
 
-export function firstHunterBrains(w: World): HunterBrain[] {
-  const n = poolSize(w);
+export function firstHunterBrains(w: World, n = poolSize(w)): HunterBrain[] {
   const len = hunterGenomeLength(w);
   const dead = w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
   const out: HunterBrain[] = [];
@@ -112,9 +116,9 @@ export function firstHunterBrains(w: World): HunterBrain[] {
   return out;
 }
 
-// One tick for every hunter, after the prey have moved.
+// One tick for every hunter, after the prey have moved. In ecosystem mode hunters always have brains.
 export function moveHunters(w: World): void {
-  if (w.rules.hunterBrains > 0) moveBrainHunters(w);
+  if (w.rules.hunterBrains > 0 || inEcosystem(w)) moveBrainHunters(w);
   else moveChasers(w);
 }
 
@@ -162,6 +166,10 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
   prey.caught++;
   h.rest = REST;
   if (h.brain) h.brain.caught++;
+  if (inEcosystem(w)) {
+    h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+    w.eco.caught++;
+  }
 }
 
 // The two nearest living prey from (x, y): index into w.creatures (-1 = none) and offsets. Ties keep the earlier creature.
@@ -200,6 +208,7 @@ function moveBrainHunters(w: World): void {
   const r = w.rules;
   const walls = r.walls > 0;
   const hs = w.hunters;
+  const eco = inEcosystem(w);
   for (let n = 0; n < hs.length; n++) {
     const h = hs[n];
     const b = h.brain!;
@@ -213,7 +222,7 @@ function moveBrainHunters(w: World): void {
     const cosH = cos(b.a);
     const sinH = sin(b.a);
     let k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH); // "food" = nearest prey
-    inputs[k++] = 1; // "energy" = ready (resting hunters don't think)
+    inputs[k++] = eco ? h.energy : 1; // "energy": its real energy in ecosystem mode; elsewhere 1 = ready (resting hunters don't think)
     if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
     if (r.senseCreature) {
       let bdx = 0;
@@ -280,4 +289,89 @@ export function breedHunters(w: World): void {
     next.push(newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), p.origin, p.from));
   }
   w.hunterBrains = next;
+}
+
+// ---------- ecosystem mode (Rey's brief 2026-10-23) ----------
+// Hunters live like prey: energy drains every tick (rules.hunterHunger), a catch refills it
+// (rules.hunterMeal), a hunter with rules.hunterBirth energy splits off a baby with half its energy and a
+// mutated copy of its brain, and a hunter dies when its energy runs out or at rules.hunterAge. When one
+// side dies out, the round ends and that side restarts from its best brains so far (hunters: most prey
+// caught in a lifetime; prey: longest life); the other side carries on as it is.
+
+export const MAX_ENERGY = 1.5; // the most a hunter can hold (the same as prey)
+export const HUNTER_CAP = 60; // safety limit for speed, not a game rule: hunter births pause at it
+export const BEST_KEEP = 8; // best brains remembered per side for a restart
+
+export interface BestBrain {
+  g: Genome;
+  score: number; // hunters: prey caught in its life; prey: ticks lived
+  origin: Origin;
+  from: number | null;
+}
+
+// Keeps the BEST_KEEP highest scores, highest first. A tie doesn't push out an earlier brain.
+export function remember(list: BestBrain[], b: BestBrain): void {
+  if (list.length === BEST_KEEP && b.score <= list[list.length - 1].score) return;
+  let i = list.length;
+  while (i > 0 && b.score > list[i - 1].score) i--;
+  list.splice(i, 0, b);
+  if (list.length > BEST_KEEP) list.pop();
+}
+
+function newEcoHunter(w: World, brain: HunterBrain, x: number, y: number, energy: number): Hunter {
+  brain.a = w.hrng.next() * Math.PI * 2;
+  return { x, y, rest: 0, brain, energy, age: 0 };
+}
+
+// The ecosystem's first hunters (rules.hunters of them): borrowed and random, as in generations mode.
+export function startEcoHunters(w: World): void {
+  w.hunters = firstHunterBrains(w, w.rules.hunters).map((b) => newEcoHunter(w, b, w.hrng.next() * W, w.hrng.next() * H, 1));
+  w.eco.huntersStarted = true;
+}
+
+// After everyone has moved and hunted: hunger, age, babies, deaths. Uses the hunters' own random numbers.
+export function liveEcoHunters(w: World): void {
+  const r = w.rules;
+  const walls = r.walls > 0;
+  const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
+  const born: Hunter[] = [];
+  for (const h of w.hunters) {
+    h.energy -= r.hunterHunger;
+    h.age++;
+    if (h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP) {
+      const half = h.energy / 2;
+      h.energy -= half;
+      const p = h.brain!;
+      const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
+      born.push(newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half));
+      w.eco.hunterBirths++;
+    }
+  }
+  const alive: Hunter[] = [];
+  for (const h of w.hunters) {
+    const old = h.age >= r.hunterAge;
+    if (h.energy > 0 && !old) {
+      alive.push(h);
+      continue;
+    }
+    w.eco.hunterDeaths++;
+    if (old) w.eco.hunterOldAge++;
+    const b = h.brain!;
+    remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+  }
+  w.hunters = alive.concat(born);
+}
+
+// All hunters dead: rules.hunters new ones from the best hunter brains so far (the best as it is, the
+// rest mutated copies, round-robin). Random brains if none were recorded.
+export function restartHunters(w: World): void {
+  const best = w.eco.bestHunters;
+  w.hunters = [];
+  for (let i = 0; i < w.rules.hunters; i++) {
+    const src = best.length ? best[i % best.length] : null;
+    const brain = src
+      ? newHunterBrain(w, i < best.length ? src.g.slice() : src.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), src.origin, src.from)
+      : newHunterBrain(w, Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5), "random", null);
+    w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
+  }
 }

@@ -932,124 +932,11 @@
     }
   }
 
-  // src/engine/ecosystem.ts
-  var ECO_SAMPLE = 100;
-  var RESCUE = 40;
-  var MAX_POP = 1e3;
-  var PAIR_RANGE = 30;
-  var KEEP_DEATHS = 200;
-  function stepEcosystem(w) {
-    const { rules } = w;
-    const scale = rules.ageScale;
-    prepareGrids(w);
-    for (const c of w.creatures) {
-      if (!c.alive) continue;
-      live(w, c, scale > 0 ? 1 + c.age / scale : 1);
-      c.age++;
-    }
-    w.grids = null;
-    const born = [];
-    const room = () => w.creatures.length + born.length < MAX_POP;
-    const ready = (c) => c.alive && c.energy >= rules.birthEnergy;
-    if (rules.birth === 1) {
-      const walls = rules.walls > 0;
-      const used = /* @__PURE__ */ new Set();
-      for (const a of w.creatures) {
-        if (!room()) break;
-        if (used.has(a) || !ready(a)) continue;
-        let partner = null;
-        let best = PAIR_RANGE * PAIR_RANGE;
-        for (const b of w.creatures) {
-          if (b === a || used.has(b) || !ready(b)) continue;
-          const dx = offset(b.x - a.x, W, walls);
-          const dy = offset(b.y - a.y, H, walls);
-          const d2 = dx * dx + dy * dy;
-          if (d2 < best) {
-            best = d2;
-            partner = b;
-          }
-        }
-        if (!partner) continue;
-        used.add(a);
-        used.add(partner);
-        const p = partner;
-        const ga = inherited(w, a);
-        const gb = inherited(w, p);
-        const mixed = ga.map((x, k) => w.rng.next() < 0.5 ? x : gb[k]);
-        const fromA = a.energy / 3;
-        const fromB = p.energy / 3;
-        a.energy -= fromA;
-        p.energy -= fromB;
-        p.children++;
-        born.push(makeChild(w, a, mutate(w, mixed, rules.mutation), fromA + fromB));
-      }
-    } else {
-      for (const a of w.creatures) {
-        if (!room()) break;
-        if (!ready(a)) continue;
-        const half = a.energy / 2;
-        a.energy -= half;
-        born.push(makeChild(w, a, mutate(w, inherited(w, a), rules.mutation), half));
-      }
-    }
-    const alive = [];
-    for (const c of w.creatures) {
-      if (c.alive) {
-        alive.push(c);
-        continue;
-      }
-      w.eco.deaths++;
-      if (scale > 0 && c.age >= scale) w.eco.oldAge++;
-      w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
-    }
-    if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
-    w.creatures = alive.concat(born);
-    if (w.creatures.length === 0) rescue(w);
-    const present = new Set(w.creatures.map((c) => c.family));
-    for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
-    w.tick++;
-    if (w.tick % ECO_SAMPLE === 0) sample(w);
-  }
-  function makeChild(w, parent, genome, energy) {
-    const child = newCreature(w, genome, parent.family, false, parent.hue);
-    const walls = w.rules.walls > 0;
-    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
-    child.x = place(parent.x + (w.env.next() - 0.5) * 10, W);
-    child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
-    child.energy = energy;
-    child.depth = parent.depth + 1;
-    parent.children++;
-    maybeSplit(w, child, true);
-    w.eco.births++;
-    return child;
-  }
-  function rescue(w) {
-    const { rules } = w;
-    for (let i = 0; i < RESCUE; i++) {
-      const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
-      const id = w.nextFamilyId++;
-      w.families.set(id, newFamily(id, genome, null, w.tick, true));
-      w.creatures.push(newCreature(w, genome, id, false, null));
-    }
-    w.eco.rescues++;
-  }
-  function sample(w) {
-    const n = w.creatures.length;
-    w.eco.popHist.push(n);
-    w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
-    const sizes = /* @__PURE__ */ new Map();
-    for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
-    for (const [id, size] of sizes) {
-      const fam = w.families.get(id);
-      if (fam && size > fam.peakSize) fam.peakSize = size;
-    }
-  }
-
   // src/engine/hunters.ts
   var CATCH = 6;
   var REST = 30;
   var TURN = 0.2;
-  var huntersArrived = (w) => w.rules.hunters > 0 && w.generation >= w.rules.hunterFrom;
+  var huntersArrived = (w) => w.rules.hunters > 0 && w.rules.mode !== 1 && w.generation >= w.rules.hunterFrom;
   function placeHunters(w) {
     w.hunters = [];
     if (!huntersArrived(w)) return;
@@ -1062,11 +949,11 @@
         const b = w.hunterBrains[(start + i) % pool];
         b.maps++;
         b.a = w.env.next() * Math.PI * 2;
-        w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b });
+        w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0 });
       }
       return;
     }
-    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null });
+    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0 });
   }
   var hunterGenomeLength = (w) => genomeSize(inputCount(w.rules), w.rules.hidden);
   function newHunterBrain(w, g, origin, from) {
@@ -1084,8 +971,7 @@
     };
   }
   var poolSize = (w) => Math.max(w.rules.hunters, w.rules.hunterPool);
-  function firstHunterBrains(w) {
-    const n = poolSize(w);
+  function firstHunterBrains(w, n = poolSize(w)) {
     const len = hunterGenomeLength(w);
     const dead = w.legacy.filter((f) => f.ref.length >= len).reverse();
     const out = [];
@@ -1101,7 +987,7 @@
     return out;
   }
   function moveHunters(w) {
-    if (w.rules.hunterBrains > 0) moveBrainHunters(w);
+    if (w.rules.hunterBrains > 0 || inEcosystem(w)) moveBrainHunters(w);
     else moveChasers(w);
   }
   function moveChasers(w) {
@@ -1146,6 +1032,10 @@
     prey.caught++;
     h.rest = REST;
     if (h.brain) h.brain.caught++;
+    if (inEcosystem(w)) {
+      h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+      w.eco.caught++;
+    }
   }
   var near = { i1: -1, dx1: 0, dy1: 0, d21: Infinity, i2: -1, dx2: 0, dy2: 0, d22: Infinity };
   function nearestPrey(w, x, y, walls) {
@@ -1179,6 +1069,7 @@
     const r = w.rules;
     const walls = r.walls > 0;
     const hs = w.hunters;
+    const eco = inEcosystem(w);
     for (let n = 0; n < hs.length; n++) {
       const h = hs[n];
       const b = h.brain;
@@ -1192,7 +1083,7 @@
       const cosH = cos(b.a);
       const sinH = sin(b.a);
       let k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH);
-      inputs[k++] = 1;
+      inputs[k++] = eco ? h.energy : 1;
       if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
       if (r.senseCreature) {
         let bdx = 0;
@@ -1255,6 +1146,211 @@
     }
     w.hunterBrains = next;
   }
+  var MAX_ENERGY = 1.5;
+  var HUNTER_CAP = 60;
+  var BEST_KEEP = 8;
+  function remember(list, b) {
+    if (list.length === BEST_KEEP && b.score <= list[list.length - 1].score) return;
+    let i = list.length;
+    while (i > 0 && b.score > list[i - 1].score) i--;
+    list.splice(i, 0, b);
+    if (list.length > BEST_KEEP) list.pop();
+  }
+  function newEcoHunter(w, brain, x, y, energy) {
+    brain.a = w.hrng.next() * Math.PI * 2;
+    return { x, y, rest: 0, brain, energy, age: 0 };
+  }
+  function startEcoHunters(w) {
+    w.hunters = firstHunterBrains(w, w.rules.hunters).map((b) => newEcoHunter(w, b, w.hrng.next() * W, w.hrng.next() * H, 1));
+    w.eco.huntersStarted = true;
+  }
+  function liveEcoHunters(w) {
+    const r = w.rules;
+    const walls = r.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    const born = [];
+    for (const h of w.hunters) {
+      h.energy -= r.hunterHunger;
+      h.age++;
+      if (h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP) {
+        const half = h.energy / 2;
+        h.energy -= half;
+        const p = h.brain;
+        const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
+        born.push(newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half));
+        w.eco.hunterBirths++;
+      }
+    }
+    const alive = [];
+    for (const h of w.hunters) {
+      const old = h.age >= r.hunterAge;
+      if (h.energy > 0 && !old) {
+        alive.push(h);
+        continue;
+      }
+      w.eco.hunterDeaths++;
+      if (old) w.eco.hunterOldAge++;
+      const b = h.brain;
+      remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+    }
+    w.hunters = alive.concat(born);
+  }
+  function restartHunters(w) {
+    const best = w.eco.bestHunters;
+    w.hunters = [];
+    for (let i = 0; i < w.rules.hunters; i++) {
+      const src = best.length ? best[i % best.length] : null;
+      const brain = src ? newHunterBrain(w, i < best.length ? src.g.slice() : src.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), src.origin, src.from) : newHunterBrain(w, Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5), "random", null);
+      w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
+    }
+  }
+
+  // src/engine/ecosystem.ts
+  var ECO_SAMPLE = 100;
+  var RESCUE = 40;
+  var MAX_POP = 1e3;
+  var PAIR_RANGE = 30;
+  var KEEP_DEATHS = 200;
+  function stepEcosystem(w) {
+    const { rules } = w;
+    const scale = rules.ageScale;
+    const hunting = rules.hunters > 0;
+    if (hunting && !w.eco.huntersStarted) {
+      startEcoHunters(w);
+      w.eco.roundStart = w.tick;
+    }
+    prepareGrids(w);
+    for (const c of w.creatures) {
+      if (!c.alive) continue;
+      live(w, c, scale > 0 ? 1 + c.age / scale : 1);
+      c.age++;
+    }
+    w.grids = null;
+    if (hunting) moveHunters(w);
+    const born = [];
+    const room = () => w.creatures.length + born.length < MAX_POP;
+    const ready = (c) => c.alive && c.energy >= rules.birthEnergy;
+    if (rules.birth === 1) {
+      const walls = rules.walls > 0;
+      const used = /* @__PURE__ */ new Set();
+      for (const a of w.creatures) {
+        if (!room()) break;
+        if (used.has(a) || !ready(a)) continue;
+        let partner = null;
+        let best = PAIR_RANGE * PAIR_RANGE;
+        for (const b of w.creatures) {
+          if (b === a || used.has(b) || !ready(b)) continue;
+          const dx = offset(b.x - a.x, W, walls);
+          const dy = offset(b.y - a.y, H, walls);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < best) {
+            best = d2;
+            partner = b;
+          }
+        }
+        if (!partner) continue;
+        used.add(a);
+        used.add(partner);
+        const p = partner;
+        const ga = inherited(w, a);
+        const gb = inherited(w, p);
+        const mixed = ga.map((x, k) => w.rng.next() < 0.5 ? x : gb[k]);
+        const fromA = a.energy / 3;
+        const fromB = p.energy / 3;
+        a.energy -= fromA;
+        p.energy -= fromB;
+        p.children++;
+        born.push(makeChild(w, a, mutate(w, mixed, rules.mutation), fromA + fromB));
+      }
+    } else {
+      for (const a of w.creatures) {
+        if (!room()) break;
+        if (!ready(a)) continue;
+        const half = a.energy / 2;
+        a.energy -= half;
+        born.push(makeChild(w, a, mutate(w, inherited(w, a), rules.mutation), half));
+      }
+    }
+    const alive = [];
+    for (const c of w.creatures) {
+      if (c.alive) {
+        alive.push(c);
+        continue;
+      }
+      w.eco.deaths++;
+      if (scale > 0 && c.age >= scale) w.eco.oldAge++;
+      if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
+      w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
+    }
+    if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
+    w.creatures = alive.concat(born);
+    if (hunting) {
+      liveEcoHunters(w);
+      const preyGone = w.creatures.length === 0;
+      const huntersGone = w.hunters.length === 0;
+      if (preyGone || huntersGone) {
+        w.eco.rounds.push({ start: w.eco.roundStart, end: w.tick, died: preyGone && huntersGone ? "both" : preyGone ? "prey" : "hunters" });
+        w.eco.roundStart = w.tick;
+        if (preyGone) restartPrey(w);
+        if (huntersGone) restartHunters(w);
+      }
+    } else if (w.creatures.length === 0) rescue(w);
+    const present = new Set(w.creatures.map((c) => c.family));
+    for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
+    w.tick++;
+    if (w.tick % ECO_SAMPLE === 0) sample(w);
+  }
+  function makeChild(w, parent, genome, energy) {
+    const child = newCreature(w, genome, parent.family, false, parent.hue);
+    const walls = w.rules.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    child.x = place(parent.x + (w.env.next() - 0.5) * 10, W);
+    child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
+    child.energy = energy;
+    child.depth = parent.depth + 1;
+    parent.children++;
+    maybeSplit(w, child, true);
+    w.eco.births++;
+    return child;
+  }
+  function rescue(w) {
+    const { rules } = w;
+    for (let i = 0; i < RESCUE; i++) {
+      const genome = Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+      const id = w.nextFamilyId++;
+      w.families.set(id, newFamily(id, genome, null, w.tick, true));
+      w.creatures.push(newCreature(w, genome, id, false, null));
+    }
+    w.eco.rescues++;
+  }
+  function restartPrey(w) {
+    const best = w.eco.bestPrey;
+    if (!best.length) return rescue(w);
+    const { rules } = w;
+    const fams = best.map((b) => {
+      const id = w.nextFamilyId++;
+      w.families.set(id, newFamily(id, b.g, null, w.tick, true));
+      return id;
+    });
+    for (let i = 0; i < RESCUE; i++) {
+      const k = i % best.length;
+      const genome = i < best.length ? best[k].g.slice() : mutate(w, best[k].g, rules.mutation);
+      w.creatures.push(newCreature(w, genome, fams[k], false, null));
+    }
+    w.eco.rescues++;
+  }
+  function sample(w) {
+    const n = w.creatures.length;
+    if (w.rules.hunters > 0) w.eco.hunterPopHist.push(w.hunters.length);
+    w.eco.popHist.push(n);
+    w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
+    const sizes = /* @__PURE__ */ new Map();
+    for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
+    for (const [id, size] of sizes) {
+      const fam = w.families.get(id);
+      if (fam && size > fam.peakSize) fam.peakSize = size;
+    }
+  }
 
   // src/engine/world.ts
   var DEFAULT_RULES = {
@@ -1300,7 +1396,12 @@
     hunterSpeed: 2,
     hunterBrains: 0,
     hunterPool: 12,
-    hunterFrom: 1
+    hunterFrom: 1,
+    hunterHunger: 25e-4,
+    hunterMeal: 0.5,
+    hunterBirth: 1.4,
+    hunterAge: 6e3
+    // tuned with food 120 (README 2026-10-23)
   };
   function createWorld(seed, rules, start) {
     const each = start && Array.isArray(start[0]) ? start : null;
@@ -1343,7 +1444,25 @@
       nextBranchId: 0,
       failedBranches: 0,
       newcomerCount: 0,
-      eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
+      eco: {
+        births: 0,
+        deaths: 0,
+        oldAge: 0,
+        rescues: 0,
+        popHist: [],
+        ageHist: [],
+        recentDeaths: [],
+        huntersStarted: false,
+        hunterPopHist: [],
+        caught: 0,
+        hunterBirths: 0,
+        hunterDeaths: 0,
+        hunterOldAge: 0,
+        rounds: [],
+        roundStart: 0,
+        bestPrey: [],
+        bestHunters: []
+      }
     };
     for (let i = 0; i < rules.pop; i++) {
       const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
@@ -2265,6 +2384,10 @@
     ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
     ["hunterBrains", "Hunters evolve brains", 0, 1, 1, "Off = hunters chase the nearest creature. On = each hunter has a brain shaped like a creature's (its 'food' sense points at creatures) and the best catchers breed."],
     ["hunterPool", "Hunter brains in the gene pool", 1, 40, 1, "With brains: more brains are kept than hunt at once; each food map uses the next ones in turn. Fewer than the hunters = the hunters."],
+    ["hunterHunger", "Hunter hunger per tick", 5e-4, 5e-3, 5e-4, "Ecosystem mode: energy a hunter loses each tick. Hunters there must eat or die. Tuned with 120 food."],
+    ["hunterMeal", "Hunter energy per catch", 0.1, 1, 0.05, "Ecosystem mode. A hunter holds at most 1.5."],
+    ["hunterBirth", "Hunter energy for a baby", 0.6, 1.5, 0.05, "Ecosystem mode: a hunter this full splits off a baby with half its energy."],
+    ["hunterAge", "Hunters die of old age at", 1e3, 2e4, 500, "Ecosystem mode, in ticks."],
     ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
     ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
     ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
@@ -2285,7 +2408,7 @@
     ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
     ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
     ["Families", ["splitDistance", "splitProof", "championStreak"]],
-    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom"]],
+    ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom", "hunterHunger", "hunterMeal", "hunterBirth", "hunterAge"]],
     ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
     ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]]
   ];
