@@ -670,6 +670,7 @@
       energy: 1,
       eaten: 0,
       poisoned: 0,
+      toxin: 0,
       caught: 0,
       alive: true,
       diedAt: null,
@@ -882,28 +883,29 @@
     const tick = w.tick;
     const walls = r.walls > 0;
     const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
-    const free = [];
-    let good = 0;
-    let active = 0;
+    const free = [[], []];
+    const count = [0, 0];
+    const active = [0, 0];
     for (let i = 0; i < food2.length; i++) {
       const f = food2[i];
-      if (f.poison) continue;
-      good++;
-      if (f.readyAt === Infinity) free.push(i);
-      else if (f.readyAt <= tick) active++;
+      const k = f.poison ? 1 : 0;
+      count[k]++;
+      if (f.readyAt === Infinity) free[k].push(i);
+      else if (f.readyAt <= tick) active[k]++;
     }
-    const cap = Math.round(r.food * PLANT_CAP);
+    const cap = [Math.round(r.food * PLANT_CAP), Math.round(Math.round(r.poison * r.food) * PLANT_CAP)];
     const n = food2.length;
     for (let i = 0; i < n; i++) {
       const f = food2[i];
-      if (f.poison || f.readyAt > tick) continue;
+      if (f.readyAt > tick) continue;
       if (w.env.next() >= r.foodSpread) continue;
-      let slot = free.pop();
+      const k = f.poison ? 1 : 0;
+      let slot = free[k].pop();
       if (slot === void 0) {
-        if (good >= cap) continue;
+        if (count[k] >= cap[k]) continue;
         slot = food2.length;
-        food2.push({ x: 0, y: 0, poison: false, readyAt: 0 });
-        good++;
+        food2.push({ x: 0, y: 0, poison: f.poison, readyAt: 0 });
+        count[k]++;
       }
       const a = w.env.next() * Math.PI * 2;
       const d = w.env.next() * SPREAD_RANGE;
@@ -912,12 +914,37 @@
       s.y = place(f.y + sin(a) * d, H);
       s.readyAt = tick + 1;
     }
-    if (active === 0 && free.length) {
-      const s = food2[free.pop()];
+    for (const k of [0, 1]) {
+      if (active[k] > 0 || !free[k].length) continue;
+      const s = food2[free[k].pop()];
       s.x = w.env.next() * W;
       s.y = w.env.next() * H;
       s.readyAt = tick + 1;
     }
+  }
+
+  // src/engine/toxin.ts
+  var LN2 = 0.6931471805599453;
+  var newPoison = (w) => inEcosystem(w);
+  function expNeg(q) {
+    const t = tanh(q / 2);
+    return (1 - t) / (1 + t);
+  }
+  function resistance(age, life, frail) {
+    if (!(life > 0)) return 1;
+    const z = (age - life / 2) / (life / 6);
+    return frail + (1 - frail) * expNeg(z * z / 2);
+  }
+  var PREY_LIFE_RATE = 0.01;
+  var preyLife = (w) => w.eco.preyLife;
+  function notePreyDeath(w, age) {
+    w.eco.preyLife = w.eco.preyLife > 0 ? w.eco.preyLife + PREY_LIFE_RATE * (age - w.eco.preyLife) : age;
+  }
+  function dose(amount, age, life, w) {
+    return amount / resistance(age, life, w.rules.poisonFrail);
+  }
+  function fade(level, w) {
+    return level > 0 ? level - level * LN2 / Math.max(1, w.rules.poisonHalfLife) : 0;
   }
 
   // src/engine/life.ts
@@ -940,18 +967,21 @@
       c.y = (c.y + sin(c.a) * speed2 + H) % H;
     }
     if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot, c.x, c.y);
-    c.energy -= (5e-4 + speed2 * 4e-4) * w.rules.energyCost * costFactor;
+    const sick = newPoison(w) ? 1 + c.toxin : 1;
+    c.energy -= (5e-4 + speed2 * 4e-4) * w.rules.energyCost * costFactor * sick;
+    if (c.toxin > 0) c.toxin = fade(c.toxin, w);
     let reward = 0;
     if (seen.food && seen.foodDist < 6) {
       reward = seen.food.poison ? -1 : 1;
       if (seen.food.poison) {
         c.poisoned++;
-        c.energy -= POISON_HIT;
+        if (newPoison(w)) c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+        else c.energy -= POISON_HIT;
       } else {
         c.eaten++;
         c.energy = Math.min(c.energy + 0.3, 1.5);
       }
-      if (!seen.food.poison && spreading(w)) {
+      if (spreading(w)) {
         seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow);
       } else {
         Object.assign(seen.food, newFood(w, seen.food.poison));
@@ -1001,11 +1031,11 @@
         const b = w.hunterBrains[(start + i) % pool];
         b.maps++;
         b.a = w.env.next() * Math.PI * 2;
-        w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0 });
+        w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0, toxin: 0 });
       }
       return;
     }
-    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0 });
+    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0 });
   }
   var hunterGenomeLength = (w) => genomeSize(inputCount(w.rules), w.rules.hidden);
   function newHunterBrain(w, g, origin, from) {
@@ -1086,6 +1116,7 @@
     if (h.brain) h.brain.caught++;
     if (inEcosystem(w)) {
       h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+      if (prey.toxin > 0) h.toxin += dose(prey.toxin, h.age, w.rules.hunterAge, w);
       w.eco.caught++;
     }
   }
@@ -1210,7 +1241,7 @@
   }
   function newEcoHunter(w, brain, x, y, energy) {
     brain.a = w.hrng.next() * Math.PI * 2;
-    return { x, y, rest: 0, brain, energy, age: 0 };
+    return { x, y, rest: 0, brain, energy, age: 0, toxin: 0 };
   }
   function startEcoHunters(w) {
     w.hunters = firstHunterBrains(w, w.rules.hunters).map((b) => newEcoHunter(w, b, w.hrng.next() * W, w.hrng.next() * H, 1));
@@ -1222,7 +1253,8 @@
     const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
     const born = [];
     for (const h of w.hunters) {
-      h.energy -= r.hunterHunger;
+      h.energy -= r.hunterHunger * (1 + h.toxin);
+      h.toxin = fade(h.toxin, w);
       h.age++;
       const adult = h.age >= r.hunterMature;
       const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
@@ -1355,6 +1387,7 @@
         continue;
       }
       w.eco.deaths++;
+      notePreyDeath(w, c.age);
       if (scale > 0 && c.age >= scale) w.eco.oldAge++;
       if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
       w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
@@ -1422,6 +1455,20 @@
     if (w.rules.hunters > 0) w.eco.hunterPopHist.push(w.hunters.length);
     w.eco.popHist.push(n);
     w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
+    const t = w.eco.toxin;
+    const life = preyLife(w);
+    if (life > 0) {
+      for (const c of w.creatures) {
+        const b = c.age < life / 4 ? 0 : c.age > 3 * life / 4 ? 2 : 1;
+        t.band[b] += c.toxin;
+        t.bandN[b]++;
+      }
+    }
+    for (const h of w.hunters) {
+      t.hunter += h.toxin;
+      t.hunterN++;
+      if (h.toxin > 0.05) t.hunterSick++;
+    }
     const sizes = /* @__PURE__ */ new Map();
     for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
     for (const [id, size] of sizes) {
@@ -1475,6 +1522,9 @@
     hunterBrains: 0,
     hunterPool: 12,
     hunterFrom: 1,
+    poisonDose: 1,
+    poisonHalfLife: 500,
+    poisonFrail: 0.25,
     foodSpread: 0,
     hunterHunger: 25e-4,
     hunterMeal: 0.5,
@@ -1542,7 +1592,9 @@
         rounds: [],
         roundStart: 0,
         bestPrey: [],
-        bestHunters: []
+        bestHunters: [],
+        preyLife: 0,
+        toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 }
       }
     };
     for (let i = 0; i < rules.pop; i++) {
@@ -2479,7 +2531,10 @@
     ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
     ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
     ["poison", "Share of food that is poison", 0, 0.5, 0.05, "Purple rings. Cost 0.5 energy, worth nothing. Adds a poison sense."],
-    ["foodSpread", "Food spreads like plants", 0, 0.01, 5e-4, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x); an eaten one regrows in place. Poison doesn't spread. 0 = off."],
+    ["poisonDose", "Poison dose per pellet", 0, 3, 0.1, "Ecosystem mode: poison raises a level that makes everything cost more energy; it fades, and hunters take it on from the prey they catch. The young and old take more. 0 = harmless."],
+    ["poisonHalfLife", "Poison fades by half in", 50, 3e3, 50, "Ecosystem mode, in ticks."],
+    ["poisonFrail", "Poison resistance of newborns and the old", 0.05, 1, 0.05, "Ecosystem mode: 0.25 = they take 4x the dose; 1 = age doesn't matter."],
+    ["foodSpread", "Food spreads like plants", 0, 0.01, 5e-4, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x; poison too, up to 3x its start); an eaten one regrows in place. 0 = off."],
     ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
     ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
     ["senseFood2", "Sense the second-nearest food", 0, 1, 1, "Adds 3 inputs to the brain."],
@@ -2488,7 +2543,7 @@
   ];
   var RULE_GROUPS = [
     ["Population and time", ["pop", "genTicks", "layouts"]],
-    ["Food", ["food", "poison", "regrow", "foodSpread", "energyCost", "swapKinds"]],
+    ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "regrow", "foodSpread", "energyCost", "swapKinds"]],
     ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
     ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
     ["Families", ["splitDistance", "splitProof", "championStreak"]],

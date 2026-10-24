@@ -810,7 +810,10 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
   ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
   ["poison", "Share of food that is poison", 0, 0.5, 0.05, "Purple rings. Cost 0.5 energy, worth nothing. Adds a poison sense."],
-  ["foodSpread", "Food spreads like plants", 0, 0.01, 0.0005, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x); an eaten one regrows in place. Poison doesn't spread. 0 = off."],
+  ["poisonDose", "Poison dose per pellet", 0, 3, 0.1, "Ecosystem mode: poison raises a level that makes everything cost more energy; it fades, and hunters take it on from the prey they catch. The young and old take more. 0 = harmless."],
+  ["poisonHalfLife", "Poison fades by half in", 50, 3000, 50, "Ecosystem mode, in ticks."],
+  ["poisonFrail", "Poison resistance of newborns and the old", 0.05, 1, 0.05, "Ecosystem mode: 0.25 = they take 4x the dose; 1 = age doesn't matter."],
+  ["foodSpread", "Food spreads like plants", 0, 0.01, 0.0005, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x; poison too, up to 3x its start); an eaten one regrows in place. 0 = off."],
   ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
   ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
   ["senseFood2", "Sense the second-nearest food", 0, 1, 1, "Adds 3 inputs to the brain."],
@@ -821,7 +824,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
 // The rules drawer, in groups. A rule left out of every group still shows, under "Other" (so a new rule is never hidden).
 const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Population and time", ["pop", "genTicks", "layouts"]],
-  ["Food", ["food", "poison", "regrow", "foodSpread", "energyCost", "swapKinds"]],
+  ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "regrow", "foodSpread", "energyCost", "swapKinds"]],
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
   ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],

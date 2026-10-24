@@ -45,6 +45,9 @@ export interface Rules {
   hidden: number; // middle neurons in each brain (more = can learn more complex behaviour, more weights to evolve)
   poison: number; // share of food that is poison (costs POISON_HIT energy, worth nothing); 0 = none
   regrow: number; // ticks before eaten food reappears somewhere new; 0 = at once
+  poisonDose: number; // ecosystem: poison level a pellet adds at full resistance (toxin.ts); 0 = harmless
+  poisonHalfLife: number; // ecosystem: ticks for the poison level to halve
+  poisonFrail: number; // ecosystem: resistance of newborns and the very old (0.25 = they take 4x the dose)
   foodSpread: number; // ecosystem: food spreads like plants: chance per tick that a pellet sprouts a new one nearby; 0 = off (plants.ts). With hunters: 0.0005 and food 60 (or food 120 without it)
   energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
   mode: number; // 0 = generations (everyone replaced together); 1 = ecosystem (continuous births and deaths)
@@ -89,6 +92,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25,
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
@@ -156,6 +160,10 @@ export interface EcoStats {
   roundStart: number; // tick the current round started
   bestPrey: BestBrain[]; // longest-lived prey so far (restart brains)
   bestHunters: BestBrain[]; // hunters that caught the most in their life so far (restart brains)
+  // poison levels (toxin.ts), added up at every sample: prey by age band (young < 1/4 of the lifespan, middle,
+  // old > 3/4), and hunters (all, and how many carried any poison: level above 0.05)
+  preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
+  toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
 }
 
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
@@ -205,6 +213,8 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [],
       huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
+      preyLife: 0,
+      toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 },
     },
   };
   for (let i = 0; i < rules.pop; i++) {

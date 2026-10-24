@@ -1,6 +1,6 @@
 // One experiment run: a seed, a set of rules, a number of generations. Pure: same job, same result,
 // whichever thread runs it. This is why runs can be spread across CPU cores without changing the numbers.
-import { createWorld, inEcosystem, runGenerations, runTicks, step, type Round, type Rules } from "../engine/world.ts";
+import { createWorld, inEcosystem, runGenerations, runTicks, step, type EcoStats, type Round, type Rules } from "../engine/world.ts";
 import type { HunterStats } from "../engine/hunters.ts";
 
 export interface Job {
@@ -27,6 +27,7 @@ export interface EcoResult {
   hunterDeaths?: number;
   hunterOldAge?: number;
   ticks?: number; // ecosystem ticks run (after the warm-up)
+  toxin?: EcoStats["toxin"]; // poison levels, summed over samples (toxin.ts)
 }
 
 export interface JobResult {
@@ -55,7 +56,7 @@ export function runJob(job: Job): JobResult {
       const e = w.eco;
       Object.assign(result.eco, {
         hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
-        hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick,
+        hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, toxin: e.toxin,
       });
     }
   }

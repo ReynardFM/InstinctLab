@@ -10,6 +10,7 @@ import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { spreadFood, spreading } from "./plants.ts";
+import { notePreyDeath, preyLife } from "./toxin.ts";
 import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
@@ -92,6 +93,7 @@ export function stepEcosystem(w: World): void {
       continue;
     }
     w.eco.deaths++;
+    notePreyDeath(w, c.age);
     if (scale > 0 && c.age >= scale) w.eco.oldAge++;
     if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
     w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
@@ -171,6 +173,20 @@ function sample(w: World): void {
   if (w.rules.hunters > 0) w.eco.hunterPopHist.push(w.hunters.length);
   w.eco.popHist.push(n);
   w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
+  const t = w.eco.toxin;
+  const life = preyLife(w);
+  if (life > 0) {
+    for (const c of w.creatures) {
+      const b = c.age < life / 4 ? 0 : c.age > (3 * life) / 4 ? 2 : 1;
+      t.band[b] += c.toxin;
+      t.bandN[b]++;
+    }
+  }
+  for (const h of w.hunters) {
+    t.hunter += h.toxin;
+    t.hunterN++;
+    if (h.toxin > 0.05) t.hunterSick++;
+  }
   const sizes = new Map<number, number>();
   for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
   for (const [id, size] of sizes) {

@@ -8,6 +8,7 @@ import { cos, sin } from "./dmath.ts";
 import { senseInto } from "./senses.ts";
 import { H, W } from "./space.ts";
 import { spreading } from "./plants.ts";
+import { dose, fade, newPoison, preyLife } from "./toxin.ts";
 
 // Energy a creature loses by eating poison (good food gives +0.3).
 export const POISON_HIT = 0.5;
@@ -36,18 +37,21 @@ export function live(w: World, c: Creature, costFactor: number): void {
     c.y = (c.y + sin(c.a) * speed + H) % H;
   }
   if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot!, c.x, c.y); // later creatures this tick sense where it is now
-  c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor; // moving costs energy; standing still costs a little
+  const sick = newPoison(w) ? 1 + c.toxin : 1; // poison level: everything costs more (toxin.ts)
+  c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick; // moving costs energy; standing still costs a little
+  if (c.toxin > 0) c.toxin = fade(c.toxin, w);
   let reward = 0;
   if (seen.food && seen.foodDist < 6) {
     reward = seen.food.poison ? -1 : 1;
     if (seen.food.poison) {
       c.poisoned++;
-      c.energy -= POISON_HIT;
+      if (newPoison(w)) c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+      else c.energy -= POISON_HIT;
     } else {
       c.eaten++;
       c.energy = Math.min(c.energy + 0.3, 1.5);
     }
-    if (!seen.food.poison && spreading(w)) {
+    if (spreading(w)) {
       seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow); // spreading food (plants.ts): an eaten plant regrows where it was
     } else {
       Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new

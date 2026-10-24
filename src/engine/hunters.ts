@@ -20,6 +20,7 @@ import { cos, sin } from "./dmath.ts";
 import { inputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
+import { dose, fade } from "./toxin.ts";
 
 export interface Hunter {
   x: number;
@@ -28,6 +29,7 @@ export interface Hunter {
   brain: HunterBrain | null; // null for chasers
   energy: number; // ecosystem mode: drains each tick, a catch refills it; at 0 the hunter dies (1 elsewhere, unused)
   age: number; // ecosystem mode: ticks lived
+  toxin: number; // ecosystem mode: poison level taken on from poisoned prey (toxin.ts)
 }
 
 export type Origin = "borrowed" | "random";
@@ -79,11 +81,11 @@ export function placeHunters(w: World): void {
       const b = w.hunterBrains[(start + i) % pool];
       b.maps++;
       b.a = w.env.next() * Math.PI * 2;
-      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0 });
+      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0, toxin: 0 });
     }
     return;
   }
-  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0 });
+  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0 });
 }
 
 const hunterGenomeLength = (w: World) => genomeSize(inputCount(w.rules), w.rules.hidden);
@@ -168,6 +170,7 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
   if (h.brain) h.brain.caught++;
   if (inEcosystem(w)) {
     h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+    if (prey.toxin > 0) h.toxin += dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's own resistance
     w.eco.caught++;
   }
 }
@@ -322,7 +325,7 @@ export function remember(list: BestBrain[], b: BestBrain): void {
 
 function newEcoHunter(w: World, brain: HunterBrain, x: number, y: number, energy: number): Hunter {
   brain.a = w.hrng.next() * Math.PI * 2;
-  return { x, y, rest: 0, brain, energy, age: 0 };
+  return { x, y, rest: 0, brain, energy, age: 0, toxin: 0 };
 }
 
 // The ecosystem's first hunters (rules.hunters of them): borrowed and random, as in generations mode.
@@ -338,7 +341,8 @@ export function liveEcoHunters(w: World): void {
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   const born: Hunter[] = [];
   for (const h of w.hunters) {
-    h.energy -= r.hunterHunger;
+    h.energy -= r.hunterHunger * (1 + h.toxin); // poison: hunger costs more
+    h.toxin = fade(h.toxin, w);
     h.age++;
     const adult = h.age >= r.hunterMature;
     const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
