@@ -26,7 +26,9 @@ export function live(w: World, c: Creature, costFactor: number): void {
   const hidden = c.hidden;
   const out = c.out;
 
-  const speed = ((out[1] + 1) / 2) * 3;
+  // poison slows you down (Rey 2026-10-25): top speed / (1 + poison level), so a sick prey moves like an old one
+  const speed = (((out[1] + 1) / 2) * 3) / (newPoison(w) ? 1 + c.toxin : 1);
+  c.speed = speed;
   c.a += out[0] * 0.2;
   if (walls) {
     // walls stop you: slide along them instead of passing through
@@ -45,7 +47,10 @@ export function live(w: World, c: Creature, costFactor: number): void {
     reward = seen.food.poison ? -1 : 1;
     if (seen.food.poison) {
       c.poisoned++;
-      if (newPoison(w)) c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+      if (newPoison(w)) {
+        c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+        w.eco.sick.poisonEaten++;
+      }
       else c.energy -= POISON_HIT;
     } else {
       c.eaten++;

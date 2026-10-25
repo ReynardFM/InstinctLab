@@ -13,6 +13,9 @@ const LN2 = 0.6931471805599453;
 
 export const newPoison = (w: World) => inEcosystem(w);
 
+// A prey "is sick" for the statistics when its poison level is above this (it moves at 1/1.1 of its speed or slower).
+export const SICK = 0.1;
+
 // e^-q for q >= 0, from tanh (dmath has no exp; Math.exp may differ by engine): e^-2y = (1 - tanh y) / (1 + tanh y).
 export function expNeg(q: number): number {
   const t = tanh(q / 2);

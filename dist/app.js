@@ -679,7 +679,8 @@
       children: 0,
       inputs: new Array(inputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
-      out: [0, 0]
+      out: [0, 0],
+      speed: 0
     };
   }
   function founderHue(family) {
@@ -926,6 +927,7 @@
   // src/engine/toxin.ts
   var LN2 = 0.6931471805599453;
   var newPoison = (w) => inEcosystem(w);
+  var SICK = 0.1;
   function expNeg(q) {
     const t = tanh(q / 2);
     return (1 - t) / (1 + t);
@@ -957,7 +959,8 @@
     thinkInto(c.w, c.inputs, c.hidden, c.out);
     const hidden = c.hidden;
     const out = c.out;
-    const speed2 = (out[1] + 1) / 2 * 3;
+    const speed2 = (out[1] + 1) / 2 * 3 / (newPoison(w) ? 1 + c.toxin : 1);
+    c.speed = speed2;
     c.a += out[0] * 0.2;
     if (walls) {
       c.x = Math.min(Math.max(c.x + cos(c.a) * speed2, 0), W);
@@ -975,8 +978,10 @@
       reward = seen.food.poison ? -1 : 1;
       if (seen.food.poison) {
         c.poisoned++;
-        if (newPoison(w)) c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
-        else c.energy -= POISON_HIT;
+        if (newPoison(w)) {
+          c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+          w.eco.sick.poisonEaten++;
+        } else c.energy -= POISON_HIT;
       } else {
         c.eaten++;
         c.energy = Math.min(c.energy + 0.3, 1.5);
@@ -1047,6 +1052,8 @@
       caught: 0,
       maps: 0,
       a: 0,
+      w: w.rules.hunterLearn > 0 ? g.slice() : g,
+      trace: w.rules.hunterLearn > 0 ? new Array(g.length).fill(0) : [],
       inputs: new Array(inputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
@@ -1118,6 +1125,8 @@
       h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
       if (prey.toxin > 0) h.toxin += dose(prey.toxin, h.age, w.rules.hunterAge, w);
       w.eco.caught++;
+      w.eco.sick.caught++;
+      if (prey.toxin > SICK) w.eco.sick.caughtSick++;
     }
   }
   var near = { i1: -1, dx1: 0, dy1: 0, d21: Infinity, i2: -1, dx2: 0, dy2: 0, d22: Infinity };
@@ -1185,11 +1194,17 @@
         }
         k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
       }
-      if (r.poison > 0) k = writeNothing(inputs, k);
+      if (r.poison > 0) {
+        if (eco && r.hunterSeeSpeed > 0) {
+          const p = w.creatures[near.i1];
+          k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
+          inputs[k - 1] = Math.min(p.speed / 3, 1);
+        } else k = writeNothing(inputs, k);
+      }
       if (r.hunterSense > 0) k = writeNothing(inputs, k);
       if (walls) inputs[k++] = wallAhead(h.x, h.y, b.a);
       if (inputs.length !== k) inputs.length = k;
-      thinkInto(b.g, inputs, b.hidden, b.out);
+      thinkInto(b.w, inputs, b.hidden, b.out);
       b.a += b.out[0] * TURN;
       const speed2 = (b.out[1] + 1) / 2 * r.hunterSpeed;
       if (walls) {
@@ -1200,7 +1215,13 @@
         h.y = (h.y + sin(b.a) * speed2 + H) % H;
       }
       nearestPrey(w, h.x, h.y, walls);
-      if (near.i1 >= 0 && near.d21 < CATCH * CATCH) catchPrey(w, h, w.creatures[near.i1]);
+      const toxinBefore = h.toxin;
+      const caughtNow = near.i1 >= 0 && near.d21 < CATCH * CATCH;
+      if (caughtNow) catchPrey(w, h, w.creatures[near.i1]);
+      if (eco && r.hunterLearn > 0) {
+        const reward = caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
+        learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
+      }
     }
   }
   function breedHunters(w) {
@@ -1464,6 +1485,10 @@
         t.bandN[b]++;
       }
     }
+    if (n) {
+      w.eco.sick.sickShare += w.creatures.filter((c) => c.toxin > SICK).length / n;
+      w.eco.sick.samples++;
+    }
     for (const h of w.hunters) {
       t.hunter += h.toxin;
       t.hunterN++;
@@ -1525,6 +1550,8 @@
     poisonDose: 1,
     poisonHalfLife: 500,
     poisonFrail: 0.25,
+    hunterSeeSpeed: 1,
+    hunterLearn: 0.02,
     foodSpread: 0,
     hunterHunger: 25e-4,
     hunterMeal: 0.5,
@@ -1594,6 +1621,7 @@
         bestPrey: [],
         bestHunters: [],
         preyLife: 0,
+        sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
         toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 }
       }
     };
@@ -2531,9 +2559,11 @@
     ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
     ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
     ["poison", "Share of food that is poison", 0, 0.5, 0.05, "Purple rings. Cost 0.5 energy, worth nothing. Adds a poison sense."],
-    ["poisonDose", "Poison dose per pellet", 0, 3, 0.1, "Ecosystem mode: poison raises a level that makes everything cost more energy; it fades, and hunters take it on from the prey they catch. The young and old take more. 0 = harmless."],
+    ["poisonDose", "Poison dose per pellet", 0, 3, 0.1, "Ecosystem mode: poison raises a level that makes everything cost more energy and slows you down; it fades, and hunters take it on from the prey they catch. The young and old take more. 0 = harmless."],
     ["poisonHalfLife", "Poison fades by half in", 50, 3e3, 50, "Ecosystem mode, in ticks."],
     ["poisonFrail", "Poison resistance of newborns and the old", 0.05, 1, 0.05, "Ecosystem mode: 0.25 = they take 4x the dose; 1 = age doesn't matter."],
+    ["hunterLearn", "Hunters learn during life", 0, 0.05, 1e-3, "Ecosystem mode: taste aversion. A clean catch strengthens what led to it; a poisoned one weakens it, so a hunter can learn to leave slow (maybe sick) prey alone. 0 = off."],
+    ["hunterSeeSpeed", "Hunters see how fast prey move", 0, 1, 1, "Ecosystem mode: poison slows prey, so a slow prey may be sick (or old). Hunters see the nearest prey's speed and evolve what to do with it. Off = blind (a control)."],
     ["foodSpread", "Food spreads like plants", 0, 0.01, 5e-4, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x; poison too, up to 3x its start); an eaten one regrows in place. 0 = off."],
     ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
     ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
@@ -2543,7 +2573,7 @@
   ];
   var RULE_GROUPS = [
     ["Population and time", ["pop", "genTicks", "layouts"]],
-    ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "regrow", "foodSpread", "energyCost", "swapKinds"]],
+    ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "hunterSeeSpeed", "hunterLearn", "regrow", "foodSpread", "energyCost", "swapKinds"]],
     ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
     ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
     ["Families", ["splitDistance", "splitProof", "championStreak"]],

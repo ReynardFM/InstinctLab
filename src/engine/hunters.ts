@@ -15,12 +15,13 @@
 // hunters the pool stopped improving after about 10 generations; 12 kept improving (README, 2026-10-22).
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
-import { genomeSize, thinkInto, type Genome } from "./brain.ts";
+import { genomeSize, learn, thinkInto, type Genome } from "./brain.ts";
+import { LEARN_DECAY } from "./life.ts";
 import { cos, sin } from "./dmath.ts";
 import { inputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { dose, fade } from "./toxin.ts";
+import { SICK, dose, fade } from "./toxin.ts";
 
 export interface Hunter {
   x: number;
@@ -38,6 +39,8 @@ export type Origin = "borrowed" | "random";
 export interface HunterBrain {
   id: number;
   g: Genome; // weights only (a borrowed brain's evolved learning rates, if any, are left behind)
+  w: Genome; // the brain it uses now: g, or its own copy that learns during life (rules.hunterLearn, ecosystem)
+  trace: number[]; // learning: recent activity of each connection (empty when not learning)
   origin: Origin; // what its line started from
   from: number | null; // borrowed: the prey family whose main brain it started as
   caught: number; // prey caught this generation, all food maps it played
@@ -93,6 +96,7 @@ const hunterGenomeLength = (w: World) => genomeSize(inputCount(w.rules), w.rules
 function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null): HunterBrain {
   return {
     id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0,
+    w: w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(g.length).fill(0) : [],
     inputs: new Array(inputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
   };
 }
@@ -172,6 +176,8 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
     h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
     if (prey.toxin > 0) h.toxin += dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's own resistance
     w.eco.caught++;
+    w.eco.sick.caught++;
+    if (prey.toxin > SICK) w.eco.sick.caughtSick++;
   }
 }
 
@@ -244,11 +250,19 @@ function moveBrainHunters(w: World): void {
       }
       k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
     }
-    if (r.poison > 0) k = writeNothing(inputs, k);
+    if (r.poison > 0) {
+      // ecosystem: the prey's "poison" sense becomes the nearest prey's direction and speed (in place of distance):
+      // a slow prey reads like poison close by, so a borrowed prey brain starts out avoiding slow (maybe sick) prey
+      if (eco && r.hunterSeeSpeed > 0) {
+        const p = w.creatures[near.i1];
+        k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
+        inputs[k - 1] = Math.min(p.speed / 3, 1);
+      } else k = writeNothing(inputs, k);
+    }
     if (r.hunterSense > 0) k = writeNothing(inputs, k); // prey have hunter inputs; for a hunter they read nothing
     if (walls) inputs[k++] = wallAhead(h.x, h.y, b.a);
     if (inputs.length !== k) inputs.length = k;
-    thinkInto(b.g, inputs, b.hidden, b.out);
+    thinkInto(b.w, inputs, b.hidden, b.out);
     b.a += b.out[0] * TURN;
     const speed = ((b.out[1] + 1) / 2) * r.hunterSpeed;
     if (walls) {
@@ -259,7 +273,15 @@ function moveBrainHunters(w: World): void {
       h.y = (h.y + sin(b.a) * speed + H) % H;
     }
     nearestPrey(w, h.x, h.y, walls);
-    if (near.i1 >= 0 && near.d21 < CATCH * CATCH) catchPrey(w, h, w.creatures[near.i1]);
+    const toxinBefore = h.toxin;
+    const caughtNow = near.i1 >= 0 && near.d21 < CATCH * CATCH;
+    if (caughtNow) catchPrey(w, h, w.creatures[near.i1]);
+    // taste aversion (Rey 2026-10-25): a hunter learns during its life, like prey do. A clean catch is +1; a poisoned
+    // one counts down to -1 by the poison it took in, so what led it to that prey (including how fast it moved) fades
+    if (eco && r.hunterLearn > 0) {
+      const reward = caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
+      learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
+    }
   }
 }
 

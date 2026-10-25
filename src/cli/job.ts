@@ -28,6 +28,7 @@ export interface EcoResult {
   hunterOldAge?: number;
   ticks?: number; // ecosystem ticks run (after the warm-up)
   toxin?: EcoStats["toxin"]; // poison levels, summed over samples (toxin.ts)
+  sick?: EcoStats["sick"]; // catches of sick prey vs their share, poison eaten
 }
 
 export interface JobResult {
@@ -56,7 +57,7 @@ export function runJob(job: Job): JobResult {
       const e = w.eco;
       Object.assign(result.eco, {
         hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
-        hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, toxin: e.toxin,
+        hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, toxin: e.toxin, sick: e.sick,
       });
     }
   }

@@ -6,6 +6,7 @@ import { createWorld, runTicks, DEFAULT_RULES } from "../src/engine/world.ts";
 import { inEcosystem } from "../src/engine/mode.ts";
 import { expNeg, fade, resistance } from "../src/engine/toxin.ts";
 import { moveHunters } from "../src/engine/hunters.ts";
+import { live } from "../src/engine/life.ts";
 
 test("expNeg matches e^-q (built from tanh, so every engine gives the same bits)", () => {
   for (const q of [0, 0.1, 0.5, 1, 2, 4.5, 10]) assert.ok(Math.abs(expNeg(q) - Math.exp(-q)) < 1e-12, `q = ${q}`);
@@ -63,4 +64,53 @@ test("generations mode keeps the flat poison hit for now (no poison level)", () 
   runTicks(w, 400);
   assert.ok(w.creatures.every((c) => c.toxin === 0));
   assert.ok(w.creatures.some((c) => c.poisoned > 0), "they did eat poison");
+});
+
+test("poison slows prey: top speed / (1 + poison level)", () => {
+  const w = toEco(6, {});
+  runTicks(w, 1);
+  const c = w.creatures[0];
+  c.toxin = 1;
+  c.energy = 1.4;
+  live(w, c, 1); // the brain picks a speed (out[1]) this tick; with poison level 1 it moves at half of it
+  const chosen = ((c.out[1] + 1) / 2) * 3;
+  assert.ok(Math.abs(c.speed - chosen / 2) < 1e-12, `${c.speed} vs ${chosen / 2}`);
+});
+
+test("hunters see the nearest prey's speed in their 'poison' inputs (ecosystem); blind hunters see nothing", () => {
+  for (const see of [1, 0]) {
+    const w = toEco(7, { hunterSeeSpeed: see });
+    runTicks(w, 1);
+    const h = w.hunters[0];
+    const prey = w.creatures.find((c) => c.alive)!;
+    for (const c of w.creatures) if (c !== prey) c.alive = false;
+    for (const o of w.hunters) o.rest = o === h ? 0 : 1000;
+    prey.speed = 1.5;
+    h.x = (prey.x + 50) % 800; h.y = prey.y; // 50 px away: no catch
+    moveHunters(w);
+    const k = 4 + 3; // food (3) + energy (1) + neighbour (3): the default senses; then poison (3)
+    const poisonSlot = h.brain!.inputs.slice(k, k + 3);
+    if (see) assert.ok(Math.abs(poisonSlot[2] - 0.5) < 1e-9, `speed 1.5 of 3 -> 0.5, got ${poisonSlot}`);
+    else assert.deepEqual(poisonSlot, [0, 0, 1], "nothing there");
+  }
+});
+
+test("hunters learn during life (taste aversion): a poisoned catch changes the working brain, not the inborn one", () => {
+  const w = toEco(8, { hunterLearn: 0.05 });
+  runTicks(w, 1);
+  const h = w.hunters[0];
+  const b = h.brain!;
+  assert.notEqual(b.w, b.g, "its own copy to learn with");
+  const born = b.g.slice();
+  const prey = w.creatures.find((c) => c.alive)!;
+  for (const c of w.creatures) if (c !== prey) c.alive = false;
+  for (const o of w.hunters) o.rest = o === h ? 0 : 1000;
+  for (let i = 0; i < 20; i++) moveHunters(w); // build up recent activity, nothing caught yet (far away)
+  prey.toxin = 3;
+  h.x = prey.x; h.y = prey.y; h.age = w.rules.hunterAge / 2;
+  const before = b.w.slice();
+  moveHunters(w);
+  assert.equal(prey.alive, false, "caught");
+  assert.ok(b.w.some((x, k) => x !== before[k]), "the working brain changed");
+  assert.deepEqual(b.g, born, "the inborn brain (what babies get) did not");
 });

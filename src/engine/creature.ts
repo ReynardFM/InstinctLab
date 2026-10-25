@@ -43,6 +43,7 @@ export interface Creature {
   inputs: number[];
   hidden: number[];
   out: number[];
+  speed: number; // how fast it moved last tick (0..3); hunters can see it (ecosystem, rules.hunterSeeSpeed)
 }
 
 
@@ -101,6 +102,7 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     inputs: new Array(inputCount(w.rules)).fill(0),
     hidden: new Array(w.rules.hidden).fill(0),
     out: [0, 0],
+    speed: 0,
   };
 }
 

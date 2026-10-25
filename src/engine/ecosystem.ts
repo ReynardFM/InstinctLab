@@ -10,7 +10,7 @@ import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { spreadFood, spreading } from "./plants.ts";
-import { notePreyDeath, preyLife } from "./toxin.ts";
+import { SICK, notePreyDeath, preyLife } from "./toxin.ts";
 import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
@@ -181,6 +181,10 @@ function sample(w: World): void {
       t.band[b] += c.toxin;
       t.bandN[b]++;
     }
+  }
+  if (n) {
+    w.eco.sick.sickShare += w.creatures.filter((c) => c.toxin > SICK).length / n;
+    w.eco.sick.samples++;
   }
   for (const h of w.hunters) {
     t.hunter += h.toxin;
