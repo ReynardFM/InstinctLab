@@ -32,6 +32,7 @@ export interface Creature {
   energy: number;
   eaten: number; // good food this generation, all layouts so far (this is the score)
   poisoned: number; // poison eaten this generation
+  resist: number; // ecosystem: poison resistance 0..1 (toxin.ts): trained by eating poison, partly inherited
   toxin: number; // ecosystem: poison level (toxin.ts): energy use x (1 + toxin), fading
   caught: number; // food maps on which a hunter caught it this generation
   alive: boolean;
@@ -93,6 +94,7 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     eaten: 0,
     poisoned: 0,
     toxin: 0,
+    resist: 0,
     caught: 0,
     alive: true,
     diedAt: null,

@@ -21,7 +21,7 @@ import { cos, sin } from "./dmath.ts";
 import { inputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { SICK, dose, fade } from "./toxin.ts";
+import { SICK, dose, fade, fadeResist, harm, train } from "./toxin.ts";
 
 export interface Hunter {
   x: number;
@@ -31,6 +31,7 @@ export interface Hunter {
   energy: number; // ecosystem mode: drains each tick, a catch refills it; at 0 the hunter dies (1 elsewhere, unused)
   age: number; // ecosystem mode: ticks lived
   toxin: number; // ecosystem mode: poison level taken on from poisoned prey (toxin.ts)
+  resist: number; // ecosystem mode: poison resistance 0..1, trained by poisoned catches (toxin.ts)
 }
 
 export type Origin = "borrowed" | "random";
@@ -84,11 +85,11 @@ export function placeHunters(w: World): void {
       const b = w.hunterBrains[(start + i) % pool];
       b.maps++;
       b.a = w.env.next() * Math.PI * 2;
-      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0, toxin: 0 });
+      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0, toxin: 0, resist: 0 });
     }
     return;
   }
-  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0 });
+  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0, resist: 0 });
 }
 
 const hunterGenomeLength = (w: World) => genomeSize(inputCount(w.rules), w.rules.hidden);
@@ -166,7 +167,27 @@ function moveChasers(w: World): void {
   }
 }
 
-function catchPrey(w: World, h: Hunter, prey: Creature): void {
+export const SPIT_HALF = 0.5; // spitting: chance = level / (level + SPIT_HALF), so a level of 0.5 is spat out half the time
+export const SPIT_TASTE = 0.25; // a hunter that spits a prey out still takes in this share of its poison level
+export const SPIT_WOUND = 0.3; // energy a spat-out prey loses
+
+// Spitting out (Rey 2026-10-26, rules.hunterSpit, ecosystem): a hunter that bites a poisoned prey may spit it
+// out, like a bird with a monarch butterfly. The prey lives (wounded); the hunter gets no meal, only a taste of the
+// poison, and still rests. This is what makes carrying poison pay for a prey. Returns true when it spat.
+function spitOut(w: World, h: Hunter, prey: Creature): boolean {
+  if (!(w.rules.hunterSpit > 0 && prey.toxin > 0 && inEcosystem(w))) return false;
+  if (w.hrng.next() >= prey.toxin / (prey.toxin + SPIT_HALF)) return false;
+  prey.energy -= SPIT_WOUND;
+  h.rest = REST;
+  const taken = dose(prey.toxin * SPIT_TASTE, h.age, w.rules.hunterAge, w);
+  h.toxin += taken;
+  h.resist = train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken));
+  w.eco.spat++;
+  return true;
+}
+
+function catchPrey(w: World, h: Hunter, prey: Creature): boolean {
+  if (spitOut(w, h, prey)) return true;
   prey.alive = false;
   prey.diedAt = w.tick;
   prey.caught++;
@@ -174,11 +195,16 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
   if (h.brain) h.brain.caught++;
   if (inEcosystem(w)) {
     h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
-    if (prey.toxin > 0) h.toxin += dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's own resistance
+    if (prey.toxin > 0) {
+      const taken = dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's age resistance
+      h.toxin += taken;
+      h.resist = train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken)); // hunters build resistance too, more slowly
+    }
     w.eco.caught++;
     w.eco.sick.caught++;
     if (prey.toxin > SICK) w.eco.sick.caughtSick++;
   }
+  return false;
 }
 
 // The two nearest living prey from (x, y): index into w.creatures (-1 = none) and offsets. Ties keep the earlier creature.
@@ -275,11 +301,11 @@ function moveBrainHunters(w: World): void {
     nearestPrey(w, h.x, h.y, walls);
     const toxinBefore = h.toxin;
     const caughtNow = near.i1 >= 0 && near.d21 < CATCH * CATCH;
-    if (caughtNow) catchPrey(w, h, w.creatures[near.i1]);
+    const spat = caughtNow && catchPrey(w, h, w.creatures[near.i1]);
     // taste aversion (Rey 2026-10-25): a hunter learns during its life, like prey do. A clean catch is +1; a poisoned
     // one counts down to -1 by the poison it took in, so what led it to that prey (including how fast it moved) fades
     if (eco && r.hunterLearn > 0) {
-      const reward = caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
+      const reward = spat ? -1 : caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0; // spat out: bad taste, no meal
       learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
     }
   }
@@ -347,7 +373,7 @@ export function remember(list: BestBrain[], b: BestBrain): void {
 
 function newEcoHunter(w: World, brain: HunterBrain, x: number, y: number, energy: number): Hunter {
   brain.a = w.hrng.next() * Math.PI * 2;
-  return { x, y, rest: 0, brain, energy, age: 0, toxin: 0 };
+  return { x, y, rest: 0, brain, energy, age: 0, toxin: 0, resist: 0 };
 }
 
 // The ecosystem's first hunters (rules.hunters of them): borrowed and random, as in generations mode.
@@ -363,8 +389,9 @@ export function liveEcoHunters(w: World): void {
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   const born: Hunter[] = [];
   for (const h of w.hunters) {
-    h.energy -= r.hunterHunger * (1 + h.toxin); // poison: hunger costs more
+    h.energy -= r.hunterHunger * (1 + harm(h.toxin, h.resist)) + r.resistUpkeep * h.resist; // poison: hunger costs more; resistance has upkeep
     h.toxin = fade(h.toxin, w);
+    h.resist = fadeResist(h.resist, w);
     h.age++;
     const adult = h.age >= r.hunterMature;
     const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
@@ -373,7 +400,9 @@ export function liveEcoHunters(w: World): void {
       h.energy -= half;
       const p = h.brain!;
       const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
-      born.push(newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half));
+      const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
+      baby.resist = h.resist * r.resistInherit;
+      born.push(baby);
       w.eco.hunterBirths++;
     }
   }

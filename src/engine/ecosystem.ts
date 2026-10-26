@@ -130,6 +130,7 @@ function makeChild(w: World, parent: Creature, genome: Genome, energy: number): 
   child.x = place(parent.x + (w.env.next() - 0.5) * 10, W); // born next to the parent
   child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
   child.energy = energy;
+  child.resist = parent.resist * w.rules.resistInherit; // born with part of the parent's poison resistance
   child.depth = parent.depth + 1;
   parent.children++;
   maybeSplit(w, child, true); // no branch trials here: there are no generations to judge them in
@@ -186,6 +187,11 @@ function sample(w: World): void {
     w.eco.sick.sickShare += w.creatures.filter((c) => c.toxin > SICK).length / n;
     w.eco.sick.samples++;
   }
+  const rs = w.eco.resist;
+  for (const c of w.creatures) rs.prey += c.resist;
+  rs.preyN += n;
+  for (const h of w.hunters) rs.hunter += h.resist;
+  rs.hunterN += w.hunters.length;
   for (const h of w.hunters) {
     t.hunter += h.toxin;
     t.hunterN++;

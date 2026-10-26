@@ -49,3 +49,19 @@ export function dose(amount: number, age: number, life: number, w: World): numbe
 export function fade(level: number, w: World): number {
   return level > 0 ? level - (level * LN2) / Math.max(1, w.rules.poisonHalfLife) : 0;
 }
+
+// Resistance (Rey 2026-10-25: "slowly become the butterfly"): eating poison trains it, a little per pellet
+// (rules.resistTrain of the way to full); it fades without poison (halves every rules.resistHalfLife ticks);
+// babies are born with rules.resistInherit of the parent's. It shrinks only the harm: energy use and slowdown use
+// level x (1 - resist). The level itself is untouched, so a hunter that eats a resistant prey still takes all of
+// it: the prey becomes a trap. It costs upkeep: rules.resistUpkeep x resist energy per tick. Hunters train too,
+// more slowly (rules.hunterResistTrain per poisoned catch, scaled by the dose taken).
+export const harm = (level: number, resist: number) => level * (1 - resist);
+
+export function train(resist: number, amount: number): number {
+  return resist + amount * (1 - resist);
+}
+
+export function fadeResist(resist: number, w: World): number {
+  return resist > 0 ? resist - (resist * LN2) / Math.max(1, w.rules.resistHalfLife) : 0;
+}

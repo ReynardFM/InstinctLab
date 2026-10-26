@@ -114,3 +114,80 @@ test("hunters learn during life (taste aversion): a poisoned catch changes the w
   assert.ok(b.w.some((x, k) => x !== before[k]), "the working brain changed");
   assert.deepEqual(b.g, born, "the inborn brain (what babies get) did not");
 });
+
+test("resistance: trained per pellet (diminishing), fades by half in resistHalfLife, shrinks harm but not the level", async () => {
+  const { train, fadeResist, harm } = await import("../src/engine/toxin.ts");
+  assert.equal(train(0, 0.1), 0.1);
+  assert.ok(Math.abs(train(0.5, 0.1) - 0.55) < 1e-12, "10% of the way that's left");
+  const w = createWorld(1, { ...DEFAULT_RULES, resistHalfLife: 2000 });
+  let r = 0.8;
+  for (let i = 0; i < 2000; i++) r = fadeResist(r, w);
+  assert.ok(Math.abs(r - 0.4) < 0.001, `${r}`);
+  assert.equal(harm(2, 0.75), 0.5);
+});
+
+test("resistant prey: less slowdown from the same poison level; babies get resistInherit of it", () => {
+  const w = toEco(9, {});
+  runTicks(w, 1);
+  const [a, b] = w.creatures.filter((c) => c.alive);
+  for (const c of [a, b]) { c.toxin = 1; c.energy = 1.4; }
+  a.resist = 0; b.resist = 0.5;
+  live(w, a, 1);
+  live(w, b, 1);
+  const top = (c: typeof a) => ((c.out[1] + 1) / 2) * 3;
+  assert.ok(Math.abs(a.speed - top(a) / 2) < 1e-12, "no resistance: half speed at level 1");
+  assert.ok(Math.abs(b.speed - top(b) / 1.5) < 1e-12, "resistance 0.5: harm 0.5, so 1/1.5 of top speed");
+});
+
+test("a resistant prey is still a full dose for the hunter (the trap)", () => {
+  const w = toEco(4, { hunterResistTrain: 0.025 }); // resistance is off by default
+  runTicks(w, 1);
+  const h = w.hunters[0];
+  const prey = w.creatures.find((c) => c.alive)!;
+  for (const o of w.hunters) if (o !== h) o.rest = 1000;
+  prey.toxin = 2;
+  prey.resist = 0.9;
+  h.x = prey.x; h.y = prey.y; h.rest = 0; h.age = w.rules.hunterAge / 2; h.toxin = 0; h.resist = 0;
+  for (const c of w.creatures) if (c !== prey) c.alive = false;
+  moveHunters(w);
+  assert.equal(prey.alive, false);
+  assert.ok(Math.abs(h.toxin - 2) < 1e-9, `hunter took the whole level (${h.toxin})`);
+  assert.ok(h.resist > 0 && h.resist <= w.rules.hunterResistTrain, `and trained a little (${h.resist})`);
+});
+
+test("spitting out: a heavily poisoned prey is usually spat out alive (wounded); the hunter gets a taste, no meal", () => {
+  let spat = 0, eaten = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const w = toEco(seed, { hunterSpit: 1 });
+    runTicks(w, 1);
+    const h = w.hunters[0];
+    const prey = w.creatures.find((c) => c.alive)!;
+    for (const o of w.hunters) if (o !== h) o.rest = 1000;
+    for (const c of w.creatures) if (c !== prey) c.alive = false;
+    prey.toxin = 4.5; // spit chance 4.5 / 5 = 90%
+    prey.energy = 1;
+    h.x = prey.x; h.y = prey.y; h.rest = 0; h.age = w.rules.hunterAge / 2; h.toxin = 0; h.energy = 1;
+    moveHunters(w);
+    if (prey.alive) {
+      spat++;
+      assert.ok(Math.abs(prey.energy - 0.7) < 1e-9, "wounded");
+      assert.ok(Math.abs(h.toxin - 4.5 * 0.25) < 1e-9, `a quarter of the level (${h.toxin})`);
+      assert.equal(h.energy, 1, "no meal");
+      assert.equal(h.rest, 30);
+    } else eaten++;
+  }
+  assert.ok(spat >= 14, `about 90% spat: ${spat} spat, ${eaten} eaten`);
+});
+
+test("spitting out: a clean prey is never spat out", () => {
+  const w = toEco(3, { hunterSpit: 1 });
+  runTicks(w, 1);
+  const h = w.hunters[0];
+  const prey = w.creatures.find((c) => c.alive)!;
+  for (const o of w.hunters) if (o !== h) o.rest = 1000;
+  for (const c of w.creatures) if (c !== prey) c.alive = false;
+  prey.toxin = 0;
+  h.x = prey.x; h.y = prey.y; h.rest = 0;
+  moveHunters(w);
+  assert.equal(prey.alive, false);
+});

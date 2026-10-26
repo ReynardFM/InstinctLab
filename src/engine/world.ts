@@ -48,6 +48,12 @@ export interface Rules {
   poisonDose: number; // ecosystem: poison level a pellet adds at full resistance (toxin.ts); 0 = harmless
   poisonHalfLife: number; // ecosystem: ticks for the poison level to halve
   poisonFrail: number; // ecosystem: resistance of newborns and the very old (0.25 = they take 4x the dose)
+  resistTrain: number; // ecosystem: poison resistance gained per pellet eaten, as a share of the way to full (toxin.ts); 0 = none
+  resistHalfLife: number; // ecosystem: ticks for resistance to halve without poison
+  resistInherit: number; // ecosystem: share of a parent's resistance its baby is born with
+  resistUpkeep: number; // ecosystem: energy per tick at full resistance
+  hunterResistTrain: number; // ecosystem: the same for hunters, per poisoned catch (scaled by the dose); 0 = none
+  hunterSpit: number; // ecosystem: 1 = hunters may spit out a poisoned prey (it lives, wounded; the hunter gets a taste, no meal); 0 = off
   hunterLearn: number; // ecosystem: hunters learn during life (taste aversion): clean catch +1, poisoned down to -1; 0 = off
   hunterSeeSpeed: number; // ecosystem: 1 = hunters see the nearest prey's speed (poison slows prey, so slow can mean sick); 0 = blind (a control)
   foodSpread: number; // ecosystem: food spreads like plants: chance per tick that a pellet sprouts a new one nearby; 0 = off (plants.ts). With hunters: 0.0005 and food 60 (or food 120 without it)
@@ -95,6 +101,7 @@ export const DEFAULT_RULES: Rules = {
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
   poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterSeeSpeed: 1, hunterLearn: 0.02,
+  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
@@ -155,6 +162,7 @@ export interface EcoStats {
   huntersStarted: boolean;
   hunterPopHist: number[]; // hunters alive, same samples as popHist
   caught: number; // prey caught
+  spat: number; // prey a hunter spat out (rules.hunterSpit)
   hunterBirths: number;
   hunterDeaths: number;
   hunterOldAge: number; // hunter deaths from old age (rules.hunterAge)
@@ -166,6 +174,7 @@ export interface EcoStats {
   // old > 3/4), and hunters (all, and how many carried any poison: level above 0.05)
   sick: { caught: number; caughtSick: number; sickShare: number; samples: number; poisonEaten: number }; // poisoned prey: catches of
   // sick prey (level above SICK) vs their share of the living (summed at samples), and poison pellets eaten by prey
+  resist: { prey: number; preyN: number; hunter: number; hunterN: number }; // resistance, summed at samples
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
 }
@@ -215,9 +224,10 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     newcomerCount: 0,
     eco: {
       births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [],
-      huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
+      huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
+      resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
       toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 },
     },

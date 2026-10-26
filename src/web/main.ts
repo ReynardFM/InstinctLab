@@ -813,6 +813,9 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["poisonDose", "Poison dose per pellet", 0, 3, 0.1, "Ecosystem mode: poison raises a level that makes everything cost more energy and slows you down; it fades, and hunters take it on from the prey they catch. The young and old take more. 0 = harmless."],
   ["poisonHalfLife", "Poison fades by half in", 50, 3000, 50, "Ecosystem mode, in ticks."],
   ["poisonFrail", "Poison resistance of newborns and the old", 0.05, 1, 0.05, "Ecosystem mode: 0.25 = they take 4x the dose; 1 = age doesn't matter."],
+  ["resistTrain", "Poison resistance gained per pellet", 0, 0.5, 0.01, "Ecosystem mode: eating poison slowly builds resistance (less harm, same poison carried, so hunters still get it all). Fades without poison; babies get part of it; costs upkeep. 0 = none."],
+  ["hunterResistTrain", "Hunter resistance per poisoned catch", 0, 0.5, 0.005, "Ecosystem mode: hunters build resistance too, more slowly. 0 = none."],
+  ["hunterSpit", "Hunters spit out poisoned prey", 0, 1, 1, "Ecosystem mode: a bitten prey that carries poison may be spat out (more poison, more likely). It lives, wounded; the hunter gets a taste and no meal. Makes carrying poison a real defence."],
   ["hunterLearn", "Hunters learn during life", 0, 0.05, 0.001, "Ecosystem mode: taste aversion. A clean catch strengthens what led to it; a poisoned one weakens it, so a hunter can learn to leave slow (maybe sick) prey alone. 0 = off."],
   ["hunterSeeSpeed", "Hunters see how fast prey move", 0, 1, 1, "Ecosystem mode: poison slows prey, so a slow prey may be sick (or old). Hunters see the nearest prey's speed and evolve what to do with it. Off = blind (a control)."],
   ["foodSpread", "Food spreads like plants", 0, 0.01, 0.0005, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x; poison too, up to 3x its start); an eaten one regrows in place. 0 = off."],
@@ -826,7 +829,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
 // The rules drawer, in groups. A rule left out of every group still shows, under "Other" (so a new rule is never hidden).
 const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Population and time", ["pop", "genTicks", "layouts"]],
-  ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "hunterSeeSpeed", "hunterLearn", "regrow", "foodSpread", "energyCost", "swapKinds"]],
+  ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "hunterSeeSpeed", "hunterSpit", "hunterLearn", "resistTrain", "hunterResistTrain", "regrow", "foodSpread", "energyCost", "swapKinds"]],
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
   ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],
