@@ -89,14 +89,18 @@ async function main(): Promise<void> {
   const { jobs, combos, seeds, queue, workers } = ecoJobs(process.argv.slice(2));
   console.log(`${combos.length} setting(s) x ${seeds.length} seeds x ${jobs[0].ticks} ticks${queue ? ` through ${queue}` : ` on ${Math.min(workers, jobs.length)} threads`}`);
   const t0 = performance.now();
-  const progress = (done: number) => process.stdout.write(`\r  ${done} of ${jobs.length} runs done`);
+  // progress on stderr, only in a live terminal, cleared before the report (like npm run lab), so nothing is left
+  // over on screen and the report can be saved to a file cleanly
+  const progress = process.stderr.isTTY ? (done: number) => process.stderr.write(`\r  ${done} of ${jobs.length} runs done`) : undefined;
+  const clearProgress = () => process.stderr.isTTY && process.stderr.write("\r\x1b[K");
   let results: JobResult[];
   if (queue) {
     const { runJobsOnQueue } = await import("../queue/redis-queue.ts");
     results = await runJobsOnQueue(jobs, queue, progress);
   } else results = await runJobs(jobs, Math.min(workers, jobs.length), progress);
   const secs = (performance.now() - t0) / 1000;
-  console.log(`\r  ${jobs.length} runs in ${secs.toFixed(0)} s\n`);
+  clearProgress();
+  console.log(`  ${jobs.length} runs in ${secs.toFixed(0)} s\n`);
   console.log(report(ecoRows(combos, seeds, results), seeds));
 }
 
