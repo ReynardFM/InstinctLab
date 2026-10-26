@@ -141,6 +141,7 @@ export interface World {
   failedBranches: number; // branches that died out before proving themselves
   newcomerCount: number; // newcomer families made this run
   eco: EcoStats; // ecosystem mode only
+  measure: boolean; // count the extra ecosystem measures (EcoStats.m; npm run eco-lab). Counting only: no effect on the run
 }
 
 // A round of the ecosystem with hunters: from its start until one side (or both) died out.
@@ -175,6 +176,9 @@ export interface EcoStats {
   sick: { caught: number; caughtSick: number; sickShare: number; samples: number; poisonEaten: number }; // poisoned prey: catches of
   // sick prey (level above SICK) vs their share of the living (summed at samples), and poison pellets eaten by prey
   resist: { prey: number; preyN: number; hunter: number; hunterN: number }; // resistance, summed at samples
+  // eco-lab measures (World.measure): poison eaten by prey with a hunter within MEASURE_NEAR px vs none, per
+  // MEASURE_WINDOW ticks; and per family (to see whether poison-eating families grow)
+  m: { win: { nearEat: number; farEat: number; nearTicks: number; farTicks: number }[]; fam: Map<number, { eat: number; ticks: number; nearEat: number; nearTicks: number }> };
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
 }
@@ -227,10 +231,12 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
+      m: { win: [], fam: new Map() },
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
       toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 },
     },
+    measure: false,
   };
   for (let i = 0; i < rules.pop; i++) {
     const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);

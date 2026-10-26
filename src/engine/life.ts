@@ -46,6 +46,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
     c.energy -= w.rules.resistUpkeep * c.resist; // resistance has upkeep
     c.resist = fadeResist(c.resist, w);
   }
+  const near = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
   let reward = 0;
   if (seen.food && seen.foodDist < 6) {
     reward = seen.food.poison ? -1 : 1;
@@ -55,6 +56,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
         c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
         c.resist = train(c.resist, w.rules.resistTrain);
         w.eco.sick.poisonEaten++;
+        if (w.measure) countPoisonEaten(w, c, near);
       }
       else c.energy -= POISON_HIT;
     } else {
@@ -94,3 +96,61 @@ export function live(w: World, c: Creature, costFactor: number): void {
   }
 }
 
+
+// ---------- eco-lab measures (World.measure; counting only) ----------
+export const MEASURE_NEAR = 80; // "a hunter is near": within this many px
+export const MEASURE_WINDOW = 20000; // ticks per window, to see a trend over a run
+
+function measureWindow(w: World) {
+  const m = w.eco.m;
+  const wi = Math.floor(w.tick / MEASURE_WINDOW);
+  while (m.win.length <= wi) m.win.push({ nearEat: 0, farEat: 0, nearTicks: 0, farTicks: 0 });
+  return m.win[wi];
+}
+
+function measureFamily(w: World, c: Creature) {
+  let f = w.eco.m.fam.get(c.family);
+  if (!f) {
+    f = { eat: 0, ticks: 0, nearEat: 0, nearTicks: 0 };
+    w.eco.m.fam.set(c.family, f);
+  }
+  return f;
+}
+
+// Is a hunter within MEASURE_NEAR of this prey? Counts the prey-tick as near or far.
+function countNearHunter(w: World, c: Creature): boolean {
+  const walls = w.rules.walls > 0;
+  let near = false;
+  for (const h of w.hunters) {
+    let dx = h.x - c.x;
+    let dy = h.y - c.y;
+    if (!walls) {
+      if (dx > W / 2) dx -= W;
+      else if (dx < -W / 2) dx += W;
+      if (dy > H / 2) dy -= H;
+      else if (dy < -H / 2) dy += H;
+    }
+    if (dx * dx + dy * dy < MEASURE_NEAR * MEASURE_NEAR) {
+      near = true;
+      break;
+    }
+  }
+  const win = measureWindow(w);
+  const f = measureFamily(w, c);
+  f.ticks++;
+  if (near) {
+    win.nearTicks++;
+    f.nearTicks++;
+  } else win.farTicks++;
+  return near;
+}
+
+function countPoisonEaten(w: World, c: Creature, near: boolean): void {
+  const win = measureWindow(w);
+  const f = measureFamily(w, c);
+  f.eat++;
+  if (near) {
+    win.nearEat++;
+    f.nearEat++;
+  } else win.farEat++;
+}

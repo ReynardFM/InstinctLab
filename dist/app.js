@@ -985,6 +985,7 @@
       c.energy -= w.rules.resistUpkeep * c.resist;
       c.resist = fadeResist(c.resist, w);
     }
+    const near2 = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
     let reward = 0;
     if (seen.food && seen.foodDist < 6) {
       reward = seen.food.poison ? -1 : 1;
@@ -994,6 +995,7 @@
           c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
           c.resist = train(c.resist, w.rules.resistTrain);
           w.eco.sick.poisonEaten++;
+          if (w.measure) countPoisonEaten(w, c, near2);
         } else c.energy -= POISON_HIT;
       } else {
         c.eaten++;
@@ -1030,6 +1032,57 @@
       c.alive = false;
       c.diedAt = w.tick;
     }
+  }
+  var MEASURE_NEAR = 80;
+  var MEASURE_WINDOW = 2e4;
+  function measureWindow(w) {
+    const m = w.eco.m;
+    const wi = Math.floor(w.tick / MEASURE_WINDOW);
+    while (m.win.length <= wi) m.win.push({ nearEat: 0, farEat: 0, nearTicks: 0, farTicks: 0 });
+    return m.win[wi];
+  }
+  function measureFamily(w, c) {
+    let f = w.eco.m.fam.get(c.family);
+    if (!f) {
+      f = { eat: 0, ticks: 0, nearEat: 0, nearTicks: 0 };
+      w.eco.m.fam.set(c.family, f);
+    }
+    return f;
+  }
+  function countNearHunter(w, c) {
+    const walls = w.rules.walls > 0;
+    let near2 = false;
+    for (const h of w.hunters) {
+      let dx = h.x - c.x;
+      let dy = h.y - c.y;
+      if (!walls) {
+        if (dx > W / 2) dx -= W;
+        else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H;
+        else if (dy < -H / 2) dy += H;
+      }
+      if (dx * dx + dy * dy < MEASURE_NEAR * MEASURE_NEAR) {
+        near2 = true;
+        break;
+      }
+    }
+    const win = measureWindow(w);
+    const f = measureFamily(w, c);
+    f.ticks++;
+    if (near2) {
+      win.nearTicks++;
+      f.nearTicks++;
+    } else win.farTicks++;
+    return near2;
+  }
+  function countPoisonEaten(w, c, near2) {
+    const win = measureWindow(w);
+    const f = measureFamily(w, c);
+    f.eat++;
+    if (near2) {
+      win.nearEat++;
+      f.nearEat++;
+    } else win.farEat++;
   }
 
   // src/engine/hunters.ts
@@ -1671,10 +1724,12 @@
         bestPrey: [],
         bestHunters: [],
         preyLife: 0,
+        m: { win: [], fam: /* @__PURE__ */ new Map() },
         resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
         sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
         toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 }
-      }
+      },
+      measure: false
     };
     for (let i = 0; i < rules.pop; i++) {
       const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);

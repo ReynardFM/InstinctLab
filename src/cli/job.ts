@@ -2,12 +2,14 @@
 // whichever thread runs it. This is why runs can be spread across CPU cores without changing the numbers.
 import { createWorld, inEcosystem, runGenerations, runTicks, step, type EcoStats, type Round, type Rules } from "../engine/world.ts";
 import type { HunterStats } from "../engine/hunters.ts";
+import { familySplit, type DefenceSummary } from "./eco-metrics.ts";
 
 export interface Job {
   seed: number;
   rules: Rules;
   gens: number; // generation mode: generations to run (ecosystem mode: ignored, the warm-up is rules.ecoWarmup)
   ticks?: number; // ecosystem mode (rules.mode 1): ticks to run after the warm-up generations
+  measure?: boolean; // count the extra ecosystem measures (npm run eco-lab); counting only, same run
 }
 
 // Ecosystem mode: what happened after the warm-up.
@@ -28,6 +30,8 @@ export interface EcoResult {
   hunterOldAge?: number;
   ticks?: number; // ecosystem ticks run (after the warm-up)
   toxin?: EcoStats["toxin"]; // poison levels, summed over samples (toxin.ts)
+  spat?: number; // prey spat out (rules.hunterSpit)
+  defence?: DefenceSummary; // with job.measure: poison eaten near hunters vs not, per window; families
   sick?: EcoStats["sick"]; // catches of sick prey vs their share, poison eaten
   resist?: EcoStats["resist"]; // poison resistance, summed at samples
 }
@@ -44,6 +48,7 @@ export interface JobResult {
 
 export function runJob(job: Job): JobResult {
   const w = createWorld(job.seed, job.rules);
+  w.measure = !!job.measure;
   if (job.rules.mode === 1) {
     while (!inEcosystem(w)) step(w); // the warm-up generations
     runTicks(w, job.ticks ?? 20000);
@@ -60,6 +65,10 @@ export function runJob(job: Job): JobResult {
         hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
         hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, spat: e.spat, toxin: e.toxin, sick: e.sick, resist: e.resist,
       });
+      if (job.measure) {
+        const { top, rest } = familySplit([...e.m.fam.values()]);
+        result.eco!.defence = { win: e.m.win, famTop: top, famRest: rest };
+      }
     }
   }
   return result;
