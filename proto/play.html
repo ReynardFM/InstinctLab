@@ -1,0 +1,1066 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evolution Lab: Learning Game</title>
+<!-- PROTOTYPE (learning-game brief, 2026-10-26). Built by: npm run build-play -> proto/play.html (one self-contained file). -->
+<style>
+  :root {
+    --bench: #cdd6d2; --paper: #fbfcf7; --ink: #1e2b30; --muted: #5d6c70; --line: #c9d2cf;
+    --field: #e7e2b6; --food: #fff8dc; --food-rim: #b9a24f; --poison: #6e2a5e; --hunter: #34405e;
+    --accent: #2b5c9e; --good: #2f7d4a; --warn: #c0152f;
+    --eat: #2f7d4a; --avoid: #8e3fa0; --flee: #c0152f; --wander: #7d8a8c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bench); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  header h1 { font-size: 22px; margin: 0; }
+  header .wallet { margin-left: auto; font-weight: 700; font-size: 18px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 14px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+  #world { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; background: var(--field); }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  button { font: inherit; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tabs button { border-radius: 7px 7px 0 0; }
+  .sense { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; margin: 6px 0; background: #fff; }
+  .sense.locked { opacity: .6; background: transparent; }
+  .sense small { color: var(--muted); display: block; }
+  .muted { color: var(--muted); }
+  .slots { font-weight: 600; }
+  .shop-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
+  .shop-item:first-of-type { border-top: 0; }
+  .warning { color: var(--warn); font-weight: 800; font-size: 13px; margin-top: 4px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+  @media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 12px; color: var(--muted); }
+  .reason { font-size: 16px; font-weight: 600; padding: 10px 12px; border-left: 4px solid var(--accent); background: #fff; border-radius: 0 8px 8px 0; margin-bottom: 10px; }
+  #chart { width: 100%; height: 220px; display: block; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Evolution Lab: Learning Game</h1>
+    <span class="muted">prototype</span>
+    <span class="wallet" id="wallet"></span>
+  </header>
+  <div class="grid">
+    <section class="card">
+      <h2 id="watchTitle">World</h2>
+      <canvas id="world" width="400" height="400"></canvas>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--food);border:1px solid var(--food-rim)"></i>food</span>
+        <span><i class="dot" style="background:var(--poison)"></i>poison</span>
+        <span><i class="dot" style="background:var(--hunter);border-radius:0"></i>hunter</span>
+        <span>creature doing: <i class="dot" style="background:var(--eat)"></i>eat <i class="dot" style="background:var(--avoid)"></i>avoid <i class="dot" style="background:var(--flee)"></i>flee <i class="dot" style="background:var(--wander)"></i>wander</span>
+      </div>
+      <div class="row">
+        <span class="muted">Watch:</span>
+        <button id="watchBest" class="on">best brain</button>
+        <button id="watchBot">hand-written bot</button>
+        <span class="muted">Speed:</span>
+        <button id="speed">normal</button>
+      </div>
+      <p class="muted" id="watchNote">Press Evolve. The best brain so far plays a map it has never trained on.</p>
+    </section>
+    <section class="card">
+      <div class="row tabs" id="levels"></div>
+      <p id="blurb"></p>
+      <h2>Senses <span class="slots" id="slotCount"></span></h2>
+      <div class="sense"><input type="checkbox" checked disabled><div>see food <small>direction and distance of the nearest bead (food or poison), always on</small></div></div>
+      <div id="senses"></div>
+      <h2 style="margin-top:12px">Brain</h2>
+      <div class="row" id="brains"></div>
+      <div class="row">
+        <button class="primary" id="go">Evolve</button>
+        <button id="stop" disabled>Stop</button>
+        <span class="muted" id="runInfo"></span>
+      </div>
+      <h2 style="margin-top:14px">Shop <span class="muted" style="text-transform:none;letter-spacing:0">creds come from new best progress on a level</span></h2>
+      <div id="shop"></div>
+      <div class="row"><button id="reset" style="font-size:12px">Reset progress</button></div>
+    </section>
+  </div>
+  <section class="card" style="margin-top:14px">
+    <h2>Dashboard</h2>
+    <div class="tiles">
+      <div class="tile"><span>Generation</span><b id="tGen">0</b></div>
+      <div class="tile"><span>This attempt: best <i id="tLatest" style="font-style:normal"></i></span><b id="tProg">-</b></div>
+      <div class="tile"><span>Level best</span><b id="tBest">-</b></div>
+      <div class="tile"><span>Creds this attempt</span><b id="tEarn">0.00</b></div>
+    </div>
+    <div class="reason" id="reason">Pick 2 senses and press Evolve.</div>
+    <canvas id="chart"></canvas>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Level</th><th>Senses</th><th>Brain</th><th>Generations</th><th>Best</th><th>Creds earned</th></tr></thead>
+      <tbody id="attempts"></tbody>
+    </table></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+(() => {
+  // src/engine/dmath.ts
+  var HALF_PI_HI = 1.5707963267341256;
+  var HALF_PI_LO = 6077100506506192e-26;
+  var TWO_OVER_PI = 0.6366197723675814;
+  var LN2_HI = 0.6931471803691238;
+  var LN2_LO = 19082149292705877e-26;
+  var INV_LN2 = 1.4426950408889634;
+  var SQRT_HALF = 0.7071067811865476;
+  var SQRT2 = 1.4142135623730951;
+  var F = [1];
+  for (let n = 1; n <= 20; n++) F.push(F[n - 1] / n);
+  var P2 = new Array(129);
+  P2[64] = 1;
+  for (let i = 1; i <= 64; i++) {
+    P2[64 + i] = P2[63 + i] * 2;
+    P2[64 - i] = P2[65 - i] / 2;
+  }
+  function sinSmall(r) {
+    const r2 = r * r;
+    return r * (F[0] - r2 * (F[3] - r2 * (F[5] - r2 * (F[7] - r2 * (F[9] - r2 * (F[11] - r2 * (F[13] - r2 * (F[15] - r2 * (F[17] - r2 * F[19])))))))));
+  }
+  function cosSmall(r) {
+    const r2 = r * r;
+    return F[0] - r2 * (F[2] - r2 * (F[4] - r2 * (F[6] - r2 * (F[8] - r2 * (F[10] - r2 * (F[12] - r2 * (F[14] - r2 * (F[16] - r2 * F[18]))))))));
+  }
+  function sin(x) {
+    const k = Math.floor(x * TWO_OVER_PI + 0.5);
+    const r = x - k * HALF_PI_HI - k * HALF_PI_LO;
+    const q = (k % 4 + 4) % 4;
+    return q === 0 ? sinSmall(r) : q === 1 ? cosSmall(r) : q === 2 ? -sinSmall(r) : -cosSmall(r);
+  }
+  function cos(x) {
+    const k = Math.floor(x * TWO_OVER_PI + 0.5);
+    const r = x - k * HALF_PI_HI - k * HALF_PI_LO;
+    const q = (k % 4 + 4) % 4;
+    return q === 0 ? cosSmall(r) : q === 1 ? -sinSmall(r) : q === 2 ? -cosSmall(r) : sinSmall(r);
+  }
+  function expSmall(x) {
+    const k = Math.floor(x * INV_LN2 + 0.5);
+    const r = x - k * LN2_HI - k * LN2_LO;
+    let p = F[17];
+    for (let n = 16; n >= 0; n--) p = p * r + F[n];
+    return p * P2[64 + k];
+  }
+  function tanh(x) {
+    if (x !== x) return NaN;
+    const a = x < 0 ? -x : x;
+    let t;
+    if (a >= 20) t = 1;
+    else if (a < 0.05) {
+      const a2 = a * a;
+      t = a * (1 - a2 * (1 / 3 - a2 * (2 / 15 - a2 * (17 / 315 - a2 * (62 / 2835 - a2 * (1382 / 155925))))));
+    } else {
+      const e = expSmall(-2 * a);
+      t = (1 - e) / (1 + e);
+    }
+    return x < 0 ? -t : t;
+  }
+  function log(x) {
+    if (!(x > 0)) return x === 0 ? -Infinity : NaN;
+    if (x === Infinity) return Infinity;
+    let m = x;
+    let e = 0;
+    while (m < SQRT_HALF) {
+      m *= 2;
+      e--;
+    }
+    while (m >= SQRT2) {
+      m /= 2;
+      e++;
+    }
+    const s = (m - 1) / (m + 1);
+    const s2 = s * s;
+    let p = 1 / 23;
+    for (let n = 21; n >= 1; n -= 2) p = p * s2 + 1 / n;
+    return e * LN2_HI + (e * LN2_LO + 2 * s * p);
+  }
+
+  // src/engine/rng.ts
+  function createRng(seed) {
+    let a = seed;
+    const next = () => {
+      a |= 0;
+      a = a + 1831565813 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+    const gauss = () => {
+      const u = next() || 1e-9;
+      const v = next();
+      return Math.sqrt(-2 * log(u)) * cos(2 * Math.PI * v);
+    };
+    return { next, gauss };
+  }
+
+  // proto/game/sim.ts
+  var SIZE = 400;
+  var T = 800;
+  var POP = 30;
+  var EVERY = 5;
+  var HELD = [101, 102];
+  var BAR = 0.8;
+  var SLICE = 40;
+  var SPEED = 2;
+  var SEE = 150;
+  var FLEE_AT = 60;
+  var BITE = 6;
+  var CATCH = 8;
+  var HUNTER_SPEED = 1.9;
+  var REST = 20;
+  var HUNT_SEE = 120;
+  var HUNGER = 15e-4;
+  var MEAL = 0.3;
+  var POISON = 0.35;
+  var EMAX = 1.5;
+  var LEVELS = [
+    {
+      id: "L1",
+      name: "Poison patch",
+      good: 30,
+      bad: 20,
+      hunters: 0,
+      menu: ["poison", "taste", "energy"],
+      blurb: "20 of the 50 beads here are poison. Eating poison costs energy and a point."
+    },
+    {
+      id: "L2",
+      name: "Hunted",
+      good: 40,
+      bad: 8,
+      hunters: 6,
+      menu: ["poison", "hunter", "energy"],
+      blurb: "Six hunters roam. A caught creature is out for the rest of the round."
+    }
+  ];
+  var SENSE_INFO = {
+    poison: "see poison: direction and distance of the nearest poison bead",
+    taste: "taste: was my last bite poison?",
+    hunter: "see hunter: direction and distance of the nearest hunter",
+    energy: "feel energy: how full am I?"
+  };
+  var newStats = () => ({ score: 0, good: 0, bad: 0, hunted: 0, starved: 0 });
+  var nIn = (b) => 3 + (b.includes("poison") ? 3 : 0) + (b.includes("taste") ? 1 : 0) + (b.includes("hunter") ? 3 : 0) + (b.includes("energy") ? 1 : 0);
+  function gSize(nin, layers2, nout = 4) {
+    let s = 0, prev = nin;
+    for (const h of [...layers2, nout]) {
+      s += prev * h + h;
+      prev = h;
+    }
+    return s;
+  }
+  function think(g, inp, layers2, out, bufs) {
+    let cur = inp, n = inp.length, k = 0;
+    for (let l = 0; l < layers2.length; l++) {
+      const nxt = bufs[l], m = layers2[l];
+      for (let j = 0; j < m; j++) {
+        let s = 0;
+        for (let i = 0; i < n; i++) s += cur[i] * g[k++];
+        nxt[j] = tanh(s + g[k++]);
+      }
+      cur = nxt;
+      n = m;
+    }
+    for (let j = 0; j < out.length; j++) {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += cur[i] * g[k++];
+      out[j] = tanh(s + g[k++]);
+    }
+  }
+  function wrap(d) {
+    let x = d + 1.5 * SIZE;
+    if (x >= 2 * SIZE) x -= 2 * SIZE;
+    else if (x >= SIZE) x -= SIZE;
+    return x - SIZE / 2;
+  }
+  var World = class {
+    t = 0;
+    r;
+    fx = [];
+    fy = [];
+    bad = [];
+    px = [];
+    py = [];
+    hx = [];
+    hy = [];
+    en = [];
+    taste = [];
+    alive = [];
+    act = [];
+    st = [];
+    kx = [];
+    ky = [];
+    kdx = [];
+    kdy = [];
+    rest = [];
+    b;
+    inp = [];
+    bufs;
+    out = [0, 0, 0, 0];
+    lv;
+    rule;
+    layers;
+    genomes;
+    constructor(lv, rule, build, layers2, genomes, mapSeed) {
+      this.lv = lv;
+      this.rule = rule;
+      this.layers = layers2;
+      this.genomes = genomes;
+      const r = this.r = createRng(mapSeed);
+      for (let i = 0; i < lv.good + lv.bad; i++) {
+        this.fx.push(r.next() * SIZE);
+        this.fy.push(r.next() * SIZE);
+        this.bad.push(i >= lv.good);
+      }
+      for (let i = 0; i < genomes.length; i++) {
+        this.px.push(r.next() * SIZE);
+        this.py.push(r.next() * SIZE);
+        const a = r.next() * 2 * Math.PI;
+        this.hx.push(cos(a));
+        this.hy.push(sin(a));
+        this.en.push(1);
+        this.taste.push(0);
+        this.alive.push(true);
+        this.act.push(3);
+        this.st.push(newStats());
+      }
+      for (let i = 0; i < lv.hunters; i++) {
+        this.kx.push(r.next() * SIZE);
+        this.ky.push(r.next() * SIZE);
+        const a = r.next() * 2 * Math.PI;
+        this.kdx.push(cos(a));
+        this.kdy.push(sin(a));
+        this.rest.push(0);
+      }
+      this.b = rule ? lv.menu.filter((e) => e === "poison" || e === "hunter") : build;
+      this.bufs = layers2.map((m) => new Array(m).fill(0));
+    }
+    get done() {
+      return this.t >= T;
+    }
+    step() {
+      const { lv, r, fx, fy, bad, px, py, hx, hy, en, taste, alive, st, kx, ky, kdx, kdy, rest, inp, out } = this;
+      const nf = fx.length, n = px.length;
+      const hasP = this.b.includes("poison"), hasT = this.b.includes("taste"), hasH = this.b.includes("hunter"), hasE = this.b.includes("energy");
+      for (let i = 0; i < n; i++) {
+        if (!alive[i]) continue;
+        let fi = -1, fd = SEE * SEE, pi = -1, pd = SEE * SEE, hi = -1, hd = SEE * SEE;
+        for (let f = 0; f < nf; f++) {
+          const dx = wrap(fx[f] - px[i]), dx2 = dx * dx;
+          if (dx2 >= fd && (!bad[f] || dx2 >= pd)) continue;
+          const dy = wrap(fy[f] - py[i]), d = dx2 + dy * dy;
+          if (d < fd) {
+            fd = d;
+            fi = f;
+          }
+          if (bad[f] && d < pd) {
+            pd = d;
+            pi = f;
+          }
+        }
+        for (let h = 0; h < lv.hunters; h++) {
+          const dx = wrap(kx[h] - px[i]), dx2 = dx * dx;
+          if (dx2 >= hd) continue;
+          const dy = wrap(ky[h] - py[i]), d = dx2 + dy * dy;
+          if (d < hd) {
+            hd = d;
+            hi = h;
+          }
+        }
+        const toward = (tx, ty, k2, found) => {
+          if (!found) {
+            inp[k2] = 0;
+            inp[k2 + 1] = 0;
+            inp[k2 + 2] = 0;
+            return k2 + 3;
+          }
+          const dx = wrap(tx - px[i]), dy = wrap(ty - py[i]), d = Math.sqrt(dx * dx + dy * dy) || 1;
+          inp[k2] = (dx * hx[i] + dy * hy[i]) / d;
+          inp[k2 + 1] = (-dx * hy[i] + dy * hx[i]) / d;
+          inp[k2 + 2] = 1 - d / SEE;
+          return k2 + 3;
+        };
+        let k = toward(fi >= 0 ? fx[fi] : 0, fi >= 0 ? fy[fi] : 0, 0, fi >= 0);
+        if (hasP) k = toward(pi >= 0 ? fx[pi] : 0, pi >= 0 ? fy[pi] : 0, k, pi >= 0);
+        if (hasT) inp[k++] = taste[i];
+        if (hasH) k = toward(hi >= 0 ? kx[hi] : 0, hi >= 0 ? ky[hi] : 0, k, hi >= 0);
+        if (hasE) inp[k++] = en[i] - 1;
+        inp.length = k;
+        let act = 3;
+        if (this.rule) {
+          if (hi >= 0 && hd < FLEE_AT * FLEE_AT) act = 2;
+          else if (fi >= 0 && fi === pi) act = 1;
+          else act = 0;
+        } else {
+          think(this.genomes[i], inp, this.layers, out, this.bufs);
+          let best = -2;
+          for (let a = 0; a < 4; a++) {
+            if (a === 1 && !hasP || a === 2 && !hasH) continue;
+            if (out[a] > best) {
+              best = out[a];
+              act = a;
+            }
+          }
+        }
+        this.act[i] = act;
+        const face = (dx, dy) => {
+          const d = Math.sqrt(dx * dx + dy * dy) || 1;
+          hx[i] = dx / d;
+          hy[i] = dy / d;
+        };
+        const turn = (a) => {
+          const c = cos(a), s = sin(a), x = hx[i];
+          hx[i] = x * c - hy[i] * s;
+          hy[i] = x * s + hy[i] * c;
+        };
+        if (act === 0 && fi >= 0) face(wrap(fx[fi] - px[i]), wrap(fy[fi] - py[i]));
+        else if (act === 1 && pi >= 0) face(-wrap(fx[pi] - px[i]), -wrap(fy[pi] - py[i]));
+        else if (act === 2 && hi >= 0) face(-wrap(kx[hi] - px[i]), -wrap(ky[hi] - py[i]));
+        else turn(r.gauss() * 0.2);
+        px[i] = (px[i] + hx[i] * SPEED + SIZE) % SIZE;
+        py[i] = (py[i] + hy[i] * SPEED + SIZE) % SIZE;
+        if (fi >= 0) {
+          const dx = wrap(fx[fi] - px[i]), dy = wrap(fy[fi] - py[i]);
+          if (dx * dx + dy * dy < BITE * BITE) {
+            if (bad[fi]) {
+              en[i] -= POISON;
+              st[i].bad++;
+              st[i].score--;
+              taste[i] = 1;
+            } else {
+              en[i] = Math.min(EMAX, en[i] + MEAL);
+              st[i].good++;
+              st[i].score++;
+              taste[i] = -1;
+            }
+            fx[fi] = r.next() * SIZE;
+            fy[fi] = r.next() * SIZE;
+          }
+        }
+        en[i] -= HUNGER;
+        if (en[i] <= 0) {
+          alive[i] = false;
+          st[i].starved = 1;
+        }
+      }
+      for (let h = 0; h < lv.hunters; h++) {
+        if (rest[h] > 0) {
+          rest[h]--;
+          continue;
+        }
+        let ti = -1, td = HUNT_SEE * HUNT_SEE;
+        for (let i = 0; i < n; i++) {
+          if (!alive[i]) continue;
+          const dx = wrap(px[i] - kx[h]), dx2 = dx * dx;
+          if (dx2 >= td) continue;
+          const dy = wrap(py[i] - ky[h]), d = dx2 + dy * dy;
+          if (d < td) {
+            td = d;
+            ti = i;
+          }
+        }
+        let sp = 1;
+        if (ti >= 0) {
+          const dx = wrap(px[ti] - kx[h]), dy = wrap(py[ti] - ky[h]), d = Math.sqrt(dx * dx + dy * dy) || 1;
+          kdx[h] = dx / d;
+          kdy[h] = dy / d;
+          sp = HUNTER_SPEED;
+          if (d < CATCH) {
+            alive[ti] = false;
+            st[ti].hunted = 1;
+            rest[h] = REST;
+            continue;
+          }
+        } else {
+          const a = r.gauss() * 0.2, c = cos(a), s = sin(a), x = kdx[h];
+          kdx[h] = x * c - kdy[h] * s;
+          kdy[h] = x * s + kdy[h] * c;
+        }
+        kx[h] = (kx[h] + kdx[h] * sp + SIZE) % SIZE;
+        ky[h] = (ky[h] + kdy[h] * sp + SIZE) % SIZE;
+      }
+      this.t++;
+    }
+  };
+  function episode(lv, rule, build, layers2, genomes, mapSeed) {
+    const w = new World(lv, rule, build, layers2, genomes, mapSeed);
+    while (!w.done) w.step();
+    return w.st;
+  }
+  function mean(st) {
+    const m = newStats();
+    for (const s of st) {
+      m.score += s.score;
+      m.good += s.good;
+      m.bad += s.bad;
+      m.hunted += s.hunted;
+      m.starved += s.starved;
+    }
+    for (const key of Object.keys(m)) m[key] /= st.length;
+    return m;
+  }
+  function heldOut(lv, rule, build, layers2, g) {
+    const all = [];
+    for (const s of HELD) all.push(...episode(lv, rule, build, layers2, Array.from({ length: POP }, () => g), s));
+    return mean(all);
+  }
+  var Evolver = class {
+    gen = 0;
+    hist = [];
+    // progress every EVERY generations
+    pop;
+    champ = null;
+    champStats = null;
+    ruleStats;
+    er;
+    lv;
+    build;
+    layers;
+    seed;
+    constructor(lv, build, layers2, seed) {
+      this.lv = lv;
+      this.build = build;
+      this.layers = layers2;
+      this.seed = seed;
+      this.er = createRng(seed * 7919 + 13);
+      this.ruleStats = heldOut(lv, true, build, layers2, []);
+      const size = gSize(nIn(build), layers2);
+      this.pop = Array.from({ length: POP }, () => Array.from({ length: size }, () => this.er.gauss() * 0.5));
+    }
+    // One generation as small pieces: yields every SLICE ticks so a page can draw in between, and returns
+    // the new progress when this generation was a check (else null). step() runs it straight through.
+    *generation() {
+      const gen = this.gen + 1, er = this.er;
+      const w = new World(this.lv, false, this.build, this.layers, this.pop, this.seed * 1e3 + gen);
+      while (!w.done) {
+        w.step();
+        if (w.t % SLICE === 0) yield;
+      }
+      this.gen = gen;
+      const st = w.st;
+      const order = this.pop.map((_, i) => i).sort((a, b) => st[b].score - st[a].score || a - b);
+      let p = null;
+      if (gen % EVERY === 0) {
+        const champ2 = this.pop[order[0]].slice();
+        const all = [];
+        for (const s of HELD) {
+          const hw = new World(this.lv, false, this.build, this.layers, Array.from({ length: POP }, () => champ2), s);
+          while (!hw.done) {
+            hw.step();
+            if (hw.t % SLICE === 0) yield;
+          }
+          all.push(...hw.st);
+        }
+        this.champ = champ2;
+        this.champStats = mean(all);
+        p = this.champStats.score / this.ruleStats.score;
+        this.hist.push(p);
+      }
+      const parents = order.slice(0, 6).map((i) => this.pop[i]);
+      const next = parents.slice(0, 3).map((g) => g.slice());
+      while (next.length < POP) next.push(parents[next.length % 6].map((x) => er.next() < 0.2 ? x + er.gauss() * 0.3 : x));
+      this.pop = next;
+      return p;
+    }
+    step() {
+      const it = this.generation();
+      let r = it.next();
+      while (!r.done) r = it.next();
+      return r.value;
+    }
+  };
+  function why(lv, build, c, b, progress) {
+    if (progress >= BAR) return progress >= 1 ? "Beats the hand-written bot." : "Close to the hand-written bot: level passed.";
+    if (lv.hunters > 0 && c.hunted > b.hunted + 0.1)
+      return build.includes("hunter") ? "Sees hunters but hasn't learned to flee yet. Give it more generations." : "Your creatures can't see hunters, so they can't learn to flee them.";
+    if (c.bad > b.bad + 0.5) {
+      if (build.includes("poison")) return "Sees poison but hasn't learned to avoid it yet. Give it more generations.";
+      if (build.includes("taste")) return "Taste only tells after the bite. These brains can't learn during life, so taste can't help.";
+      return "Your creatures can't tell poison from food, so they eat both.";
+    }
+    if (c.starved > b.starved + 0.1) return "Starving: hasn't learned to find food yet.";
+    return "Eats too slowly: still learning.";
+  }
+
+  // proto/play.ts
+  var KEY = "evolution-lab-learning-game-v1";
+  var fresh = () => ({ high: {}, spent: 0, owned: ["level:L1", "sense:taste", "sense:energy"], attempts: [] });
+  function load() {
+    try {
+      const s = localStorage.getItem(KEY);
+      return s ? { ...fresh(), ...JSON.parse(s) } : fresh();
+    } catch {
+      return fresh();
+    }
+  }
+  function persist() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(save));
+    } catch {
+    }
+  }
+  var save = load();
+  var SHOP = [
+    { id: "sense:poison", label: "Sense: see poison", price: 0.3 },
+    { id: "level:L2", label: "Level 2: Hunted", price: 0.6 },
+    { id: "sense:hunter", label: "Sense: see hunter", price: 0.3 },
+    { id: "slot:3", label: "Extra slot (3 senses)", price: 1.5 },
+    {
+      id: "layers:2",
+      label: "More layers: 2 layers of 6",
+      price: 0.5,
+      warning: "\u26A0 Bigger brain \u2260 smarter. Tested on these levels: no better, sometimes slightly worse. More connections = more for evolution to search, so learning can be slower."
+    }
+  ];
+  var owns = (id) => save.owned.includes(id);
+  var earnedTotal = () => Object.values(save.high).reduce((s, x) => s + x, 0);
+  var wallet = () => earnedTotal() - save.spent;
+  var slots = () => owns("slot:3") ? 3 : 2;
+  var $ = (id) => document.getElementById(id);
+  var level = 0;
+  var chosen = /* @__PURE__ */ new Set();
+  var layers = [6];
+  var speed = "normal";
+  var watch = "best";
+  var running = null;
+  var champ = null;
+  var bestStats = null;
+  var lastGen = 0;
+  var champGen = 0;
+  var lastStart = null;
+  function pageEngine() {
+    let run = 0;
+    const ch = new MessageChannel();
+    let next = () => {
+    };
+    ch.port1.onmessage = () => next();
+    return (m) => {
+      const me = ++run;
+      if (m.type === "stop") return;
+      const ev = new Evolver(LEVELS[m.level], m.build, m.layers, m.seed);
+      let it = null;
+      let busy = 0, gens = 0;
+      next = () => {
+        if (me !== run) return;
+        const t0 = performance.now(), deadline = t0 + 10;
+        while (performance.now() < deadline) {
+          if (!it) it = ev.generation();
+          const r = it.next();
+          if (!r.done) continue;
+          it = null;
+          gens++;
+          if (r.value !== null) {
+            busy += performance.now() - t0;
+            onCheck({ type: "check", attempt: m.attempt, gen: ev.gen, progress: r.value, champ: ev.champ, champStats: ev.champStats, ruleStats: ev.ruleStats, msPerGen: busy / gens });
+            busy = 0;
+            gens = 0;
+            break;
+          }
+        }
+        busy += performance.now() - t0;
+        ch.port2.postMessage(0);
+      };
+      ch.port2.postMessage(0);
+    };
+  }
+  var send;
+  var engine = "worker";
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob(['"use strict";(()=>{var ne=1.5707963267341256,se=6077100506506192e-26,re=.6366197723675814,oe=.6931471803691238,ae=19082149292705877e-26,Le=1.4426950408889634,ke=.7071067811865476,Ie=1.4142135623730951,p=[1];for(let n=1;n<=20;n++)p.push(p[n-1]/n);var F=new Array(129);F[64]=1;for(let n=1;n<=64;n++)F[64+n]=F[63+n]*2,F[64-n]=F[65-n]/2;function D(n){let e=n*n;return n*(p[0]-e*(p[3]-e*(p[5]-e*(p[7]-e*(p[9]-e*(p[11]-e*(p[13]-e*(p[15]-e*(p[17]-e*p[19])))))))))}function U(n){let e=n*n;return p[0]-e*(p[2]-e*(p[4]-e*(p[6]-e*(p[8]-e*(p[10]-e*(p[12]-e*(p[14]-e*(p[16]-e*p[18]))))))))}function G(n){let e=Math.floor(n*re+.5),s=n-e*ne-e*se,r=(e%4+4)%4;return r===0?D(s):r===1?U(s):r===2?-D(s):-U(s)}function O(n){let e=Math.floor(n*re+.5),s=n-e*ne-e*se,r=(e%4+4)%4;return r===0?U(s):r===1?-D(s):r===2?-U(s):D(s)}function Me(n){let e=Math.floor(n*Le+.5),s=n-e*oe-e*ae,r=p[17];for(let o=16;o>=0;o--)r=r*s+p[o];return r*F[64+e]}function J(n){if(n!==n)return NaN;let e=n<0?-n:n,s;if(e>=20)s=1;else if(e<.05){let r=e*e;s=e*(1-r*(1/3-r*(2/15-r*(17/315-r*(62/2835-r*(1382/155925))))))}else{let r=Me(-2*e);s=(1-r)/(1+r)}return n<0?-s:s}function ie(n){if(!(n>0))return n===0?-1/0:NaN;if(n===1/0)return 1/0;let e=n,s=0;for(;e<ke;)e*=2,s--;for(;e>=Ie;)e/=2,s++;let r=(e-1)/(e+1),o=r*r,u=1/23;for(let a=21;a>=1;a-=2)u=u*o+1/a;return s*oe+(s*ae+2*r*u)}function K(n){let e=n,s=()=>{e|=0,e=e+1831565813|0;let o=Math.imul(e^e>>>15,1|e);return o=o+Math.imul(o^o>>>7,61|o)^o,((o^o>>>14)>>>0)/4294967296};return{next:s,gauss:()=>{let o=s()||1e-9,u=s();return Math.sqrt(-2*ie(o))*O(2*Math.PI*u)}}}var f=400,Ae=800,Y=30,Ne=5,me=[101,102];var ue=40,le=2,C=150,he=60,ce=6,Pe=8,Re=1.9,_e=20,de=120,Te=.0015,He=.3,Oe=.35,Ce=1.5,pe=[{id:"L1",name:"Poison patch",good:30,bad:20,hunters:0,menu:["poison","taste","energy"],blurb:"20 of the 50 beads here are poison. Eating poison costs energy and a point."},{id:"L2",name:"Hunted",good:40,bad:8,hunters:6,menu:["poison","hunter","energy"],blurb:"Six hunters roam. A caught creature is out for the rest of the round."}];var fe=()=>({score:0,good:0,bad:0,hunted:0,starved:0}),Fe=n=>3+(n.includes("poison")?3:0)+(n.includes("taste")?1:0)+(n.includes("hunter")?3:0)+(n.includes("energy")?1:0);function qe(n,e,s=4){let r=0,o=n;for(let u of[...e,s])r+=o*u+u,o=u;return r}function Ge(n,e,s,r,o){let u=e,a=e.length,h=0;for(let i=0;i<s.length;i++){let l=o[i],b=s[i];for(let N=0;N<b;N++){let E=0;for(let k=0;k<a;k++)E+=u[k]*n[h++];l[N]=J(E+n[h++])}u=l,a=b}for(let i=0;i<r.length;i++){let l=0;for(let b=0;b<a;b++)l+=u[b]*n[h++];r[i]=J(l+n[h++])}}function S(n){let e=n+1.5*f;return e>=2*f?e-=2*f:e>=f&&(e-=f),e-f/2}var V=class{t=0;r;fx=[];fy=[];bad=[];px=[];py=[];hx=[];hy=[];en=[];taste=[];alive=[];act=[];st=[];kx=[];ky=[];kdx=[];kdy=[];rest=[];b;inp=[];bufs;out=[0,0,0,0];lv;rule;layers;genomes;constructor(e,s,r,o,u,a){this.lv=e,this.rule=s,this.layers=o,this.genomes=u;let h=this.r=K(a);for(let i=0;i<e.good+e.bad;i++)this.fx.push(h.next()*f),this.fy.push(h.next()*f),this.bad.push(i>=e.good);for(let i=0;i<u.length;i++){this.px.push(h.next()*f),this.py.push(h.next()*f);let l=h.next()*2*Math.PI;this.hx.push(O(l)),this.hy.push(G(l)),this.en.push(1),this.taste.push(0),this.alive.push(!0),this.act.push(3),this.st.push(fe())}for(let i=0;i<e.hunters;i++){this.kx.push(h.next()*f),this.ky.push(h.next()*f);let l=h.next()*2*Math.PI;this.kdx.push(O(l)),this.kdy.push(G(l)),this.rest.push(0)}this.b=s?e.menu.filter(i=>i==="poison"||i==="hunter"):r,this.bufs=o.map(i=>new Array(i).fill(0))}get done(){return this.t>=Ae}step(){let{lv:e,r:s,fx:r,fy:o,bad:u,px:a,py:h,hx:i,hy:l,en:b,taste:N,alive:E,st:k,kx:_,ky:T,kdx:j,kdy:q,rest:Q,inp:I,out:W}=this,xe=r.length,$=a.length,ee=this.b.includes("poison"),ve=this.b.includes("taste"),te=this.b.includes("hunter"),we=this.b.includes("energy");for(let t=0;t<$;t++){if(!E[t])continue;let m=-1,H=C*C,v=-1,x=C*C,g=-1,w=C*C;for(let c=0;c<xe;c++){let d=S(r[c]-a[t]),y=d*d;if(y>=H&&(!u[c]||y>=x))continue;let A=S(o[c]-h[t]),L=y+A*A;L<H&&(H=L,m=c),u[c]&&L<x&&(x=L,v=c)}for(let c=0;c<e.hunters;c++){let d=S(_[c]-a[t]),y=d*d;if(y>=w)continue;let A=S(T[c]-h[t]),L=y+A*A;L<w&&(w=L,g=c)}let P=(c,d,y,A)=>{if(!A)return I[y]=0,I[y+1]=0,I[y+2]=0,y+3;let L=S(c-a[t]),B=S(d-h[t]),Z=Math.sqrt(L*L+B*B)||1;return I[y]=(L*i[t]+B*l[t])/Z,I[y+1]=(-L*l[t]+B*i[t])/Z,I[y+2]=1-Z/C,y+3},M=P(m>=0?r[m]:0,m>=0?o[m]:0,0,m>=0);ee&&(M=P(v>=0?r[v]:0,v>=0?o[v]:0,M,v>=0)),ve&&(I[M++]=N[t]),te&&(M=P(g>=0?_[g]:0,g>=0?T[g]:0,M,g>=0)),we&&(I[M++]=b[t]-1),I.length=M;let R=3;if(this.rule)g>=0&&w<he*he?R=2:m>=0&&m===v?R=1:R=0;else{Ge(this.genomes[t],I,this.layers,W,this.bufs);let c=-2;for(let d=0;d<4;d++)d===1&&!ee||d===2&&!te||W[d]>c&&(c=W[d],R=d)}this.act[t]=R;let X=(c,d)=>{let y=Math.sqrt(c*c+d*d)||1;i[t]=c/y,l[t]=d/y},Ee=c=>{let d=O(c),y=G(c),A=i[t];i[t]=A*d-l[t]*y,l[t]=A*y+l[t]*d};if(R===0&&m>=0?X(S(r[m]-a[t]),S(o[m]-h[t])):R===1&&v>=0?X(-S(r[v]-a[t]),-S(o[v]-h[t])):R===2&&g>=0?X(-S(_[g]-a[t]),-S(T[g]-h[t])):Ee(s.gauss()*.2),a[t]=(a[t]+i[t]*le+f)%f,h[t]=(h[t]+l[t]*le+f)%f,m>=0){let c=S(r[m]-a[t]),d=S(o[m]-h[t]);c*c+d*d<ce*ce&&(u[m]?(b[t]-=Oe,k[t].bad++,k[t].score--,N[t]=1):(b[t]=Math.min(Ce,b[t]+He),k[t].good++,k[t].score++,N[t]=-1),r[m]=s.next()*f,o[m]=s.next()*f)}b[t]-=Te,b[t]<=0&&(E[t]=!1,k[t].starved=1)}for(let t=0;t<e.hunters;t++){if(Q[t]>0){Q[t]--;continue}let m=-1,H=de*de;for(let x=0;x<$;x++){if(!E[x])continue;let g=S(a[x]-_[t]),w=g*g;if(w>=H)continue;let P=S(h[x]-T[t]),M=w+P*P;M<H&&(H=M,m=x)}let v=1;if(m>=0){let x=S(a[m]-_[t]),g=S(h[m]-T[t]),w=Math.sqrt(x*x+g*g)||1;if(j[t]=x/w,q[t]=g/w,v=Re,w<Pe){E[m]=!1,k[m].hunted=1,Q[t]=_e;continue}}else{let x=s.gauss()*.2,g=O(x),w=G(x),P=j[t];j[t]=P*g-q[t]*w,q[t]=P*w+q[t]*g}_[t]=(_[t]+j[t]*v+f)%f,T[t]=(T[t]+q[t]*v+f)%f}this.t++}};function Ve(n,e,s,r,o,u){let a=new V(n,e,s,r,o,u);for(;!a.done;)a.step();return a.st}function be(n){let e=fe();for(let s of n)e.score+=s.score,e.good+=s.good,e.bad+=s.bad,e.hunted+=s.hunted,e.starved+=s.starved;for(let s of Object.keys(e))e[s]/=n.length;return e}function je(n,e,s,r,o){let u=[];for(let a of me)u.push(...Ve(n,e,s,r,Array.from({length:Y},()=>o),a));return be(u)}var z=class{gen=0;hist=[];pop;champ=null;champStats=null;ruleStats;er;lv;build;layers;seed;constructor(e,s,r,o){this.lv=e,this.build=s,this.layers=r,this.seed=o,this.er=K(o*7919+13),this.ruleStats=je(e,!0,s,r,[]);let u=qe(Fe(s),r);this.pop=Array.from({length:Y},()=>Array.from({length:u},()=>this.er.gauss()*.5))}*generation(){let e=this.gen+1,s=this.er,r=new V(this.lv,!1,this.build,this.layers,this.pop,this.seed*1e3+e);for(;!r.done;)r.step(),r.t%ue===0&&(yield);this.gen=e;let o=r.st,u=this.pop.map((l,b)=>b).sort((l,b)=>o[b].score-o[l].score||l-b),a=null;if(e%Ne===0){let l=this.pop[u[0]].slice(),b=[];for(let N of me){let E=new V(this.lv,!1,this.build,this.layers,Array.from({length:Y},()=>l),N);for(;!E.done;)E.step(),E.t%ue===0&&(yield);b.push(...E.st)}this.champ=l,this.champStats=be(b),a=this.champStats.score/this.ruleStats.score,this.hist.push(a)}let h=u.slice(0,6).map(l=>this.pop[l]),i=h.slice(0,3).map(l=>l.slice());for(;i.length<Y;)i.push(h[i.length%6].map(l=>s.next()<.2?l+s.gauss()*.3:l));return this.pop=i,a}step(){let e=this.generation(),s=e.next();for(;!s.done;)s=e.next();return s.value}};var ye=0,ge=new MessageChannel,Se=()=>{};ge.port1.onmessage=()=>Se();var Be=()=>new Promise(n=>{Se=n,ge.port2.postMessage(0)});self.onmessage=async n=>{let e=n.data,s=++ye;if(e.type==="stop")return;let r=new z(pe[e.level],e.build,e.layers,e.seed),o=performance.now(),u=0;for(;s===ye;){let a=r.step();if(u++,a!==null){let h=(performance.now()-o)/u;o=performance.now(),u=0,self.postMessage({type:"check",attempt:e.attempt,gen:r.gen,progress:a,champ:r.champ,champStats:r.champStats,ruleStats:r.ruleStats,msPerGen:h})}await Be()}};})();\n'], { type: "text/javascript" })));
+    w.onmessage = (e) => onCheck(e.data);
+    w.onerror = () => {
+      if (engine !== "worker") return;
+      engine = "page";
+      send = pageEngine();
+      if (running && lastStart) send(lastStart);
+    };
+    send = (m) => w.postMessage(m);
+  } catch {
+    engine = "page";
+    send = pageEngine();
+  }
+  function onCheck(m) {
+    if (!running || m.attempt !== running.n) return;
+    const a = running;
+    a.hist.push(m.progress);
+    a.gens = m.gen;
+    lastGen = m.gen;
+    if (m.progress > a.best) {
+      a.best = m.progress;
+      champ = m.champ;
+      champGen = m.gen;
+      bestStats = { c: m.champStats, b: m.ruleStats, p: m.progress };
+    }
+    const id = LEVELS[a.level].id, old = save.high[id] ?? 0;
+    if (m.progress > old) {
+      save.high[id] = m.progress;
+      a.earned += m.progress - old;
+      toast(`New best ${m.progress.toFixed(2)}: +${(m.progress - old).toFixed(2)} creds`);
+    }
+    $("runInfo").textContent = `running \xB7 ${m.msPerGen.toFixed(0)} ms per generation${engine === "page" ? " (on page)" : ""}`;
+    persist();
+    renderDashboard();
+    renderTop();
+  }
+  function start() {
+    if (running) return;
+    const build = LEVELS[level].menu.filter((s) => chosen.has(s));
+    running = { n: save.attempts.length + 1, level, build, layers: layers.slice(), gens: 0, best: -Infinity, earned: 0, hist: [] };
+    save.attempts.push(running);
+    champ = null;
+    bestStats = null;
+    lastGen = 0;
+    lastStart = { type: "start", attempt: running.n, level, build, layers: running.layers, seed: running.n };
+    send(lastStart);
+    $("runInfo").textContent = "starting\u2026";
+    watch = "best";
+    replay = null;
+    renderAll();
+  }
+  function stop() {
+    if (!running) return;
+    send({ type: "stop" });
+    running = null;
+    $("runInfo").textContent = "";
+    persist();
+    renderAll();
+  }
+  function buy(it) {
+    if (owns(it.id) || wallet() < it.price - 1e-9) return;
+    save.spent += it.price;
+    save.owned.push(it.id);
+    persist();
+    toast(`Unlocked: ${it.label}`);
+    renderAll();
+  }
+  function renderTop() {
+    $("wallet").textContent = `Creds: ${wallet().toFixed(2)}`;
+  }
+  function renderControls() {
+    const busy = running !== null;
+    const lv = LEVELS[level];
+    const tabs = $("levels");
+    tabs.innerHTML = "";
+    LEVELS.forEach((L, i) => {
+      const b = document.createElement("button");
+      const open = owns(`level:${L.id}`);
+      b.textContent = `${i + 1}. ${L.name}${open ? "" : " \u{1F512}"}`;
+      b.className = i === level ? "on" : "";
+      b.disabled = busy || !open;
+      b.onclick = () => {
+        level = i;
+        chosen = new Set([...chosen].filter((s) => LEVELS[i].menu.includes(s)));
+        champ = null;
+        bestStats = null;
+        replay = null;
+        renderAll();
+      };
+      tabs.appendChild(b);
+    });
+    $("blurb").textContent = `${lv.blurb} Goal: reach ${BAR} of the hand-written bot's score on maps your creatures never trained on.`;
+    $("slotCount").textContent = `(${chosen.size} of ${slots()} slots)`;
+    const box = $("senses");
+    box.innerHTML = "";
+    for (const s of lv.menu) {
+      const have = owns(`sense:${s}`);
+      const row = document.createElement("label");
+      row.className = "sense" + (have ? "" : " locked");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = chosen.has(s);
+      cb.disabled = busy || !have || !chosen.has(s) && chosen.size >= slots();
+      cb.onchange = () => {
+        if (cb.checked) chosen.add(s);
+        else chosen.delete(s);
+        renderControls();
+      };
+      const [nm, ...rest] = SENSE_INFO[s].split(": ");
+      const txt = document.createElement("div");
+      txt.innerHTML = `${nm}${have ? "" : " \u{1F512} <span class='muted'>(shop)</span>"} <small>${rest.join(": ")}</small>`;
+      row.append(cb, txt);
+      box.appendChild(row);
+    }
+    const br = $("brains");
+    br.innerHTML = "";
+    for (const [lab, ls, need] of [["1 layer of 6", [6], ""], ["2 layers of 6", [6, 6], "layers:2"]]) {
+      const b = document.createElement("button");
+      const ok = !need || owns(need);
+      b.textContent = lab + (ok ? "" : " \u{1F512}");
+      b.className = layers.length === ls.length ? "on" : "";
+      b.disabled = busy || !ok;
+      b.onclick = () => {
+        layers = [...ls];
+        renderControls();
+      };
+      br.appendChild(b);
+    }
+    $("go").disabled = busy;
+    $("stop").disabled = !busy;
+    const shop = $("shop");
+    shop.innerHTML = "";
+    for (const it of SHOP) {
+      const row = document.createElement("div");
+      row.className = "shop-item";
+      const left = document.createElement("div");
+      left.innerHTML = `<div>${it.label}</div>` + (it.warning ? `<div class="warning">${it.warning}</div>` : "");
+      const b = document.createElement("button");
+      if (owns(it.id)) {
+        b.textContent = "owned \u2713";
+        b.disabled = true;
+      } else {
+        b.textContent = `buy ${it.price.toFixed(2)}`;
+        b.disabled = wallet() < it.price - 1e-9;
+        b.onclick = () => buy(it);
+      }
+      row.append(left, b);
+      shop.appendChild(row);
+    }
+    $("watchBest").className = watch === "best" ? "on" : "";
+    $("watchBot").className = watch === "bot" ? "on" : "";
+    $("speed").textContent = speed;
+  }
+  function renderDashboard() {
+    const a = running ?? [...save.attempts].reverse().find((x) => x.level === level) ?? null;
+    const id = LEVELS[level].id;
+    $("tGen").textContent = String(a ? a.gens : 0);
+    $("tProg").textContent = a && a.hist.length ? a.best.toFixed(2) : "-";
+    $("tLatest").textContent = a && a.hist.length ? `(latest check ${a.hist[a.hist.length - 1].toFixed(2)})` : "";
+    $("tBest").textContent = save.high[id] !== void 0 ? save.high[id].toFixed(2) : "-";
+    $("tEarn").textContent = (a ? a.earned : 0).toFixed(2);
+    const lv = LEVELS[level];
+    if (bestStats && a) $("reason").textContent = why(lv, a.build, bestStats.c, bestStats.b, bestStats.p);
+    else if (!a) $("reason").textContent = `Pick up to ${slots()} senses and press Evolve.`;
+    drawChart(a);
+    const tb = $("attempts");
+    tb.innerHTML = "";
+    for (const x of [...save.attempts].reverse()) {
+      const tr = document.createElement("tr");
+      const cells = [
+        String(x.n),
+        LEVELS[x.level].name,
+        ["food", ...x.build].join(" + "),
+        x.layers.join("+") + " neurons",
+        String(x.gens) + (x === running ? " \u2026" : ""),
+        Number.isFinite(x.best) ? x.best.toFixed(2) : "-",
+        x.earned.toFixed(2)
+      ];
+      for (const c of cells) {
+        const td = document.createElement("td");
+        td.textContent = c;
+        tr.appendChild(td);
+      }
+      tb.appendChild(tr);
+    }
+  }
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function drawChart(cur) {
+    const cv = $("chart");
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    const g = cv.getContext("2d");
+    g.scale(dpr, dpr);
+    g.clearRect(0, 0, W, H);
+    const same = save.attempts.filter((x) => x.level === level);
+    const maxGen = Math.max(50, ...same.map((x) => x.hist.length * 5));
+    const maxY = Math.max(1.2, ...same.flatMap((x) => x.hist));
+    const L = 40, R = 12, Tp = 10, B = 26;
+    const X = (gen) => L + gen / maxGen * (W - L - R);
+    const Y = (v) => Tp + (1 - Math.max(0, v) / maxY) * (H - Tp - B);
+    g.font = "11px system-ui, sans-serif";
+    g.fillStyle = css("--muted");
+    g.strokeStyle = css("--line");
+    g.lineWidth = 1;
+    for (const v of [0, 0.5, 1]) {
+      g.beginPath();
+      g.moveTo(L, Y(v));
+      g.lineTo(W - R, Y(v));
+      g.stroke();
+      g.fillText(v.toFixed(1), 8, Y(v) + 4);
+    }
+    g.fillText("generation", W - R - 60, H - 6);
+    g.fillText("0", L, H - 6);
+    g.fillText(String(maxGen), W - R - 60 - g.measureText(String(maxGen)).width - 8, H - 6);
+    g.setLineDash([5, 4]);
+    g.strokeStyle = css("--muted");
+    g.beginPath();
+    g.moveTo(L, Y(BAR));
+    g.lineTo(W - R, Y(BAR));
+    g.stroke();
+    g.fillText("pass", W - R - 28, Y(BAR) - 4);
+    g.fillText("= bot", W - R - 34, Y(1) - 4);
+    const hi = save.high[LEVELS[level].id];
+    if (hi !== void 0) {
+      g.strokeStyle = css("--good");
+      g.beginPath();
+      g.moveTo(L, Y(hi));
+      g.lineTo(W - R, Y(hi));
+      g.stroke();
+      g.fillStyle = css("--good");
+      g.fillText(`level best ${hi.toFixed(2)}`, L + 4, Y(hi) - 4);
+    }
+    g.setLineDash([]);
+    const line = (h, color, width) => {
+      if (!h.length) return;
+      g.strokeStyle = color;
+      g.lineWidth = width;
+      g.beginPath();
+      h.forEach((v, i) => i ? g.lineTo(X((i + 1) * 5), Y(v)) : g.moveTo(X(5), Y(v)));
+      g.stroke();
+    };
+    for (const x of same) if (x !== cur) line(x.hist, "rgba(93,108,112,.35)", 1.5);
+    if (cur) {
+      line(cur.hist, "rgba(43,92,158,.35)", 1.5);
+      let b = -Infinity;
+      line(cur.hist.map((v) => b = Math.max(b, v)), css("--accent"), 2.5);
+    }
+  }
+  var replay = null;
+  var replayOf = "best";
+  var lastFrame = performance.now();
+  var owed = 0;
+  function nextReplay() {
+    const lv = LEVELS[level];
+    if (watch === "best" && champ) {
+      const a = running ?? save.attempts[save.attempts.length - 1];
+      replayOf = "best";
+      return new World(lv, false, a.build, a.layers, Array.from({ length: POP }, () => champ), HELD[0]);
+    }
+    replayOf = "bot";
+    return new World(lv, true, [], [], Array.from({ length: POP }, () => []), HELD[0]);
+  }
+  function drawWorld(w) {
+    const cv = $("world");
+    const dpr = window.devicePixelRatio || 1, S = cv.clientWidth || 400;
+    if (cv.width !== Math.round(S * dpr)) {
+      cv.width = Math.round(S * dpr);
+      cv.height = Math.round(S * dpr);
+    }
+    const g = cv.getContext("2d");
+    g.setTransform(S * dpr / 400, 0, 0, S * dpr / 400, 0, 0);
+    g.fillStyle = css("--field");
+    g.fillRect(0, 0, 400, 400);
+    for (let f = 0; f < w.fx.length; f++) {
+      g.beginPath();
+      g.arc(w.fx[f], w.fy[f], 3.2, 0, Math.PI * 2);
+      g.fillStyle = w.bad[f] ? css("--poison") : css("--food");
+      g.fill();
+      if (!w.bad[f]) {
+        g.strokeStyle = css("--food-rim");
+        g.lineWidth = 1;
+        g.stroke();
+      }
+    }
+    const colors = [css("--eat"), css("--avoid"), css("--flee"), css("--wander")];
+    for (let i = 0; i < w.px.length; i++) {
+      if (!w.alive[i]) continue;
+      g.fillStyle = colors[w.act[i]];
+      g.beginPath();
+      g.arc(w.px[i], w.py[i], 5, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = colors[w.act[i]];
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(w.px[i], w.py[i]);
+      g.lineTo(w.px[i] + w.hx[i] * 9, w.py[i] + w.hy[i] * 9);
+      g.stroke();
+    }
+    g.fillStyle = css("--hunter");
+    for (let h = 0; h < w.kx.length; h++) {
+      const x = w.kx[h], y = w.ky[h], dx = w.kdx[h], dy = w.kdy[h];
+      g.beginPath();
+      g.moveTo(x + dx * 9, y + dy * 9);
+      g.lineTo(x - dx * 6 - dy * 6, y - dy * 6 + dx * 6);
+      g.lineTo(x - dx * 6 + dy * 6, y - dy * 6 - dx * 6);
+      g.closePath();
+      g.fill();
+    }
+    const alive = w.alive.filter(Boolean).length;
+    const score = w.st.reduce((s, x) => s + x.score, 0) / w.st.length;
+    $("watchTitle").textContent = `${replayOf === "best" ? `Best brain (from generation ${champGen})` : "Hand-written bot"} \xB7 tick ${w.t}/800 \xB7 alive ${alive}/${POP} \xB7 score ${score.toFixed(1)}`;
+  }
+  function frame() {
+    if (!replay || replay.done || watch === "best" && replayOf === "bot" && champ || watch === "bot" && replayOf === "best") replay = nextReplay();
+    if (replay) {
+      const now = performance.now(), dt = Math.min(100, now - lastFrame);
+      owed += dt / 1e3 * (speed === "fast" ? 960 : 240);
+      for (; owed >= 1 && !replay.done; owed--) replay.step();
+      lastFrame = now;
+      drawWorld(replay);
+    }
+    $("watchNote").textContent = watch === "best" && !champ ? "No brain yet: showing the hand-written bot. Press Evolve." : "Replays a map your creatures never trained on. A new replay starts with the newest best brain.";
+    requestAnimationFrame(frame);
+  }
+  var toastTimer = 0;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => t.classList.remove("show"), 1800);
+  }
+  function renderAll() {
+    renderTop();
+    renderControls();
+    renderDashboard();
+  }
+  $("go").onclick = start;
+  $("stop").onclick = stop;
+  $("watchBest").onclick = () => {
+    watch = "best";
+    replay = null;
+    renderControls();
+  };
+  $("watchBot").onclick = () => {
+    watch = "bot";
+    replay = null;
+    renderControls();
+  };
+  $("speed").onclick = () => {
+    speed = speed === "normal" ? "fast" : "normal";
+    renderControls();
+  };
+  $("reset").onclick = () => {
+    if (running) stop();
+    save = fresh();
+    persist();
+    level = 0;
+    chosen.clear();
+    layers = [6];
+    champ = null;
+    bestStats = null;
+    replay = null;
+    renderAll();
+  };
+  window.addEventListener("resize", () => renderDashboard());
+  for (const a of save.attempts) if (!Number.isFinite(a.best)) a.best = -Infinity;
+  renderAll();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

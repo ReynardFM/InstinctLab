@@ -21,7 +21,7 @@ test("reads options and lists of values", () => {
   assert.equal(combinations({ mode: [1] })[0].regrow, 100, "ecosystem: food regrows after 100 ticks, like the page");
   assert.equal(combinations({ mode: [1], regrow: [0] })[0].regrow, 0, "unless asked");
   assert.equal(combinations({})[0].regrow, 0);
-  assert.equal(parseArgs(["--queue"]).queue, "redis://localhost:6379");
+  assert.equal(parseArgs(["--queue"]).queue, "redis://127.0.0.1:6379");
   assert.equal(parseArgs(["--queue=redis://box:7000", "--gens=5"]).queue, "redis://box:7000");
   assert.ok(parseArgs([]).workers >= 1, "defaults to the number of cores");
   assert.throws(() => parseArgs(["--speed=3"]), /Unknown option/);

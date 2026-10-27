@@ -35,7 +35,7 @@ export function parseArgs(argv: string[]): Options {
       opts.auto = true;
       continue;
     }
-    if (arg === "--queue") opts.queue = "redis://localhost:6379";
+    if (arg === "--queue") opts.queue = "redis://127.0.0.1:6379";
     if (arg === "--queue" || arg.startsWith("--queue=")) {
       opts.queue ??= arg.slice("--queue=".length);
       continue;

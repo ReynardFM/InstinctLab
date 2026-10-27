@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evolution Lab: Learning Game</title>
+<!-- PROTOTYPE (learning-game brief, 2026-10-26). Built by: npm run build-play -> proto/play.html (one self-contained file). -->
+<style>
+  :root {
+    --bench: #cdd6d2; --paper: #fbfcf7; --ink: #1e2b30; --muted: #5d6c70; --line: #c9d2cf;
+    --field: #e7e2b6; --food: #fff8dc; --food-rim: #b9a24f; --poison: #6e2a5e; --hunter: #34405e;
+    --accent: #2b5c9e; --good: #2f7d4a; --warn: #c0152f;
+    --eat: #2f7d4a; --avoid: #8e3fa0; --flee: #c0152f; --wander: #7d8a8c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bench); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  header h1 { font-size: 22px; margin: 0; }
+  header .wallet { margin-left: auto; font-weight: 700; font-size: 18px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 14px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+  #world { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; background: var(--field); }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  button { font: inherit; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tabs button { border-radius: 7px 7px 0 0; }
+  .sense { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; margin: 6px 0; background: #fff; }
+  .sense.locked { opacity: .6; background: transparent; }
+  .sense small { color: var(--muted); display: block; }
+  .muted { color: var(--muted); }
+  .slots { font-weight: 600; }
+  .shop-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
+  .shop-item:first-of-type { border-top: 0; }
+  .warning { color: var(--warn); font-weight: 800; font-size: 13px; margin-top: 4px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+  @media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 12px; color: var(--muted); }
+  .reason { font-size: 16px; font-weight: 600; padding: 10px 12px; border-left: 4px solid var(--accent); background: #fff; border-radius: 0 8px 8px 0; margin-bottom: 10px; }
+  #chart { width: 100%; height: 220px; display: block; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Evolution Lab: Learning Game</h1>
+    <span class="muted">prototype</span>
+    <span class="wallet" id="wallet"></span>
+  </header>
+  <div class="grid">
+    <section class="card">
+      <h2 id="watchTitle">World</h2>
+      <canvas id="world" width="400" height="400"></canvas>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--food);border:1px solid var(--food-rim)"></i>food</span>
+        <span><i class="dot" style="background:var(--poison)"></i>poison</span>
+        <span><i class="dot" style="background:var(--hunter);border-radius:0"></i>hunter</span>
+        <span>creature doing: <i class="dot" style="background:var(--eat)"></i>eat <i class="dot" style="background:var(--avoid)"></i>avoid <i class="dot" style="background:var(--flee)"></i>flee <i class="dot" style="background:var(--wander)"></i>wander</span>
+      </div>
+      <div class="row">
+        <span class="muted">Watch:</span>
+        <button id="watchBest" class="on">best brain</button>
+        <button id="watchBot">hand-written bot</button>
+        <span class="muted">Speed:</span>
+        <button id="speed">normal</button>
+      </div>
+      <p class="muted" id="watchNote">Press Evolve. The best brain so far plays a map it has never trained on.</p>
+    </section>
+    <section class="card">
+      <div class="row tabs" id="levels"></div>
+      <p id="blurb"></p>
+      <h2>Senses <span class="slots" id="slotCount"></span></h2>
+      <div class="sense"><input type="checkbox" checked disabled><div>see food <small>direction and distance of the nearest bead (food or poison), always on</small></div></div>
+      <div id="senses"></div>
+      <h2 style="margin-top:12px">Brain</h2>
+      <div class="row" id="brains"></div>
+      <div class="row">
+        <button class="primary" id="go">Evolve</button>
+        <button id="stop" disabled>Stop</button>
+        <span class="muted" id="runInfo"></span>
+      </div>
+      <h2 style="margin-top:14px">Shop <span class="muted" style="text-transform:none;letter-spacing:0">creds come from new best progress on a level</span></h2>
+      <div id="shop"></div>
+      <div class="row"><button id="reset" style="font-size:12px">Reset progress</button></div>
+    </section>
+  </div>
+  <section class="card" style="margin-top:14px">
+    <h2>Dashboard</h2>
+    <div class="tiles">
+      <div class="tile"><span>Generation</span><b id="tGen">0</b></div>
+      <div class="tile"><span>This attempt: best <i id="tLatest" style="font-style:normal"></i></span><b id="tProg">-</b></div>
+      <div class="tile"><span>Level best</span><b id="tBest">-</b></div>
+      <div class="tile"><span>Creds this attempt</span><b id="tEarn">0.00</b></div>
+    </div>
+    <div class="reason" id="reason">Pick 2 senses and press Evolve.</div>
+    <canvas id="chart"></canvas>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Level</th><th>Senses</th><th>Brain</th><th>Generations</th><th>Best</th><th>Creds earned</th></tr></thead>
+      <tbody id="attempts"></tbody>
+    </table></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<!--APP-->
+</body>
+</html>

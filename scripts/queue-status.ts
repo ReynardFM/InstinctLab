@@ -1,7 +1,7 @@
 // What the queue and its workers are doing right now:  npm run queue-status [-- --url=redis://host:port]
 import { connect, indexOf, KEYS, runOf } from "../src/queue/redis-queue.ts";
 
-const url = process.argv.find((a) => a.startsWith("--url="))?.slice(6) ?? "redis://localhost:6379";
+const url = process.argv.find((a) => a.startsWith("--url="))?.slice(6) ?? "redis://127.0.0.1:6379";
 const r = await connect(url);
 const pending = await r.lLen(KEYS.pending);
 const active = await r.lRange(KEYS.active, 0, -1);

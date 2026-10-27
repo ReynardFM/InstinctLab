@@ -18,7 +18,7 @@ const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`
 const gens = Number(arg("gens") ?? 60);
 const seeds = seedList(arg("seeds") ?? "1-14");
 const keep = process.argv.includes("--keep");
-const URL_ = "redis://localhost:6379";
+const URL_ = "redis://127.0.0.1:6379";
 const WORKERS = 4;
 
 const docker = (args: string[], quiet = false) => {

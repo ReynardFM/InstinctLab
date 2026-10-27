@@ -1,5 +1,5 @@
 // A queue worker: one process (one Docker container) that takes jobs from Redis one at a time.
-//   REDIS_URL=redis://localhost:6379 node src/queue/worker-main.ts
+//   REDIS_URL=redis://127.0.0.1:6379 node src/queue/worker-main.ts
 // The run itself happens in a thread (cli/worker.ts, the same one the thread pool uses): a run keeps
 // its thread busy for seconds to minutes, and the heartbeat that keeps the lease alive needs this
 // thread free in the meantime.
@@ -8,7 +8,7 @@ import { hostname } from "node:os";
 import type { Job, JobResult } from "../cli/job.ts";
 import { connect, handBack, HEARTBEAT_MS, indexOf, KEYS, LEASE_MS, retryOrBury, runOf } from "./redis-queue.ts";
 
-const url = process.env.REDIS_URL ?? "redis://localhost:6379";
+const url = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 // "<container id>:<pid>" in Docker (the hostname is the container id), so `docker kill <id>` hits this worker
 const name = process.env.WORKER_NAME ?? `${hostname()}:${process.pid}`;
 const log = (msg: string) => console.log(`[${name}] ${msg}`);

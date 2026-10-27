@@ -9,7 +9,7 @@ services:
     image: redis:7.4-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"] # the queue only lives for one grid
     ports:
-      - "6379:6379" # so npm run lab on this machine can reach it
+      - "127.0.0.1:6379:6379" # this machine only: Redis has no password, so never open it to the network
   worker:
     build: .
     environment:

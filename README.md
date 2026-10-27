@@ -17,6 +17,7 @@ Creatures with tiny neural-network brains look for food. Each generation, the on
 | `npm run bench` | no | Measures generations/second with 1, 2, 4 ... workers up to your core count (median of 3 trials), shows the CPU model and worker start-up time, and checks the results are identical. About 3 minutes on 14 cores |
 | `npm run build` | yes | Rebuilds `dist/app.js` and `dist/determinism.js` after you change anything in `src/` |
 | `npm run watch` | yes | Rebuilds on every save |
+| `npm run build-play` | yes | Rebuilds `proto/play.html`, the learning-game prototype (one self-contained file: pick senses, evolve, earn creds; see CLAUDE.md) |
 | `npm run typecheck` | yes | Checks the TypeScript types |
 | `npm run check` | yes | Before every commit: types + tests + "is `dist/` up to date with `src/`?" |
 | `npm run record-golden` | no | Re-records the runs in `test/golden.json`. Only after a change that is meant to alter behaviour |

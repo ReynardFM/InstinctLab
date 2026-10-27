@@ -7,6 +7,7 @@
   },
   "scripts": {
     "build": "node scripts/build.ts",
+    "build-play": "node scripts/build-play.ts",
     "watch": "node scripts/build.ts --watch",
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc -p .",
