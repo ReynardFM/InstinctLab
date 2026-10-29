@@ -1,4 +1,4 @@
-# Evolution Lab
+# Instinct Lab
 
 Creatures with tiny neural-network brains look for food. Each generation, the ones that ate the most have children with slightly mutated brains.
 
@@ -54,7 +54,7 @@ By hand:
 2. `docker compose up -d --build`: starts Redis and 4 workers (`--scale worker=8` for 8)
 3. `npm run lab -- --queue --gens=60 --seeds=1-14`: sends the grid; prints the same table as threads,
    plus how many runs were retried
-4. Kill test, while a grid runs: `docker compose ps`, then `docker kill evolution-lab-worker-2`. Its run is
+4. Kill test, while a grid runs: `docker compose ps`, then `docker kill instinct-lab-worker-2`. Its run is
    retried by another worker after 30 s without a heartbeat; the table must match the thread version exactly
 5. `docker compose logs worker` shows which worker did which run and attempt; `docker compose down` stops it all
 

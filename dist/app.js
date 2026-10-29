@@ -2857,7 +2857,7 @@
     const blob = new Blob([JSON.stringify(fame, null, 1)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "evolution-lab-hall-of-fame.json";
+    a.download = "instinct-lab-hall-of-fame.json";
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
   };

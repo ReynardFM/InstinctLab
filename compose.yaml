@@ -4,6 +4,7 @@
 #   npm run lab -- --queue --gens=60 --seeds=1-14   send a grid to them (same table as threads)
 #   npm run queue-status                         what the queue and the workers are doing
 #   docker compose down                          stop everything
+name: instinct-lab # fixed project name: containers are instinct-lab-redis-1, instinct-lab-worker-1.. whatever the folder is called
 services:
   redis:
     image: redis:7.4-alpine

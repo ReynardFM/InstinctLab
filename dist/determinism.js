@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // test/golden.json
-  var golden_default = { "7": { avg: [1.775, 4.15, 9.95, 15.55, 20.175, 24.675, 25.125, 26.875, 27.475, 32.05], best: [20, 22, 34, 40, 48, 50, 55, 52, 50, 55] }, "42": { avg: [3.25, 7.325, 10.7, 13.425, 14.5, 18.525, 22.475, 25.75, 27.85, 28.35], best: [18, 29, 28, 43, 35, 41, 52, 46, 50, 50] }, hello: { avg: [2.625, 7.925, 16.975, 24.325, 22.625, 26.85, 27.65, 27.35, 30.275, 28.7], best: [27, 43, 48, 50, 51, 50, 53, 50, 56, 57] }, custom: { avg: [0.5333333333333333, 0.7333333333333333, 0.13333333333333333, 1.4, 1.2666666666666666, 0.6, 1.0666666666666667, 1.5333333333333334, 1.4666666666666666, 1] }, defaults: { avg: [1.2333333333333334, 3.0083333333333333, 5.591666666666666], best: [5.666666666666667, 10.333333333333334, 20] }, learning: { avg: [0.7833333333333333, 1.1833333333333333, 1.7166666666666668], best: [4.333333333333333, 4.666666666666667, 7] }, ecosystem: { avg: [48, 52, 53, 53, 55, 55, 47, 39, 31, 29, 24, 23, 21, 16, 14, 12, 11, 11, 11, 11, 12, 10, 11, 12, 12, 11, 9, 8, 9, 7, 10, 12, 15, 14, 16, 16, 20, 19, 25, 26], best: [62, 76] } };
+  var golden_default = { "7": { avg: [1.775, 4.15, 9.95, 15.55, 20.175, 24.675, 25.125, 26.875, 27.475, 32.05], best: [20, 22, 34, 40, 48, 50, 55, 52, 50, 55] }, "42": { avg: [3.25, 7.325, 10.7, 13.425, 14.5, 18.525, 22.475, 25.75, 27.85, 28.35], best: [18, 29, 28, 43, 35, 41, 52, 46, 50, 50] }, hello: { avg: [2.625, 7.925, 16.975, 24.325, 22.625, 26.85, 27.65, 27.35, 30.275, 28.7], best: [27, 43, 48, 50, 51, 50, 53, 50, 56, 57] }, custom: { avg: [0.5333333333333333, 0.7333333333333333, 0.13333333333333333, 1.4, 1.2666666666666666, 0.6, 1.0666666666666667, 1.5333333333333334, 1.4666666666666666, 1] }, defaults: { avg: [1.2333333333333334, 3.0083333333333333, 5.591666666666666], best: [5.666666666666667, 10.333333333333334, 20] }, learning: { avg: [0.7833333333333333, 1.1833333333333333, 1.7166666666666668], best: [4.333333333333333, 4.666666666666667, 7] }, ecosystem: { avg: [48, 52, 55, 56, 57, 56, 50, 43, 36, 27, 24, 22, 20, 17, 17, 17, 18, 18, 17, 17, 14, 12, 13, 12, 11, 10, 9, 8, 8, 7, 6, 5, 5, 5, 4, 3, 3, 3, 3, 2], best: [38, 76] } };
 
   // src/engine/dmath.ts
   var HALF_PI_HI = 1.5707963267341256;
@@ -617,6 +617,8 @@
       energy: 1,
       eaten: 0,
       poisoned: 0,
+      toxin: 0,
+      resist: 0,
       caught: 0,
       alive: true,
       diedAt: null,
@@ -625,7 +627,8 @@
       children: 0,
       inputs: new Array(inputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
-      out: [0, 0]
+      out: [0, 0],
+      speed: 0
     };
   }
   function founderHue(family) {
@@ -819,6 +822,88 @@
     return Math.sqrt(s / a.length);
   }
 
+  // src/engine/plants.ts
+  var SPREAD_RANGE = 25;
+  var PLANT_CAP = 3;
+  var spreading = (w) => w.rules.foodSpread > 0 && inEcosystem(w);
+  function spreadFood(w) {
+    const r = w.rules;
+    const food = w.food;
+    const tick = w.tick;
+    const walls = r.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    const free = [[], []];
+    const count = [0, 0];
+    const active = [0, 0];
+    for (let i = 0; i < food.length; i++) {
+      const f = food[i];
+      const k = f.poison ? 1 : 0;
+      count[k]++;
+      if (f.readyAt === Infinity) free[k].push(i);
+      else if (f.readyAt <= tick) active[k]++;
+    }
+    const cap = [Math.round(r.food * PLANT_CAP), Math.round(Math.round(r.poison * r.food) * PLANT_CAP)];
+    const n = food.length;
+    for (let i = 0; i < n; i++) {
+      const f = food[i];
+      if (f.readyAt > tick) continue;
+      if (w.env.next() >= r.foodSpread) continue;
+      const k = f.poison ? 1 : 0;
+      let slot = free[k].pop();
+      if (slot === void 0) {
+        if (count[k] >= cap[k]) continue;
+        slot = food.length;
+        food.push({ x: 0, y: 0, poison: f.poison, readyAt: 0 });
+        count[k]++;
+      }
+      const a = w.env.next() * Math.PI * 2;
+      const d = w.env.next() * SPREAD_RANGE;
+      const s = food[slot];
+      s.x = place(f.x + cos(a) * d, W);
+      s.y = place(f.y + sin(a) * d, H);
+      s.readyAt = tick + 1;
+    }
+    for (const k of [0, 1]) {
+      if (active[k] > 0 || !free[k].length) continue;
+      const s = food[free[k].pop()];
+      s.x = w.env.next() * W;
+      s.y = w.env.next() * H;
+      s.readyAt = tick + 1;
+    }
+  }
+
+  // src/engine/toxin.ts
+  var LN2 = 0.6931471805599453;
+  var newPoison = (w) => inEcosystem(w);
+  var SICK = 0.1;
+  function expNeg(q) {
+    const t = tanh(q / 2);
+    return (1 - t) / (1 + t);
+  }
+  function resistance(age, life, frail) {
+    if (!(life > 0)) return 1;
+    const z = (age - life / 2) / (life / 6);
+    return frail + (1 - frail) * expNeg(z * z / 2);
+  }
+  var PREY_LIFE_RATE = 0.01;
+  var preyLife = (w) => w.eco.preyLife;
+  function notePreyDeath(w, age) {
+    w.eco.preyLife = w.eco.preyLife > 0 ? w.eco.preyLife + PREY_LIFE_RATE * (age - w.eco.preyLife) : age;
+  }
+  function dose(amount, age, life, w) {
+    return amount / resistance(age, life, w.rules.poisonFrail);
+  }
+  function fade(level, w) {
+    return level > 0 ? level - level * LN2 / Math.max(1, w.rules.poisonHalfLife) : 0;
+  }
+  var harm = (level, resist) => level * (1 - resist);
+  function train(resist, amount) {
+    return resist + amount * (1 - resist);
+  }
+  function fadeResist(resist, w) {
+    return resist > 0 ? resist - resist * LN2 / Math.max(1, w.rules.resistHalfLife) : 0;
+  }
+
   // src/engine/life.ts
   var POISON_HIT = 0.5;
   var LEARN_DECAY = 0.9;
@@ -829,7 +914,8 @@
     thinkInto(c.w, c.inputs, c.hidden, c.out);
     const hidden = c.hidden;
     const out = c.out;
-    const speed = (out[1] + 1) / 2 * 3;
+    const speed = (out[1] + 1) / 2 * 3 / (newPoison(w) ? 1 + harm(c.toxin, c.resist) : 1);
+    c.speed = speed;
     c.a += out[0] * 0.2;
     if (walls) {
       c.x = Math.min(Math.max(c.x + cos(c.a) * speed, 0), W);
@@ -839,20 +925,36 @@
       c.y = (c.y + sin(c.a) * speed + H) % H;
     }
     if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot, c.x, c.y);
-    c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost * costFactor;
+    const sick = newPoison(w) ? 1 + harm(c.toxin, c.resist) : 1;
+    c.energy -= (5e-4 + speed * 4e-4) * w.rules.energyCost * costFactor * sick;
+    if (c.toxin > 0) c.toxin = fade(c.toxin, w);
+    if (c.resist > 0) {
+      c.energy -= w.rules.resistUpkeep * c.resist;
+      c.resist = fadeResist(c.resist, w);
+    }
+    const near2 = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
     let reward = 0;
     if (seen.food && seen.foodDist < 6) {
       reward = seen.food.poison ? -1 : 1;
       if (seen.food.poison) {
         c.poisoned++;
-        c.energy -= POISON_HIT;
+        if (newPoison(w)) {
+          c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+          c.resist = train(c.resist, w.rules.resistTrain);
+          w.eco.sick.poisonEaten++;
+          if (w.measure) countPoisonEaten(w, c, near2);
+        } else c.energy -= POISON_HIT;
       } else {
         c.eaten++;
         c.energy = Math.min(c.energy + 0.3, 1.5);
       }
-      Object.assign(seen.food, newFood(w, seen.food.poison));
-      if (w.grids?.foodOn) w.grids.food.move(seen.food.slot, seen.food.x, seen.food.y);
-      if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+      if (spreading(w)) {
+        seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow);
+      } else {
+        Object.assign(seen.food, newFood(w, seen.food.poison));
+        if (w.grids?.foodOn) w.grids.food.move(seen.food.slot, seen.food.x, seen.food.y);
+        if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
+      }
     }
     const r = w.rules;
     if (r.thinkCost > 0) {
@@ -878,6 +980,395 @@
       c.diedAt = w.tick;
     }
   }
+  var MEASURE_NEAR = 80;
+  var MEASURE_WINDOW = 2e4;
+  function measureWindow(w) {
+    const m = w.eco.m;
+    const wi = Math.floor(w.tick / MEASURE_WINDOW);
+    while (m.win.length <= wi) m.win.push({ nearEat: 0, farEat: 0, nearTicks: 0, farTicks: 0 });
+    return m.win[wi];
+  }
+  function measureFamily(w, c) {
+    let f = w.eco.m.fam.get(c.family);
+    if (!f) {
+      f = { eat: 0, ticks: 0, nearEat: 0, nearTicks: 0 };
+      w.eco.m.fam.set(c.family, f);
+    }
+    return f;
+  }
+  function countNearHunter(w, c) {
+    const walls = w.rules.walls > 0;
+    let near2 = false;
+    for (const h of w.hunters) {
+      let dx = h.x - c.x;
+      let dy = h.y - c.y;
+      if (!walls) {
+        if (dx > W / 2) dx -= W;
+        else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H;
+        else if (dy < -H / 2) dy += H;
+      }
+      if (dx * dx + dy * dy < MEASURE_NEAR * MEASURE_NEAR) {
+        near2 = true;
+        break;
+      }
+    }
+    const win = measureWindow(w);
+    const f = measureFamily(w, c);
+    f.ticks++;
+    if (near2) {
+      win.nearTicks++;
+      f.nearTicks++;
+    } else win.farTicks++;
+    return near2;
+  }
+  function countPoisonEaten(w, c, near2) {
+    const win = measureWindow(w);
+    const f = measureFamily(w, c);
+    f.eat++;
+    if (near2) {
+      win.nearEat++;
+      f.nearEat++;
+    } else win.farEat++;
+  }
+
+  // src/engine/hunters.ts
+  var CATCH = 6;
+  var REST = 30;
+  var TURN = 0.2;
+  var huntersArrived = (w) => w.rules.hunters > 0 && w.rules.mode !== 1 && w.generation >= w.rules.hunterFrom;
+  function placeHunters(w) {
+    w.hunters = [];
+    if (!huntersArrived(w)) return;
+    if (w.rules.hunterBrains > 0) {
+      if (w.hunterBrains.length === 0) w.hunterBrains = firstHunterBrains(w);
+      const pool = w.hunterBrains.length;
+      const onMap = Math.min(w.rules.hunters, pool);
+      const start = (w.generation * Math.max(1, w.rules.layouts) + w.layout) * onMap;
+      for (let i = 0; i < onMap; i++) {
+        const b = w.hunterBrains[(start + i) % pool];
+        b.maps++;
+        b.a = w.env.next() * Math.PI * 2;
+        w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0, toxin: 0, resist: 0 });
+      }
+      return;
+    }
+    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0, resist: 0 });
+  }
+  var hunterGenomeLength = (w) => genomeSize(inputCount(w.rules), w.rules.hidden);
+  function newHunterBrain(w, g, origin, from) {
+    return {
+      id: w.nextHunterId++,
+      g,
+      origin,
+      from,
+      caught: 0,
+      maps: 0,
+      a: 0,
+      w: w.rules.hunterLearn > 0 ? g.slice() : g,
+      trace: w.rules.hunterLearn > 0 ? new Array(g.length).fill(0) : [],
+      inputs: new Array(inputCount(w.rules)).fill(0),
+      hidden: new Array(w.rules.hidden).fill(0),
+      out: [0, 0]
+    };
+  }
+  var poolSize = (w) => Math.max(w.rules.hunters, w.rules.hunterPool);
+  function firstHunterBrains(w, n = poolSize(w)) {
+    const len = hunterGenomeLength(w);
+    const dead = w.legacy.filter((f) => f.ref.length >= len).reverse();
+    const out = [];
+    let used = 0;
+    for (let i = 0; i < n; i++) {
+      if (i % 2 === 0 && used < dead.length) {
+        const fam = dead[used++];
+        out.push(newHunterBrain(w, fam.ref.slice(0, len), "borrowed", fam.id));
+      } else {
+        out.push(newHunterBrain(w, Array.from({ length: len }, () => w.hrng.gauss() * 0.5), "random", null));
+      }
+    }
+    return out;
+  }
+  function moveHunters(w) {
+    if (w.rules.hunterBrains > 0 || inEcosystem(w)) moveBrainHunters(w);
+    else moveChasers(w);
+  }
+  function moveChasers(w) {
+    const walls = w.rules.walls > 0;
+    const speed = w.rules.hunterSpeed;
+    for (const h of w.hunters) {
+      if (h.rest > 0) {
+        h.rest--;
+        continue;
+      }
+      let prey = null;
+      let bdx = 0;
+      let bdy = 0;
+      let bd2 = Infinity;
+      for (const c of w.creatures) {
+        if (!c.alive) continue;
+        const dx = offset(c.x - h.x, W, walls);
+        const dy = offset(c.y - h.y, H, walls);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bd2) {
+          bd2 = d2;
+          bdx = dx;
+          bdy = dy;
+          prey = c;
+        }
+      }
+      if (!prey) continue;
+      const d = Math.sqrt(bd2);
+      const step2 = Math.min(speed, d);
+      if (d > 0) {
+        const nx = h.x + bdx / d * step2;
+        const ny = h.y + bdy / d * step2;
+        h.x = walls ? Math.min(Math.max(nx, 0), W) : (nx + W) % W;
+        h.y = walls ? Math.min(Math.max(ny, 0), H) : (ny + H) % H;
+      }
+      if (d - step2 < CATCH) catchPrey(w, h, prey);
+    }
+  }
+  var SPIT_HALF = 0.5;
+  var SPIT_TASTE = 0.25;
+  var SPIT_WOUND = 0.3;
+  function spitOut(w, h, prey) {
+    if (!(w.rules.hunterSpit > 0 && prey.toxin > 0 && inEcosystem(w))) return false;
+    if (w.hrng.next() >= prey.toxin / (prey.toxin + SPIT_HALF)) return false;
+    prey.energy -= SPIT_WOUND;
+    h.rest = REST;
+    const taken = dose(prey.toxin * SPIT_TASTE, h.age, w.rules.hunterAge, w);
+    h.toxin += taken;
+    h.resist = train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken));
+    w.eco.spat++;
+    return true;
+  }
+  function catchPrey(w, h, prey) {
+    if (spitOut(w, h, prey)) return true;
+    prey.alive = false;
+    prey.diedAt = w.tick;
+    prey.caught++;
+    h.rest = REST;
+    if (h.brain) h.brain.caught++;
+    if (inEcosystem(w)) {
+      h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+      if (prey.toxin > 0) {
+        const taken = dose(prey.toxin, h.age, w.rules.hunterAge, w);
+        h.toxin += taken;
+        h.resist = train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken));
+      }
+      w.eco.caught++;
+      w.eco.sick.caught++;
+      if (prey.toxin > SICK) w.eco.sick.caughtSick++;
+    }
+    return false;
+  }
+  var near = { i1: -1, dx1: 0, dy1: 0, d21: Infinity, i2: -1, dx2: 0, dy2: 0, d22: Infinity };
+  function nearestPrey(w, x, y, walls) {
+    near.i1 = near.i2 = -1;
+    near.d21 = near.d22 = Infinity;
+    const cs = w.creatures;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (!c.alive) continue;
+      const dx = offset(c.x - x, W, walls);
+      const dy = offset(c.y - y, H, walls);
+      const d2 = dx * dx + dy * dy;
+      if (d2 < near.d21) {
+        near.i2 = near.i1;
+        near.dx2 = near.dx1;
+        near.dy2 = near.dy1;
+        near.d22 = near.d21;
+        near.i1 = i;
+        near.dx1 = dx;
+        near.dy1 = dy;
+        near.d21 = d2;
+      } else if (d2 < near.d22) {
+        near.i2 = i;
+        near.dx2 = dx;
+        near.dy2 = dy;
+        near.d22 = d2;
+      }
+    }
+  }
+  function moveBrainHunters(w) {
+    const r = w.rules;
+    const walls = r.walls > 0;
+    const hs = w.hunters;
+    const eco = inEcosystem(w);
+    for (let n = 0; n < hs.length; n++) {
+      const h = hs[n];
+      const b = h.brain;
+      if (h.rest > 0) {
+        h.rest--;
+        continue;
+      }
+      nearestPrey(w, h.x, h.y, walls);
+      if (near.i1 < 0) continue;
+      const inputs = b.inputs;
+      const cosH = cos(b.a);
+      const sinH = sin(b.a);
+      let k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH);
+      inputs[k++] = eco ? h.energy : 1;
+      if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
+      if (r.senseCreature) {
+        let bdx = 0;
+        let bdy = 0;
+        let bd2 = Infinity;
+        for (let m = 0; m < hs.length; m++) {
+          if (m === n) continue;
+          const dx = offset(hs[m].x - h.x, W, walls);
+          const dy = offset(hs[m].y - h.y, H, walls);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bd2) {
+            bd2 = d2;
+            bdx = dx;
+            bdy = dy;
+          }
+        }
+        k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
+      }
+      if (r.poison > 0) {
+        if (eco && r.hunterSeeSpeed > 0) {
+          const p = w.creatures[near.i1];
+          k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
+          inputs[k - 1] = Math.min(p.speed / 3, 1);
+        } else k = writeNothing(inputs, k);
+      }
+      if (r.hunterSense > 0) k = writeNothing(inputs, k);
+      if (walls) inputs[k++] = wallAhead(h.x, h.y, b.a);
+      if (inputs.length !== k) inputs.length = k;
+      thinkInto(b.w, inputs, b.hidden, b.out);
+      b.a += b.out[0] * TURN;
+      const speed = (b.out[1] + 1) / 2 * r.hunterSpeed;
+      if (walls) {
+        h.x = Math.min(Math.max(h.x + cos(b.a) * speed, 0), W);
+        h.y = Math.min(Math.max(h.y + sin(b.a) * speed, 0), H);
+      } else {
+        h.x = (h.x + cos(b.a) * speed + W) % W;
+        h.y = (h.y + sin(b.a) * speed + H) % H;
+      }
+      nearestPrey(w, h.x, h.y, walls);
+      const toxinBefore = h.toxin;
+      const caughtNow = near.i1 >= 0 && near.d21 < CATCH * CATCH;
+      const spat = caughtNow && catchPrey(w, h, w.creatures[near.i1]);
+      if (eco && r.hunterLearn > 0) {
+        const reward = spat ? -1 : caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
+        learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
+      }
+    }
+  }
+  function breedHunters(w) {
+    const bs = w.hunterBrains;
+    if (bs.length === 0) return;
+    const rate = (b) => b.maps > 0 ? b.caught / b.maps : -1;
+    const ranked = [...bs].sort((a, b) => rate(b) - rate(a));
+    const perMap = (xs) => {
+      const maps = xs.reduce((s, b) => s + b.maps, 0);
+      return maps > 0 ? xs.reduce((s, b) => s + b.caught, 0) / maps : null;
+    };
+    const avgOf = (o) => perMap(bs.filter((b) => b.origin === o));
+    w.hunterHist.push({
+      avg: perMap(bs) ?? 0,
+      best: Math.max(0, rate(ranked[0])),
+      borrowed: bs.filter((b) => b.origin === "borrowed").length / bs.length,
+      avgBorrowed: avgOf("borrowed"),
+      avgRandom: avgOf("random")
+    });
+    const n = poolSize(w);
+    const parents = Math.max(1, Math.ceil(ranked.length / 2));
+    const next = [newHunterBrain(w, ranked[0].g, ranked[0].origin, ranked[0].from)];
+    while (next.length < n) {
+      const p = ranked[Math.floor(w.hrng.next() * parents)];
+      next.push(newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), p.origin, p.from));
+    }
+    w.hunterBrains = next;
+  }
+  var MAX_ENERGY = 1.5;
+  var HUNTER_CAP = 300;
+  var BEST_KEEP = 8;
+  function remember(list, b) {
+    if (list.length === BEST_KEEP && b.score <= list[list.length - 1].score) return;
+    let i = list.length;
+    while (i > 0 && b.score > list[i - 1].score) i--;
+    list.splice(i, 0, b);
+    if (list.length > BEST_KEEP) list.pop();
+  }
+  function newEcoHunter(w, brain, x, y, energy) {
+    brain.a = w.hrng.next() * Math.PI * 2;
+    return { x, y, rest: 0, brain, energy, age: 0, toxin: 0, resist: 0 };
+  }
+  function startEcoHunters(w) {
+    w.hunters = firstHunterBrains(w, w.rules.hunters).map((b) => newEcoHunter(w, b, w.hrng.next() * W, w.hrng.next() * H, 1));
+    w.eco.huntersStarted = true;
+  }
+  function liveEcoHunters(w) {
+    const r = w.rules;
+    const walls = r.walls > 0;
+    const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
+    const born = [];
+    for (const h of w.hunters) {
+      h.energy -= r.hunterHunger * (1 + harm(h.toxin, h.resist)) + r.resistUpkeep * h.resist;
+      h.toxin = fade(h.toxin, w);
+      h.resist = fadeResist(h.resist, w);
+      h.age++;
+      const adult = h.age >= r.hunterMature;
+      const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
+      if (adult && h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP && w.hrng.next() < r.hunterBirthChance * fertile) {
+        const half = h.energy / 2;
+        h.energy -= half;
+        const p = h.brain;
+        const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
+        const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
+        baby.resist = h.resist * r.resistInherit;
+        born.push(baby);
+        w.eco.hunterBirths++;
+      }
+    }
+    const alive = [];
+    for (const h of w.hunters) {
+      const old = h.age >= r.hunterAge;
+      if (h.energy > 0 && !old) {
+        alive.push(h);
+        continue;
+      }
+      w.eco.hunterDeaths++;
+      if (old) w.eco.hunterOldAge++;
+      const b = h.brain;
+      remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+    }
+    w.hunters = alive.concat(born);
+  }
+  function restartHunters(w) {
+    const best = w.eco.bestHunters;
+    w.hunters = [];
+    for (let i = 0; i < w.rules.hunters; i++) {
+      const src = best.length ? best[i % best.length] : null;
+      const brain = src ? newHunterBrain(w, i < best.length ? src.g.slice() : src.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), src.origin, src.from) : newHunterBrain(w, Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5), "random", null);
+      w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
+    }
+  }
+  function thinHunters(w) {
+    const n = w.rules.hunters;
+    const hs = w.hunters;
+    if (hs.length <= n) return;
+    const score = (h) => h.brain.caught;
+    let best = hs[0];
+    for (const h of hs) if (score(h) > score(best)) best = h;
+    const mean = hs.reduce((s, h) => s + score(h), 0) / hs.length;
+    const key = (h) => score(h) <= mean ? mean - score(h) : 1e9 + score(h) - mean;
+    const average = hs.filter((h) => h !== best).sort((a, b) => key(a) - key(b)).slice(0, Math.max(0, n - 2));
+    const keep = n >= 1 ? [best, ...average] : [];
+    for (const h of hs) {
+      if (keep.includes(h)) continue;
+      const b = h.brain;
+      remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+    }
+    if (n >= 2) {
+      const g = Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5);
+      keep.push(newEcoHunter(w, newHunterBrain(w, g, "random", null), w.hrng.next() * W, w.hrng.next() * H, 1));
+    }
+    w.hunters = keep;
+  }
 
   // src/engine/ecosystem.ts
   var ECO_SAMPLE = 100;
@@ -888,6 +1379,12 @@
   function stepEcosystem(w) {
     const { rules } = w;
     const scale = rules.ageScale;
+    const hunting = rules.hunters > 0;
+    if (spreading(w)) spreadFood(w);
+    if (hunting && !w.eco.huntersStarted) {
+      startEcoHunters(w);
+      w.eco.roundStart = w.tick;
+    }
     prepareGrids(w);
     for (const c of w.creatures) {
       if (!c.alive) continue;
@@ -895,6 +1392,7 @@
       c.age++;
     }
     w.grids = null;
+    if (hunting) moveHunters(w);
     const born = [];
     const room = () => w.creatures.length + born.length < MAX_POP;
     const ready = (c) => c.alive && c.energy >= rules.birthEnergy;
@@ -946,12 +1444,25 @@
         continue;
       }
       w.eco.deaths++;
+      notePreyDeath(w, c.age);
       if (scale > 0 && c.age >= scale) w.eco.oldAge++;
+      if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
       w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
     }
     if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
     w.creatures = alive.concat(born);
-    if (w.creatures.length === 0) rescue(w);
+    if (hunting) {
+      liveEcoHunters(w);
+      const preyGone = w.creatures.length === 0;
+      const huntersGone = w.hunters.length === 0;
+      if (preyGone || huntersGone) {
+        w.eco.rounds.push({ start: w.eco.roundStart, end: w.tick, died: preyGone && huntersGone ? "both" : preyGone ? "prey" : "hunters" });
+        w.eco.roundStart = w.tick;
+        if (preyGone) restartPrey(w);
+        if (preyGone && !huntersGone) thinHunters(w);
+        if (huntersGone) restartHunters(w);
+      }
+    } else if (w.creatures.length === 0) rescue(w);
     const present = new Set(w.creatures.map((c) => c.family));
     for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
     w.tick++;
@@ -964,6 +1475,7 @@
     child.x = place(parent.x + (w.env.next() - 0.5) * 10, W);
     child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
     child.energy = energy;
+    child.resist = parent.resist * w.rules.resistInherit;
     child.depth = parent.depth + 1;
     parent.children++;
     maybeSplit(w, child, true);
@@ -980,64 +1492,55 @@
     }
     w.eco.rescues++;
   }
+  function restartPrey(w) {
+    const best = w.eco.bestPrey;
+    if (!best.length) return rescue(w);
+    const { rules } = w;
+    const fams = best.map((b) => {
+      const id = w.nextFamilyId++;
+      w.families.set(id, newFamily(id, b.g, null, w.tick, true));
+      return id;
+    });
+    for (let i = 0; i < RESCUE; i++) {
+      const k = i % best.length;
+      const genome = i < best.length ? best[k].g.slice() : mutate(w, best[k].g, rules.mutation);
+      w.creatures.push(newCreature(w, genome, fams[k], false, null));
+    }
+    w.eco.rescues++;
+  }
   function sample(w) {
     const n = w.creatures.length;
+    if (w.rules.hunters > 0) w.eco.hunterPopHist.push(w.hunters.length);
     w.eco.popHist.push(n);
     w.eco.ageHist.push(n ? w.creatures.reduce((s, c) => s + c.age, 0) / n : 0);
+    const t = w.eco.toxin;
+    const life = preyLife(w);
+    if (life > 0) {
+      for (const c of w.creatures) {
+        const b = c.age < life / 4 ? 0 : c.age > 3 * life / 4 ? 2 : 1;
+        t.band[b] += c.toxin;
+        t.bandN[b]++;
+      }
+    }
+    if (n) {
+      w.eco.sick.sickShare += w.creatures.filter((c) => c.toxin > SICK).length / n;
+      w.eco.sick.samples++;
+    }
+    const rs = w.eco.resist;
+    for (const c of w.creatures) rs.prey += c.resist;
+    rs.preyN += n;
+    for (const h of w.hunters) rs.hunter += h.resist;
+    rs.hunterN += w.hunters.length;
+    for (const h of w.hunters) {
+      t.hunter += h.toxin;
+      t.hunterN++;
+      if (h.toxin > 0.05) t.hunterSick++;
+    }
     const sizes = /* @__PURE__ */ new Map();
     for (const c of w.creatures) sizes.set(c.family, (sizes.get(c.family) ?? 0) + 1);
     for (const [id, size] of sizes) {
       const fam = w.families.get(id);
       if (fam && size > fam.peakSize) fam.peakSize = size;
-    }
-  }
-
-  // src/engine/hunters.ts
-  var CATCH = 6;
-  var REST = 30;
-  function placeHunters(w) {
-    w.hunters = [];
-    for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0 });
-  }
-  function moveHunters(w) {
-    const walls = w.rules.walls > 0;
-    const speed = w.rules.hunterSpeed;
-    for (const h of w.hunters) {
-      if (h.rest > 0) {
-        h.rest--;
-        continue;
-      }
-      let prey = null;
-      let bdx = 0;
-      let bdy = 0;
-      let bd2 = Infinity;
-      for (const c of w.creatures) {
-        if (!c.alive) continue;
-        const dx = offset(c.x - h.x, W, walls);
-        const dy = offset(c.y - h.y, H, walls);
-        const d2 = dx * dx + dy * dy;
-        if (d2 < bd2) {
-          bd2 = d2;
-          bdx = dx;
-          bdy = dy;
-          prey = c;
-        }
-      }
-      if (!prey) continue;
-      const d = Math.sqrt(bd2);
-      const step2 = Math.min(speed, d);
-      if (d > 0) {
-        const nx = h.x + bdx / d * step2;
-        const ny = h.y + bdy / d * step2;
-        h.x = walls ? Math.min(Math.max(nx, 0), W) : (nx + W) % W;
-        h.y = walls ? Math.min(Math.max(ny, 0), H) : (ny + H) % H;
-      }
-      if (d - step2 < CATCH) {
-        prey.alive = false;
-        prey.diedAt = w.tick;
-        prey.caught++;
-        h.rest = REST;
-      }
     }
   }
 
@@ -1082,7 +1585,30 @@
     plasticity: 0,
     hunters: 0,
     hunterSense: 1,
-    hunterSpeed: 2
+    hunterSpeed: 2,
+    hunterBrains: 0,
+    hunterPool: 12,
+    hunterFrom: 1,
+    poisonDose: 1,
+    poisonHalfLife: 500,
+    poisonFrail: 0.25,
+    hunterSeeSpeed: 1,
+    hunterLearn: 0.02,
+    hunterSpit: 0,
+    resistTrain: 0,
+    resistHalfLife: 2e3,
+    resistInherit: 0.75,
+    resistUpkeep: 2e-4,
+    hunterResistTrain: 0,
+    // off: no prey defence emerged (README 2026-10-26)
+    foodSpread: 0,
+    hunterHunger: 25e-4,
+    hunterMeal: 0.5,
+    hunterBirth: 1.4,
+    hunterAge: 6e3,
+    hunterMature: 1e3,
+    hunterBirthChance: 0.03
+    // tuned with food 120 (README 2026-10-23)
   };
   function createWorld(seed, rules, start) {
     const each = start && Array.isArray(start[0]) ? start : null;
@@ -1106,6 +1632,10 @@
       swapped: false,
       grids: null,
       hunters: [],
+      hunterBrains: [],
+      hunterHist: [],
+      nextHunterId: 0,
+      hrng: createRng(hunterSeed(seed)),
       caughtHist: [],
       avgHist: [],
       bestHist: [],
@@ -1121,7 +1651,32 @@
       nextBranchId: 0,
       failedBranches: 0,
       newcomerCount: 0,
-      eco: { births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [] }
+      eco: {
+        births: 0,
+        deaths: 0,
+        oldAge: 0,
+        rescues: 0,
+        popHist: [],
+        ageHist: [],
+        recentDeaths: [],
+        huntersStarted: false,
+        hunterPopHist: [],
+        caught: 0,
+        spat: 0,
+        hunterBirths: 0,
+        hunterDeaths: 0,
+        hunterOldAge: 0,
+        rounds: [],
+        roundStart: 0,
+        bestPrey: [],
+        bestHunters: [],
+        preyLife: 0,
+        m: { win: [], fam: /* @__PURE__ */ new Map() },
+        resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
+        sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
+        toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 }
+      },
+      measure: false
     };
     for (let i = 0; i < rules.pop; i++) {
       const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
@@ -1172,13 +1727,19 @@
       }
     }
     w.food = newFoodLayout(w);
-    if (w.rules.hunters > 0) placeHunters(w);
+    if (huntersArrived(w)) placeHunters(w);
+    else w.hunters = [];
     w.tick = 0;
   }
   function envSeed(seed) {
     let h = Math.imul((seed | 0) ^ 1540483477, 668265261);
     h ^= h >>> 15;
     return Math.imul(h, 374761393) | 0;
+  }
+  function hunterSeed(seed) {
+    let h = Math.imul((seed | 0) ^ 1752526452, 2654435761);
+    h ^= h >>> 16;
+    return Math.imul(h, 2246822507) | 0;
   }
   function layoutSeed(seed, generation, layout) {
     let h = envSeed(seed);
@@ -1202,7 +1763,8 @@
     const half = ranked.slice(0, Math.ceil(ranked.length / 2));
     w.topHalfHist.push(half.reduce((s, c) => s + c.eaten, 0) / half.length / per);
     w.poisonHist.push(ranked.reduce((s, c) => s + c.poisoned, 0) / ranked.length / per);
-    if (rules.hunters > 0) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
+    if (huntersArrived(w)) w.caughtHist.push(ranked.reduce((s, c) => s + c.caught, 0) / ranked.length / per);
+    if (rules.hunterBrains > 0) breedHunters(w);
     const elite = Math.min(rules.elite, rules.pop);
     const parents = Math.max(1, Math.min(rules.parents, rules.pop));
     const next = [];

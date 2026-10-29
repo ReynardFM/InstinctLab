@@ -8,7 +8,7 @@ declare const __WORKER_SRC__: string;
 // ---------- save (per browser; the page works without it) ----------
 interface Attempt { n: number; level: number; build: Sense[]; layers: number[]; gens: number; best: number; earned: number; hist: number[] }
 interface Save { high: Record<string, number>; spent: number; owned: string[]; attempts: Attempt[] }
-const KEY = "evolution-lab-learning-game-v1";
+const KEY = "evolution-lab-learning-game-v1"; // old project name kept on purpose: renaming it would lose saved progress
 const fresh = (): Save => ({ high: {}, spent: 0, owned: ["level:L1", "sense:taste", "sense:energy"], attempts: [] });
 function load(): Save { try { const s = localStorage.getItem(KEY); return s ? { ...fresh(), ...JSON.parse(s) } : fresh(); } catch { return fresh(); } }
 function persist(): void { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch { /* storage blocked: progress lasts until reload */ } }

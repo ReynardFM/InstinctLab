@@ -15,7 +15,7 @@ export interface FameEntry {
 }
 
 export const FAME_LIMIT = 50;
-const KEY = "evolution-lab.hall-of-fame";
+const KEY = "evolution-lab.hall-of-fame"; // old project name kept on purpose: renaming the key would lose saved halls of fame
 
 // Reads a hall-of-fame file (or stored text). Entries that aren't usable are skipped; rules saved by an
 // older version get today's defaults for anything they lack. Throws if the text isn't a list at all.
