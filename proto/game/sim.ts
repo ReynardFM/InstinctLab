@@ -5,7 +5,7 @@ import { createRng, type Rng } from "../../src/engine/rng.ts";
 
 export const SIZE = 400, T = 800, POP = 30, EVERY = 5, HELD = [101, 102], BAR = 0.8;
 const SLICE = 40; // ticks between pauses when evolution shares the page with drawing
-const SPEED = 2, SEE = 150, FLEE_AT = 60, BITE = 6, CATCH = 8, HUNTER_SPEED = 1.9, REST = 20, HUNT_SEE = 120;
+const SEE = 150, FLEE_AT = 60, BITE = 6, CATCH = 8, HUNTER_SPEED = 1.9, REST = 20, HUNT_SEE = 120;
 const HUNGER = 0.0015, MEAL = 0.3, POISON = 0.35, EMAX = 1.5;
 
 export type Sense = "poison" | "taste" | "hunter" | "energy";
@@ -17,6 +17,20 @@ export const LEVELS: Level[] = [
   { id: "L2", name: "Hunted", good: 40, bad: 8, hunters: 6, menu: ["poison", "hunter", "energy"],
     blurb: "Six hunters roam. A caught creature is out for the rest of the round." },
 ];
+// Species (Rey 2026-10-29: roguelite, each species its own goal, body and starting sense).
+// goal = what the stage score counts, always against this species' own hand-written bot:
+//   clean = food - poison   eaten = food + poison (anything swallowed)   alive = ticks survived
+export type Goal = "clean" | "eaten" | "alive";
+export interface Species { id: string; name: string; goal: Goal; speed: number; hunger: number; poisonHurt: number; start: Sense[]; blurb: string }
+export const SPECIES: Species[] = [
+  { id: "grazer", name: "Grazer", goal: "clean", speed: 2, hunger: 1, poisonHurt: 1, start: [],
+    blurb: "Goal: clean food (food minus poison). Normal body." },
+  { id: "sprinter", name: "Sprinter", goal: "alive", speed: 2.5, hunger: 1.5, poisonHurt: 1, start: ["hunter"],
+    blurb: "Goal: stay alive. Fast, but gets hungry 1.5x faster. Starts able to see hunters." },
+  { id: "scavenger", name: "Scavenger", goal: "eaten", speed: 2, hunger: 1, poisonHurt: 0.4, start: ["energy"],
+    blurb: "Goal: swallow as much as possible, poison included. Poison hurts it only 40%. Starts able to feel its energy." },
+];
+export const goalValue = (s: Stats, g: Goal) => (g === "clean" ? s.score : g === "eaten" ? s.good + s.bad : s.life);
 export const SENSE_INFO: Record<Sense, string> = {
   poison: "see poison: direction and distance of the nearest poison bead",
   taste: "taste: was my last bite poison?",
@@ -25,8 +39,34 @@ export const SENSE_INFO: Record<Sense, string> = {
 };
 export const ACTIONS = ["eat", "avoid", "flee", "wander"] as const;
 
-export interface Stats { score: number; good: number; bad: number; hunted: number; starved: number }
-const newStats = (): Stats => ({ score: 0, good: 0, bad: 0, hunted: 0, starved: 0 });
+export interface Stats { score: number; good: number; bad: number; hunted: number; starved: number; life: number } // life = ticks alive
+const newStats = (): Stats => ({ score: 0, good: 0, bad: 0, hunted: 0, starved: 0, life: 0 });
+
+// Player choices for evolution (brief A, 2026-10-28). The level's goal never changes: progress is always
+// the clean score (good - bad) against the bot; these only change what evolution rewards and how it searches.
+export type Reward = "balanced" | "glutton" | "survivor";
+export const REWARD_INFO: Record<Reward, string> = {
+  balanced: "+1 per food, -1 per poison (same as the level's goal)",
+  glutton: "+1 per food, poison not punished",
+  survivor: "points for staying alive, nothing for eating",
+};
+// Reward sliders (Rey 2026-10-29): shares of three parts on one scale, so the shares mean what they say.
+//   eat   = food eaten        / food the hand-written bot eats on this level
+//   avoid = minus poison eaten / food the hand-written bot eats (same units as eat)
+//   live  = share of the round survived (0..1)
+// eat 50 / avoid 50 / live 0 is today's fixed reward (food - poison), only scaled: same ranking, same runs.
+// When weights are set they replace the reward preset; they are scaled to add up to 1.
+export interface Weights { eat: number; avoid: number; live: number }
+export interface Settings { reward: Reward; mutation: number; pop: number; weights?: Weights }
+function weighted(s: Stats, w: Weights, botGood: number): number {
+  const sum = w.eat + w.avoid + w.live || 1, we = w.eat / sum, wa = w.avoid / sum, wl = w.live / sum;
+  // halves of whole numbers are exact, so at 50/50 equal food - poison gives exactly equal fitness
+  return (we * s.good - wa * s.bad) / (botGood || 1) + (wl * s.life) / T;
+}
+export const DEFAULT_SETTINGS: Settings = { reward: "balanced", mutation: 0.3, pop: POP };
+function fitness(s: Stats, r: Reward): number {
+  return r === "balanced" ? s.score : r === "glutton" ? s.good : s.life / 40;
+}
 
 export const nIn = (b: Sense[]) => 3 + (b.includes("poison") ? 3 : 0) + (b.includes("taste") ? 1 : 0) + (b.includes("hunter") ? 3 : 0) + (b.includes("energy") ? 1 : 0);
 export function gSize(nin: number, layers: number[], nout = 4): number {
@@ -35,7 +75,7 @@ export function gSize(nin: number, layers: number[], nout = 4): number {
   return s;
 }
 // Same arithmetic, same order as before; only the scratch arrays are reused (no garbage per tick).
-function think(g: number[], inp: number[], layers: number[], out: number[], bufs: number[][]): void {
+export function think(g: number[], inp: number[], layers: number[], out: number[], bufs: number[][]): void {
   let cur = inp, n = inp.length, k = 0;
   for (let l = 0; l < layers.length; l++) {
     const nxt = bufs[l], m = layers[l];
@@ -68,7 +108,10 @@ export class World {
 
   readonly lv: Level; readonly rule: boolean; readonly layers: number[]; readonly genomes: number[][];
 
-  constructor(lv: Level, rule: boolean, build: Sense[], layers: number[], genomes: number[][], mapSeed: number) {
+  readonly sp: Species;
+
+  constructor(lv: Level, rule: boolean, build: Sense[], layers: number[], genomes: number[][], mapSeed: number, sp: Species = SPECIES[0]) {
+    this.sp = sp;
     this.lv = lv; this.rule = rule; this.layers = layers; this.genomes = genomes;
     const r = (this.r = createRng(mapSeed));
     for (let i = 0; i < lv.good + lv.bad; i++) { this.fx.push(r.next() * SIZE); this.fy.push(r.next() * SIZE); this.bad.push(i >= lv.good); }
@@ -93,6 +136,7 @@ export class World {
     const hasP = this.b.includes("poison"), hasT = this.b.includes("taste"), hasH = this.b.includes("hunter"), hasE = this.b.includes("energy");
     for (let i = 0; i < n; i++) {
       if (!alive[i]) continue;
+      st[i].life++;
       let fi = -1, fd = SEE * SEE, pi = -1, pd = SEE * SEE, hi = -1, hd = SEE * SEE;
       for (let f = 0; f < nf; f++) {
         const dx = wrap(fx[f] - px[i]), dx2 = dx * dx;
@@ -122,7 +166,7 @@ export class World {
       let act = 3;
       if (this.rule) {
         if (hi >= 0 && hd < FLEE_AT * FLEE_AT) act = 2;
-        else if (fi >= 0 && fi === pi) act = 1;
+        else if (fi >= 0 && fi === pi && this.sp.goal !== "eaten") act = 1; // a scavenger's bot swallows poison too
         else act = 0;
       } else {
         think(this.genomes[i], inp, this.layers, out, this.bufs);
@@ -139,16 +183,17 @@ export class World {
       else if (act === 1 && pi >= 0) face(-wrap(fx[pi] - px[i]), -wrap(fy[pi] - py[i]));
       else if (act === 2 && hi >= 0) face(-wrap(kx[hi] - px[i]), -wrap(ky[hi] - py[i]));
       else turn(r.gauss() * 0.2);
-      px[i] = (px[i] + hx[i] * SPEED + SIZE) % SIZE; py[i] = (py[i] + hy[i] * SPEED + SIZE) % SIZE;
+      const spd = this.sp.speed;
+      px[i] = (px[i] + hx[i] * spd + SIZE) % SIZE; py[i] = (py[i] + hy[i] * spd + SIZE) % SIZE;
       if (fi >= 0) {
         const dx = wrap(fx[fi] - px[i]), dy = wrap(fy[fi] - py[i]);
         if (dx * dx + dy * dy < BITE * BITE) {
-          if (bad[fi]) { en[i] -= POISON; st[i].bad++; st[i].score--; taste[i] = 1; }
+          if (bad[fi]) { en[i] -= POISON * this.sp.poisonHurt; st[i].bad++; st[i].score--; taste[i] = 1; }
           else { en[i] = Math.min(EMAX, en[i] + MEAL); st[i].good++; st[i].score++; taste[i] = -1; }
           fx[fi] = r.next() * SIZE; fy[fi] = r.next() * SIZE;
         }
       }
-      en[i] -= HUNGER;
+      en[i] -= HUNGER * this.sp.hunger;
       if (en[i] <= 0) { alive[i] = false; st[i].starved = 1; }
     }
     for (let h = 0; h < lv.hunters; h++) {
@@ -173,23 +218,42 @@ export class World {
   }
 }
 
-export function episode(lv: Level, rule: boolean, build: Sense[], layers: number[], genomes: number[][], mapSeed: number): Stats[] {
-  const w = new World(lv, rule, build, layers, genomes, mapSeed);
+// Input order is fixed: food(3) poison(3) taste(1) hunter(3) energy(1), only the chosen senses present.
+const INPUT_ORDER: [string, number][] = [["food", 3], ["poison", 3], ["taste", 1], ["hunter", 3], ["energy", 1]];
+const inputKeys = (b: Sense[]) => INPUT_ORDER.flatMap(([s, n]) => (s === "food" || b.includes(s as Sense) ? Array.from({ length: n }, (_, i) => s + i) : []));
+// Re-wire the first layer from one set of senses to another: kept inputs keep their weights, new ones get 0,
+// dropped ones are removed. Deeper layers are unchanged.
+export function expandGenome(g: number[], from: Sense[], to: Sense[], layers: number[]): number[] {
+  const a = inputKeys(from), map = inputKeys(to).map((k) => a.indexOf(k));
+  const out: number[] = [];
+  let k = 0;
+  for (let j = 0; j < layers[0]; j++) {
+    const w = g.slice(k, k + a.length); k += a.length;
+    const bias = g[k++];
+    for (const m of map) out.push(m < 0 ? 0 : w[m]);
+    out.push(bias);
+  }
+  for (; k < g.length; k++) out.push(g[k]);
+  return out;
+}
+
+export function episode(lv: Level, rule: boolean, build: Sense[], layers: number[], genomes: number[][], mapSeed: number, sp: Species = SPECIES[0]): Stats[] {
+  const w = new World(lv, rule, build, layers, genomes, mapSeed, sp);
   while (!w.done) w.step();
   return w.st;
 }
 
 export function mean(st: Stats[]): Stats {
   const m = newStats();
-  for (const s of st) { m.score += s.score; m.good += s.good; m.bad += s.bad; m.hunted += s.hunted; m.starved += s.starved; }
+  for (const s of st) { m.score += s.score; m.good += s.good; m.bad += s.bad; m.hunted += s.hunted; m.starved += s.starved; m.life += s.life; }
   for (const key of Object.keys(m) as (keyof Stats)[]) m[key] /= st.length;
   return m;
 }
 
 // One brain (cloned for the whole population) on the 2 maps evolution never trains on.
-export function heldOut(lv: Level, rule: boolean, build: Sense[], layers: number[], g: number[]): Stats {
+export function heldOut(lv: Level, rule: boolean, build: Sense[], layers: number[], g: number[], sp: Species = SPECIES[0]): Stats {
   const all: Stats[] = [];
-  for (const s of HELD) all.push(...episode(lv, rule, build, layers, Array.from({ length: POP }, () => g), s));
+  for (const s of HELD) all.push(...episode(lv, rule, build, layers, Array.from({ length: POP }, () => g), s, sp));
   return mean(all);
 }
 
@@ -200,45 +264,63 @@ export class Evolver {
   pop: number[][];
   champ: number[] | null = null;
   champStats: Stats | null = null;
-  readonly ruleStats: Stats;
+  ruleStats: Stats;
   private readonly er: Rng;
 
-  readonly lv: Level; readonly build: Sense[]; readonly layers: number[]; readonly seed: number;
+  lv: Level; build: Sense[]; readonly layers: number[]; readonly seed: number;
 
-  constructor(lv: Level, build: Sense[], layers: number[], seed: number) {
-    this.lv = lv; this.build = build; this.layers = layers; this.seed = seed;
+  set: Settings; // the player may change the reward between stages
+  readonly sp: Species;
+
+  constructor(lv: Level, build: Sense[], layers: number[], seed: number, set: Settings = DEFAULT_SETTINGS, sp: Species = SPECIES[0]) {
+    this.lv = lv; this.build = build; this.layers = layers; this.seed = seed; this.set = set; this.sp = sp;
     this.er = createRng(seed * 7919 + 13);
-    this.ruleStats = heldOut(lv, true, build, layers, []);
+    this.ruleStats = heldOut(lv, true, build, layers, [], sp);
     const size = gSize(nIn(build), layers);
-    this.pop = Array.from({ length: POP }, () => Array.from({ length: size }, () => this.er.gauss() * 0.5));
+    this.pop = Array.from({ length: set.pop }, () => Array.from({ length: size }, () => this.er.gauss() * 0.5));
+  }
+
+  // Roguelite runs (Rey 2026-10-29): the same species moves on to the next stage. Its brains keep what
+  // they learned; inputs for newly added senses start at weight 0 (the brain ignores them until evolution
+  // finds a use). Changes no random numbers, so a run is still fully set by its seed and choices.
+  nextStage(lv: Level, build: Sense[]): void {
+    this.pop = this.pop.map((g) => expandGenome(g, this.build, build, this.layers));
+    this.lv = lv; this.build = build;
+    this.ruleStats = heldOut(lv, true, build, this.layers, [], this.sp);
+    this.champ = null; this.champStats = null;
   }
 
   // One generation as small pieces: yields every SLICE ticks so a page can draw in between, and returns
   // the new progress when this generation was a check (else null). step() runs it straight through.
   *generation(): Generator<void, number | null> {
     const gen = this.gen + 1, er = this.er;
-    const w = new World(this.lv, false, this.build, this.layers, this.pop, this.seed * 1000 + gen);
+    const w = new World(this.lv, false, this.build, this.layers, this.pop, this.seed * 1000 + gen, this.sp);
     while (!w.done) { w.step(); if (w.t % SLICE === 0) yield; }
     this.gen = gen;
     const st = w.st;
-    const order = this.pop.map((_, i) => i).sort((a, b) => st[b].score - st[a].score || a - b);
+    const rw = this.set.reward;
+    const ws = this.set.weights, bg = this.ruleStats.good;
+    const fit = st.map((x) => (ws ? weighted(x, ws, bg) : fitness(x, rw)));
+    const order = this.pop.map((_, i) => i).sort((a, b) => fit[b] - fit[a] || a - b);
     let p: number | null = null;
     if (gen % EVERY === 0) {
       const champ = this.pop[order[0]].slice();
       const all: Stats[] = [];
       for (const s of HELD) {
-        const hw = new World(this.lv, false, this.build, this.layers, Array.from({ length: POP }, () => champ), s);
+        const hw = new World(this.lv, false, this.build, this.layers, Array.from({ length: POP }, () => champ), s, this.sp);
         while (!hw.done) { hw.step(); if (hw.t % SLICE === 0) yield; }
         all.push(...hw.st);
       }
       this.champ = champ;
       this.champStats = mean(all);
-      p = this.champStats.score / this.ruleStats.score;
+      p = goalValue(this.champStats, this.sp.goal) / goalValue(this.ruleStats, this.sp.goal); // clean: food - poison, as before
       this.hist.push(p);
     }
-    const parents = order.slice(0, 6).map((i) => this.pop[i]);
-    const next = parents.slice(0, 3).map((g) => g.slice());
-    while (next.length < POP) next.push(parents[next.length % 6].map((x) => (er.next() < 0.2 ? x + er.gauss() * 0.3 : x)));
+    // top fifth are parents, top tenth are kept unchanged (6 and 3 at the default 30)
+    const np = Math.round(this.pop.length / 5), ne = Math.round(this.pop.length / 10), mu = this.set.mutation;
+    const parents = order.slice(0, np).map((i) => this.pop[i]);
+    const next = parents.slice(0, ne).map((g) => g.slice());
+    while (next.length < this.pop.length) next.push(parents[next.length % np].map((x) => (er.next() < 0.2 ? x + er.gauss() * mu : x)));
     this.pop = next;
     return p;
   }
@@ -252,8 +334,16 @@ export class Evolver {
 }
 
 // One sentence: why is this brain behind the rule bot? (Port of learn-game.ts why(), taste fixed.)
-export function why(lv: Level, build: Sense[], c: Stats, b: Stats, progress: number): string {
+export function why(lv: Level, build: Sense[], c: Stats, b: Stats, progress: number, w: Weights = { eat: 1, avoid: 1, live: 0 }): string {
   if (progress >= BAR) return progress >= 1 ? "Beats the hand-written bot." : "Close to the hand-written bot: level passed.";
+  // the reward itself is the problem (measured traps: avoid only, live only, avoid + live)
+  const sum = w.eat + w.avoid + w.live || 1, we = w.eat / sum, wa = w.avoid / sum, wl = w.live / sum;
+  // under 20% eating failed in every measured case; 20-35% only when they actually stopped eating
+  if (we < 0.2 || (c.good < 0.4 * b.good && we < 0.35))
+    return wl > wa ? "Your reward pays for staying alive, not for eating, so they learned to keep away from everything."
+      : "Your reward pays for not eating poison, so they learned not to eat at all.";
+  if (c.bad > b.bad + 0.5 && wa < 0.35 && build.includes("poison"))
+    return "Your reward barely punishes poison, so they eat it even though they can see it.";
   if (lv.hunters > 0 && c.hunted > b.hunted + 0.1)
     return build.includes("hunter") ? "Sees hunters but hasn't learned to flee yet. Give it more generations." : "Your creatures can't see hunters, so they can't learn to flee them.";
   if (c.bad > b.bad + 0.5) {
