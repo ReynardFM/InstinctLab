@@ -7,6 +7,9 @@ const common = { bundle: true, format: "iife" as const, target: "es2022", write:
 const w = await build({ ...common, entryPoints: ["proto/game/worker.ts"], minify: true });
 const m = await build({ ...common, entryPoints: ["proto/play.ts"], define: { __WORKER_SRC__: JSON.stringify(w.outputFiles![0].text) } });
 const js = m.outputFiles![0].text.replace(/<\/script/gi, "<\\/script");
-const html = readFileSync("proto/play.src.html", "utf8").replace("<!--APP-->", () => `<script>\n${js}</script>`);
+// Recursive (OFL, assets/fonts) embedded so the file stays self-contained; the "casual" axis gives the lab-label hand.
+const font = readFileSync("assets/fonts/recursive.woff2").toString("base64");
+const face = `@font-face { font-family: "Recursive"; src: url(data:font/woff2;base64,${font}) format("woff2"); font-weight: 300 1000; font-display: swap; }`;
+const html = readFileSync("proto/play.src.html", "utf8").replace("/*FONT*/", () => face).replace("<!--APP-->", () => `<script>\n${js}</script>`);
 writeFileSync("proto/play.html", html);
 console.log(`proto/play.html ${(html.length / 1024).toFixed(0)} KB`);
