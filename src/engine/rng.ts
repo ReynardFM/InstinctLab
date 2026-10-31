@@ -5,6 +5,7 @@ import { cos, log } from "./dmath.ts";
 export interface Rng {
   next(): number; // 0 <= x < 1
   gauss(): number; // bell curve, mostly between -2 and 2
+  fork(): Rng; // an independent copy that continues with exactly the same numbers from here
 }
 
 export function createRng(seed: number): Rng {
@@ -21,7 +22,7 @@ export function createRng(seed: number): Rng {
     const v = next();
     return Math.sqrt(-2 * log(u)) * cos(2 * Math.PI * v); // Box-Muller, with deterministic log and cos
   };
-  return { next, gauss };
+  return { next, gauss, fork: () => createRng(a) };
 }
 
 // "42" -> 42; any other text -> a stable number derived from it.

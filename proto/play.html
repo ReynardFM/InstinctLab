@@ -145,11 +145,11 @@
     const q = (k % 4 + 4) % 4;
     return q === 0 ? cosSmall(r) : q === 1 ? -sinSmall(r) : q === 2 ? -cosSmall(r) : sinSmall(r);
   }
+  var [X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14, X15, X16, X17] = F;
   function expSmall(x) {
     const k = Math.floor(x * INV_LN2 + 0.5);
     const r = x - k * LN2_HI - k * LN2_LO;
-    let p = F[17];
-    for (let n = 16; n >= 0; n--) p = p * r + F[n];
+    const p = ((((((((((((((((X17 * r + X16) * r + X15) * r + X14) * r + X13) * r + X12) * r + X11) * r + X10) * r + X9) * r + X8) * r + X7) * r + X6) * r + X5) * r + X4) * r + X3) * r + X2) * r + X1) * r + X0;
     return p * P2[64 + k];
   }
   function tanh(x) {
@@ -201,7 +201,7 @@
       const v = next();
       return Math.sqrt(-2 * log(u)) * cos(2 * Math.PI * v);
     };
-    return { next, gauss };
+    return { next, gauss, fork: () => createRng(a) };
   }
 
   // proto/game/sim.ts
@@ -222,6 +222,33 @@
   var MEAL = 0.3;
   var POISON = 0.35;
   var EMAX = 1.5;
+  var RIVER_SLOW = 0.5;
+  var DROWN = 2e-3;
+  var FARM_BEADS = 15;
+  var RIPEN = 120;
+  var CROWD_K = 5;
+  var ZONE_HP = 200;
+  var ZONE_DOWN = 150;
+  var TERRAIN_IN = 8;
+  function makeTerrain(seed, feats) {
+    const r = createRng(seed * 31 + 7);
+    const y0 = r.next() * SIZE, phase = r.next() * 2 * Math.PI, fxr = r.next() * SIZE, fyr = r.next() * SIZE;
+    const river = feats.includes("river") ? { y0, amp: 40, phase, width: 24 } : null;
+    const fr = 45, zr = 25;
+    let fx2 = fxr, fy = fyr;
+    if (river) {
+      fx2 = ((Math.PI / 2 - phase) / (2 * Math.PI) * SIZE % SIZE + SIZE) % SIZE;
+      fy = mod(river.y0 + river.amp - river.width / 2 - fr - 5 + SIZE);
+    }
+    const farm = feats.includes("farm") ? { x: fx2, y: fy, r: fr } : null;
+    const zone = feats.includes("zone") ? { x: fx2, y: mod(fy - (fr + zr + 10) + SIZE), r: zr } : null;
+    return { river, farm, zone };
+  }
+  var riverOffset = (rv, x, y) => wrap(y - (rv.y0 + rv.amp * sin(2 * Math.PI * x / SIZE + rv.phase)));
+  var inCircle = (c, x, y) => {
+    const dx = wrap(x - c.x), dy = wrap(y - c.y);
+    return dx * dx + dy * dy < c.r * c.r;
+  };
   var BODY_CARDS = ["legs", "eyes", "stomach", "belly"];
   var CARD_INFO = {
     poison: { name: "See poison", gain: "direction of the nearest poison", cost: "" },
@@ -229,26 +256,60 @@
     energy: { name: "Feel energy", gain: "knows how full it is", cost: "" },
     taste: { name: "Taste", gain: "was my last bite poison?", cost: "" },
     neighbour: { name: "See neighbour", gain: "direction of the nearest other creature", cost: "" },
+    terrain: { name: "See terrain", gain: "where the river, farm and safe zone are", cost: "" },
     legs: { name: "Long legs", gain: "+15% speed", cost: "+50% hunger" },
     eyes: { name: "Sharp eyes", gain: "sees 33% further", cost: "+15% hunger" },
     stomach: { name: "Tough stomach", gain: "poison hurts 50% less", cost: "food gives 20% less" },
     belly: { name: "Big belly", gain: "stores 50% more energy", cost: "+10% hunger" }
   };
+  var EXPERIMENT = { zeroSenses: false, sprintLegs: false, energyMove: "", tasteMove: "", neighbourInfo: false, confusion: false, follow: false, legs: null, stomach: null, ownThreats: false, terrain: [], farmRaid: 0, legsGrow: 0, terrainMoves: false, thirst: false, memory: 0 };
+  var THIRST_T = 200;
+  var DRINK = 0.1;
+  var BOT_THIRSTY = 0.35;
+  var AMBUSH_R = 50;
+  var AMBUSH_SPEED = 3.2;
+  var BURST_T = 25;
+  var DETOX = 0.01;
+  var TOX_FREE = 2;
+  var TOX_HARM = 4e-3;
+  var SPRINT = 1.3;
+  var SPIT_STUN = 20;
+  var AVOID_MEMORY = 100;
+  var ALARM_R = 80;
+  var ALARM_T = 60;
+  var CONF_R = 40;
+  var CONF_N = 2;
+  var CONF_REST = 10;
+  var nOut = (build, body) => 4 + (EXPERIMENT.energyMove && build.includes("energy") ? 1 : 0) + (EXPERIMENT.tasteMove && build.includes("taste") ? 1 : 0) + (EXPERIMENT.follow && build.includes("neighbour") ? 1 : 0) + (EXPERIMENT.terrainMoves && build.includes("terrain") ? 3 : 0) + (EXPERIMENT.thirst && EXPERIMENT.terrainMoves && build.includes("terrain") ? 1 : 0) + (body.sprint ? 1 : 0) + EXPERIMENT.memory;
   var LEARN_DECAY = 0.9;
   var LEARN_COST = 2e-3;
-  function makeBody(sp2, cards = []) {
-    const b = { speed: sp2.speed, hunger: sp2.hunger, poisonHurt: sp2.poisonHurt, meal: MEAL, emax: EMAX, seeMul: 1, learn: 0 };
+  function makeBody(sp2, cards = [], legsAge = 0) {
+    const b = { speed: sp2.speed, hunger: sp2.hunger, poisonHurt: sp2.poisonHurt, meal: MEAL, emax: EMAX, seeMul: 1, learn: 0, sprint: 0 };
     if (cards.includes("legs")) {
-      b.speed *= 1.15;
-      b.hunger *= 1.5;
+      if (EXPERIMENT.sprintLegs) b.sprint = SPRINT;
+      else if (EXPERIMENT.legsGrow > 0) {
+        b.speed *= 1 + 0.15 * Math.min(1, legsAge / EXPERIMENT.legsGrow);
+        b.hunger *= 1.5;
+      } else if (EXPERIMENT.legs) {
+        b.speed *= EXPERIMENT.legs[0];
+        b.hunger *= EXPERIMENT.legs[1];
+      } else {
+        b.speed *= 1.15;
+        b.hunger *= 1.5;
+      }
     }
     if (cards.includes("eyes")) {
       b.seeMul *= 200 / 150;
       b.hunger *= 1.15;
     }
     if (cards.includes("stomach")) {
-      b.poisonHurt *= 0.5;
-      b.meal *= 0.8;
+      if (EXPERIMENT.stomach) {
+        b.poisonHurt *= EXPERIMENT.stomach[0];
+        b.meal *= EXPERIMENT.stomach[1];
+      } else {
+        b.poisonHurt *= 0.5;
+        b.meal *= 0.8;
+      }
     }
     if (cards.includes("belly")) {
       b.emax *= 1.5;
@@ -269,6 +330,13 @@
     burst: { name: "Mutation burst", info: "mutations x3", cost: 2, gens: 5 },
     cull: { name: "Cull", info: "only the top 3 become parents", cost: 2, gens: 5 }
   };
+  var TEST_POWERS = {
+    hard: { name: "Hard practice", info: "threat x2 in training (poison and hunters)", gens: 10 },
+    hardlong: { name: "Hard practice, rest of stage", info: "threat x2 in training until the stage ends", gens: 60 },
+    switch: { name: "Switching", info: "training alternates every 2 generations: no threat, then threat x2", gens: 20 },
+    dark: { name: "Dark practice", info: "sight 40% shorter in training", gens: 10 }
+  };
+  var powerGens = (k) => k in POWERS ? POWERS[k].gens : TEST_POWERS[k].gens;
   function traceStep(tr, inp, layers2, bufs, out) {
     let k = 0, pre = inp, n = inp.length;
     const step = (a, b) => {
@@ -340,7 +408,7 @@
   function fitness(s, r) {
     return r === "balanced" ? s.score : r === "glutton" ? s.good : s.life / 40;
   }
-  var nIn = (b) => 3 + (b.includes("poison") ? 3 : 0) + (b.includes("taste") ? 1 : 0) + (b.includes("hunter") ? 3 : 0) + (b.includes("energy") ? 1 : 0) + (b.includes("neighbour") ? 3 : 0);
+  var nIn = (b) => 3 + (b.includes("poison") ? 3 : 0) + (b.includes("taste") ? 1 : 0) + (b.includes("hunter") ? 3 : 0) + (b.includes("energy") ? 1 : 0) + (b.includes("neighbour") ? EXPERIMENT.neighbourInfo ? 5 : 3 : 0) + (b.includes("terrain") ? TERRAIN_IN : 0) + (EXPERIMENT.thirst ? 2 : 0) + EXPERIMENT.memory;
   function gSize(nin, layers2, nout = 4) {
     let s = 0, prev = nin;
     for (const h2 of [...layers2, nout]) {
@@ -349,7 +417,7 @@
     }
     return s;
   }
-  function think(g, inp, layers2, out, bufs) {
+  function think(g, inp, layers2, out, bufs, use) {
     let cur = inp, n = inp.length, k = 0;
     for (let l = 0; l < layers2.length; l++) {
       const nxt = bufs[l], m = layers2[l];
@@ -362,6 +430,10 @@
       n = m;
     }
     for (let j = 0; j < out.length; j++) {
+      if (use && !use[j]) {
+        k += n + 1;
+        continue;
+      }
       let s = 0;
       for (let i = 0; i < n; i++) s += cur[i] * g[k++];
       out[j] = tanh(s + g[k++]);
@@ -372,6 +444,66 @@
     if (x >= 2 * SIZE) x -= 2 * SIZE;
     else if (x >= SIZE) x -= SIZE;
     return x - SIZE / 2;
+  }
+  var CELL = 50;
+  var GN = SIZE / CELL;
+  var cellOf = (v) => v / CELL | 0;
+  var Grid = class {
+    remove(id) {
+      const old = this.cell[id];
+      if (old === void 0) return;
+      const b = this.buckets[old], k = b.indexOf(id);
+      b[k] = b[b.length - 1];
+      b.pop();
+      this.cell[id] = void 0;
+    }
+    cell = [];
+    buckets = Array.from({ length: GN * GN }, () => []);
+    set(id, x, y) {
+      const c = cellOf(x) + cellOf(y) * GN, old = this.cell[id];
+      if (old === c) return;
+      if (old !== void 0) {
+        const b = this.buckets[old], k = b.indexOf(id);
+        b[k] = b[b.length - 1];
+        b.pop();
+      }
+      this.cell[id] = c;
+      this.buckets[c].push(id);
+    }
+  };
+  var RINGS = (() => {
+    const seen = /* @__PURE__ */ new Set(), rings = [];
+    for (let r = 0; r <= GN / 2; r++) {
+      const ring = [];
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const k = `${(dx + GN) % GN},${(dy + GN) % GN}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        ring.push(dx, dy);
+      }
+      rings.push(ring);
+    }
+    return rings;
+  })();
+  var NEAR = RINGS.map((ring) => Array.from({ length: GN * GN }, (_, c) => {
+    const cx = c % GN, cy = c / GN | 0, out = new Int32Array(ring.length / 2);
+    for (let q = 0; q < ring.length; q += 2) out[q / 2] = (cx + ring[q] + GN) % GN + (cy + ring[q + 1] + GN) % GN * GN;
+    return out;
+  }));
+  var mod = (x) => x >= 2 * SIZE ? x - 2 * SIZE : x >= SIZE ? x - SIZE : x;
+  function toward(inp, k, found, tx, ty, xi, yi, hxi, hyi, see) {
+    if (!found) {
+      inp[k] = 0;
+      inp[k + 1] = 0;
+      inp[k + 2] = 0;
+      return k + 3;
+    }
+    const dx = wrap(tx - xi), dy = wrap(ty - yi), d = Math.sqrt(dx * dx + dy * dy) || 1;
+    inp[k] = (dx * hxi + dy * hyi) / d;
+    inp[k + 1] = (-dx * hyi + dy * hxi) / d;
+    inp[k + 2] = 1 - d / see;
+    return k + 3;
   }
   var World = class {
     t = 0;
@@ -396,7 +528,47 @@
     b;
     inp = [];
     bufs;
-    out = [0, 0, 0, 0];
+    out;
+    use;
+    // which actions this creature can take (an action needs its sense)
+    eIdx = -1;
+    tIdx = -1;
+    fIdx = -1;
+    tmIdx = -1;
+    sIdx = -1;
+    // extra outputs (experiments)
+    ambush = false;
+    burst = [];
+    // sprinter's own threat
+    toxin = false;
+    tox = [];
+    // scavenger's own threat
+    tr8 = null;
+    // terrain (test only)
+    farmBead = [];
+    off = [];
+    crowd = 0;
+    // farm beads, eaten-and-waiting beads
+    mem = [];
+    memIdx = -1;
+    // memory cells (flat: creature * M + cell)
+    water = [];
+    drIdx = -1;
+    gwIdx = -1;
+    // thirst
+    zoneHp = ZONE_HP;
+    zoneDown = 0;
+    hDead = [];
+    prevAct = [];
+    catches = [];
+    // neighbourInfo: last tick's moves; catches as x, y, tick
+    stun = [];
+    spitReady = [];
+    // taste "spit"
+    bx = [];
+    by = [];
+    bt = [];
+    // taste "avoid": last poison bite
     lv;
     rule;
     layers;
@@ -407,6 +579,9 @@
     wk = null;
     // working brains (learning in life)
     tr = null;
+    foodGrid = new Grid();
+    preyGrid = null;
+    // only when the See neighbour sense is used
     constructor(lv, rule, build, layers2, genomes, mapSeed, sp2 = SPECIES[0], body) {
       this.sp = sp2;
       this.body = body ?? makeBody(sp2);
@@ -424,6 +599,22 @@
         this.fx.push(r.next() * SIZE);
         this.fy.push(r.next() * SIZE);
         this.bad.push(i >= lv.good);
+      }
+      if (lv.terrain) {
+        this.tr8 = lv.terrain;
+        for (let i = 0; i < this.fx.length; i++) {
+          this.farmBead.push(false);
+          this.off.push(false);
+        }
+        const fm = lv.terrain.farm;
+        if (fm) for (let i = 0; i < FARM_BEADS; i++) {
+          const [x, y] = this.inFarm(fm);
+          this.fx.push(x);
+          this.fy.push(y);
+          this.bad.push(false);
+          this.farmBead.push(true);
+          this.off.push(false);
+        }
       }
       for (let i = 0; i < genomes.length; i++) {
         this.px.push(r.next() * SIZE);
@@ -447,33 +638,125 @@
       }
       this.b = rule ? lv.menu.filter((e) => e === "poison" || e === "hunter") : build;
       this.bufs = layers2.map((m) => new Array(m).fill(0));
+      this.use = [true, this.b.includes("poison"), this.b.includes("hunter"), true];
+      this.out = [0, 0, 0, 0];
+      const extra = () => {
+        this.use.push(true);
+        return this.out.push(0) - 1;
+      };
+      if (!rule && EXPERIMENT.energyMove && this.b.includes("energy")) this.eIdx = extra();
+      if (!rule && EXPERIMENT.tasteMove && this.b.includes("taste")) {
+        this.tIdx = extra();
+        for (let i = 0; i < genomes.length; i++) {
+          this.stun.push(0);
+          this.spitReady.push(false);
+          this.bx.push(0);
+          this.by.push(0);
+          this.bt.push(-1);
+        }
+      }
+      if (!rule && EXPERIMENT.follow && this.b.includes("neighbour")) this.fIdx = extra();
+      if (EXPERIMENT.ownThreats && sp2.id === "sprinter") {
+        this.ambush = true;
+        for (let h2 = 0; h2 < lv.hunters; h2++) this.burst.push(0);
+      }
+      if (EXPERIMENT.ownThreats && sp2.id === "scavenger") {
+        this.toxin = true;
+        for (let i = 0; i < genomes.length; i++) this.tox.push(0);
+      }
+      if (!rule && EXPERIMENT.terrainMoves && this.b.includes("terrain")) {
+        this.tmIdx = extra();
+        extra();
+        extra();
+      }
+      if (EXPERIMENT.thirst) {
+        for (let i = 0; i < genomes.length; i++) this.water.push(1);
+        if (!rule) {
+          if (EXPERIMENT.terrainMoves && this.b.includes("terrain")) this.gwIdx = extra();
+        }
+      }
+      if (!rule && this.body.sprint) this.sIdx = extra();
+      if (EXPERIMENT.memory > 0) {
+        for (let i = 0; i < genomes.length * EXPERIMENT.memory; i++) this.mem.push(0);
+        if (!rule) {
+          this.memIdx = extra();
+          for (let m = 1; m < EXPERIMENT.memory; m++) extra();
+        }
+      }
+      for (let f = 0; f < this.fx.length; f++) this.foodGrid.set(f, this.fx[f], this.fy[f]);
+      if (this.b.includes("neighbour")) {
+        this.preyGrid = new Grid();
+        for (let i = 0; i < this.px.length; i++) this.preyGrid.set(i, this.px[i], this.py[i]);
+      }
     }
     get done() {
       return this.t >= T;
     }
+    inFarm(fm) {
+      const a = this.r.next() * 2 * Math.PI, d = fm.r * Math.sqrt(this.r.next());
+      return [mod(fm.x + d * cos(a) + SIZE), mod(fm.y + d * sin(a) + SIZE)];
+    }
+    zoneUp() {
+      return !!this.tr8?.zone && this.zoneDown === 0;
+    }
+    wet(x, y) {
+      const rv = this.tr8?.river;
+      return !!rv && Math.abs(riverOffset(rv, x, y)) < rv.width / 2;
+    }
     step() {
       const { lv, r, fx: fx2, fy, bad, px, py, hx, hy, en, taste, alive, st, kx, ky, kdx, kdy, rest, inp, out } = this;
-      const nf = fx2.length, n = px.length;
+      const n = px.length;
+      const needPoison = (this.rule || this.b.includes("poison")) && lv.bad > 0;
       const hasP = this.b.includes("poison"), hasT = this.b.includes("taste"), hasH = this.b.includes("hunter"), hasE = this.b.includes("energy"), hasN = this.b.includes("neighbour");
+      const nbInfo = hasN && EXPERIMENT.neighbourInfo && !this.rule;
+      if (nbInfo) for (let i = 0; i < n; i++) this.prevAct[i] = this.act[i];
+      let ni = -1;
       for (let i = 0; i < n; i++) {
         if (!alive[i]) continue;
         st[i].life++;
+        if (this.tIdx >= 0 && this.stun[i] > 0) {
+          this.stun[i]--;
+          en[i] -= HUNGER * this.body.hunger;
+          if (en[i] <= 0) {
+            alive[i] = false;
+            st[i].starved = 1;
+          }
+          continue;
+        }
         const see = this.see;
         let fi = -1, fd = see * see, pi = -1, pd = see * see, hi = -1, hd = see * see;
-        for (let f = 0; f < nf; f++) {
-          const dx = wrap(fx2[f] - px[i]), dx2 = dx * dx;
-          if (dx2 >= fd && (!bad[f] || dx2 >= pd)) continue;
-          const dy = wrap(fy[f] - py[i]), d = dx2 + dy * dy;
-          if (d < fd) {
-            fd = d;
-            fi = f;
-          }
-          if (bad[f] && d < pd) {
-            pd = d;
-            pi = f;
+        const xi = px[i], yi = py[i];
+        {
+          if (!needPoison) pd = 0;
+          const c0 = cellOf(xi) + cellOf(yi) * GN, buckets = this.foodGrid.buckets;
+          for (let rr = 0; rr < NEAR.length; rr++) {
+            if (rr >= 1) {
+              const lb = (rr - 1) * CELL, lim = fd > pd ? fd : pd;
+              if (lb * lb >= lim) break;
+            }
+            const cells = NEAR[rr][c0];
+            for (let q = 0; q < cells.length; q++) {
+              const b = buckets[cells[q]];
+              for (let m = 0; m < b.length; m++) {
+                const f = b[m];
+                const dx = wrap(fx2[f] - xi), dx2 = dx * dx;
+                if (dx2 > fd && (!bad[f] || dx2 > pd)) continue;
+                const dy = wrap(fy[f] - yi), d = dx2 + dy * dy;
+                if (d < fd || d === fd && f < fi) {
+                  fd = d;
+                  fi = f;
+                }
+                if (needPoison && bad[f] && (d < pd || d === pd && f < pi)) {
+                  pd = d;
+                  pi = f;
+                }
+              }
+            }
           }
         }
         for (let h2 = 0; h2 < lv.hunters; h2++) {
+          if (this.ambush && this.burst[h2] === 0) continue;
+          if (this.tr8 && this.hDead[h2]) continue;
           const dx = wrap(kx[h2] - px[i]), dx2 = dx * dx;
           if (dx2 >= hd) continue;
           const dy = wrap(ky[h2] - py[i]), d = dx2 + dy * dy;
@@ -482,47 +765,91 @@
             hi = h2;
           }
         }
-        const toward = (tx, ty, k2, found) => {
-          if (!found) {
-            inp[k2] = 0;
-            inp[k2 + 1] = 0;
-            inp[k2 + 2] = 0;
-            return k2 + 3;
-          }
-          const dx = wrap(tx - px[i]), dy = wrap(ty - py[i]), d = Math.sqrt(dx * dx + dy * dy) || 1;
-          inp[k2] = (dx * hx[i] + dy * hy[i]) / d;
-          inp[k2 + 1] = (-dx * hy[i] + dy * hx[i]) / d;
-          inp[k2 + 2] = 1 - d / see;
-          return k2 + 3;
-        };
-        let k = toward(fi >= 0 ? fx2[fi] : 0, fi >= 0 ? fy[fi] : 0, 0, fi >= 0);
-        if (hasP) k = toward(pi >= 0 ? fx2[pi] : 0, pi >= 0 ? fy[pi] : 0, k, pi >= 0);
+        const hxi = hx[i], hyi = hy[i];
+        let k = toward(inp, 0, fi >= 0, fi >= 0 ? fx2[fi] : 0, fi >= 0 ? fy[fi] : 0, xi, yi, hxi, hyi, see);
+        if (hasP) k = toward(inp, k, pi >= 0, pi >= 0 ? fx2[pi] : 0, pi >= 0 ? fy[pi] : 0, xi, yi, hxi, hyi, see);
         if (hasT) inp[k++] = taste[i];
-        if (hasH) k = toward(hi >= 0 ? kx[hi] : 0, hi >= 0 ? ky[hi] : 0, k, hi >= 0);
+        if (hasH) k = toward(inp, k, hi >= 0, hi >= 0 ? kx[hi] : 0, hi >= 0 ? ky[hi] : 0, xi, yi, hxi, hyi, see);
         if (hasE) inp[k++] = en[i] - 1;
-        if (hasN) {
-          let ni = -1, nd = see * see;
-          for (let j = 0; j < n; j++) {
-            if (j === i || !alive[j]) continue;
-            const dx = wrap(px[j] - px[i]), dx2 = dx * dx;
-            if (dx2 >= nd) continue;
-            const dy = wrap(py[j] - py[i]), d = dx2 + dy * dy;
-            if (d < nd) {
-              nd = d;
-              ni = j;
+        if (this.b.includes("terrain")) {
+          const t8 = this.tr8, rv = t8?.river;
+          if (rv) {
+            const o = riverOffset(rv, xi, yi);
+            inp[k++] = o > 100 ? 1 : o < -100 ? -1 : o / 100;
+            inp[k++] = Math.abs(o) < rv.width / 2 ? 1 : 0;
+          } else {
+            inp[k++] = 0;
+            inp[k++] = 0;
+          }
+          for (const c of [t8?.farm ?? null, this.zoneUp() ? t8.zone : null]) {
+            if (!c) {
+              inp[k++] = 0;
+              inp[k++] = 0;
+              inp[k++] = 0;
+              continue;
+            }
+            const dx = wrap(c.x - xi), dy = wrap(c.y - yi), d = Math.sqrt(dx * dx + dy * dy) || 1;
+            inp[k++] = (dx * hxi + dy * hyi) / d;
+            inp[k++] = (-dx * hyi + dy * hxi) / d;
+            inp[k++] = d < 200 ? 1 - d / 200 : 0;
+          }
+        }
+        if (hasN && this.preyGrid) {
+          let nd = see * see;
+          ni = -1;
+          const c0 = cellOf(xi) + cellOf(yi) * GN, buckets = this.preyGrid.buckets;
+          for (let rr = 0; rr < NEAR.length; rr++) {
+            if (rr >= 1) {
+              const lb = (rr - 1) * CELL;
+              if (lb * lb >= nd) break;
+            }
+            const cells = NEAR[rr][c0];
+            for (let q = 0; q < cells.length; q++) {
+              const b = buckets[cells[q]];
+              for (let m = 0; m < b.length; m++) {
+                const j = b[m];
+                if (j === i || !alive[j]) continue;
+                const dx = wrap(px[j] - xi), dx2 = dx * dx;
+                if (dx2 > nd) continue;
+                const dy = wrap(py[j] - yi), d = dx2 + dy * dy;
+                if (d < nd || d === nd && j < ni) {
+                  nd = d;
+                  ni = j;
+                }
+              }
             }
           }
-          k = toward(ni >= 0 ? px[ni] : 0, ni >= 0 ? py[ni] : 0, k, ni >= 0);
+          k = toward(inp, k, ni >= 0, ni >= 0 ? px[ni] : 0, ni >= 0 ? py[ni] : 0, xi, yi, hxi, hyi, see);
+          if (nbInfo) {
+            inp[k++] = ni >= 0 && this.prevAct[ni] === 2 ? 1 : 0;
+            let alarm = 0;
+            for (let c = 0; c < this.catches.length; c += 3) {
+              if (this.t - this.catches[c + 2] > ALARM_T) continue;
+              const dx = wrap(this.catches[c] - xi), dy = wrap(this.catches[c + 1] - yi);
+              if (dx * dx + dy * dy < ALARM_R * ALARM_R) {
+                alarm = 1;
+                break;
+              }
+            }
+            inp[k++] = alarm;
+          }
         }
-        inp.length = k;
+        if (EXPERIMENT.thirst) {
+          inp[k++] = this.water[i] - 1;
+          inp[k++] = this.wet(xi, yi) ? 1 : 0;
+        }
+        for (let m = 0; m < EXPERIMENT.memory; m++) inp[k++] = this.mem[i * EXPERIMENT.memory + m];
+        if (inp.length !== k) inp.length = k;
         let act = 3;
         if (this.rule) {
-          if (hi >= 0 && hd < FLEE_AT * FLEE_AT) act = 2;
+          if (EXPERIMENT.thirst && this.tr8?.river && this.water[i] < BOT_THIRSTY) act = this.wet(xi, yi) ? 10 : 11;
+          else if (hi >= 0 && hd < FLEE_AT * FLEE_AT) act = 2;
           else if (fi >= 0 && fi === pi && this.sp.goal !== "eaten") act = 1;
           else act = 0;
         } else {
-          think(this.wk ? this.wk[i] : this.genomes[i], inp, this.layers, out, this.bufs);
+          think(this.wk ? this.wk[i] : this.genomes[i], inp, this.layers, out, this.bufs, this.tr ? void 0 : this.use);
           if (this.tr) traceStep(this.tr[i], inp, this.layers, this.bufs, out);
+          if (this.memIdx >= 0) for (let m = 0; m < EXPERIMENT.memory; m++) this.mem[i * EXPERIMENT.memory + m] = out[this.memIdx + m];
           let best = -2;
           for (let a = 0; a < 4; a++) {
             if (a === 1 && !hasP || a === 2 && !hasH) continue;
@@ -531,26 +858,99 @@
               act = a;
             }
           }
+          if (this.eIdx >= 0 && out[this.eIdx] > best) {
+            best = out[this.eIdx];
+            act = 4;
+          }
+          if (this.tIdx >= 0 && out[this.tIdx] > best) {
+            best = out[this.tIdx];
+            act = 5;
+          }
+          if (this.fIdx >= 0 && out[this.fIdx] > best) {
+            best = out[this.fIdx];
+            act = 6;
+          }
+          if (this.tmIdx >= 0) {
+            for (let q = 0; q < 3; q++) if (out[this.tmIdx + q] > best) {
+              best = out[this.tmIdx + q];
+              act = 7 + q;
+            }
+          }
+          if (this.drIdx >= 0 && out[this.drIdx] > best) {
+            best = out[this.drIdx];
+            act = 10;
+          }
+          if (this.gwIdx >= 0 && out[this.gwIdx] > best) {
+            best = out[this.gwIdx];
+            act = 11;
+          }
         }
         this.act[i] = act;
-        const face = (dx, dy) => {
-          const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          hx[i] = dx / d;
-          hy[i] = dy / d;
-        };
-        const turn = (a) => {
-          const c = cos(a), s = sin(a), x = hx[i];
-          hx[i] = x * c - hy[i] * s;
-          hy[i] = x * s + hy[i] * c;
-        };
-        if (act === 0 && fi >= 0) face(wrap(fx2[fi] - px[i]), wrap(fy[fi] - py[i]));
-        else if (act === 1 && pi >= 0) face(-wrap(fx2[pi] - px[i]), -wrap(fy[pi] - py[i]));
-        else if (act === 2 && hi >= 0) face(-wrap(kx[hi] - px[i]), -wrap(ky[hi] - py[i]));
-        else turn(r.gauss() * 0.2);
-        const spd = this.body.speed;
-        px[i] = (px[i] + hx[i] * spd + SIZE) % SIZE;
-        py[i] = (py[i] + hy[i] * spd + SIZE) % SIZE;
-        if (fi >= 0) {
+        let fdx = 0, fdy = 0, faced = true;
+        if (act === 0 && fi >= 0) {
+          fdx = wrap(fx2[fi] - xi);
+          fdy = wrap(fy[fi] - yi);
+        } else if (act === 1 && pi >= 0) {
+          fdx = -wrap(fx2[pi] - xi);
+          fdy = -wrap(fy[pi] - yi);
+        } else if (act === 2 && hi >= 0) {
+          fdx = -wrap(kx[hi] - xi);
+          fdy = -wrap(ky[hi] - yi);
+        } else if (act === 6 && ni >= 0) {
+          fdx = wrap(px[ni] - xi);
+          fdy = wrap(py[ni] - yi);
+        } else if (act === 7 && this.zoneUp()) {
+          fdx = wrap(this.tr8.zone.x - xi);
+          fdy = wrap(this.tr8.zone.y - yi);
+        } else if (act === 8 && this.tr8?.farm) {
+          fdx = wrap(this.tr8.farm.x - xi);
+          fdy = wrap(this.tr8.farm.y - yi);
+        } else if (act === 11 && this.tr8?.river && !this.wet(xi, yi)) {
+          fdx = 0;
+          fdy = riverOffset(this.tr8.river, xi, yi) >= 0 ? -1 : 1;
+        } else if (act === 9 && this.tr8?.river && this.wet(xi, yi)) {
+          fdx = 0;
+          fdy = riverOffset(this.tr8.river, xi, yi) >= 0 ? 1 : -1;
+        } else if (act === 5 && EXPERIMENT.tasteMove === "avoid" && this.bt[i] >= 0 && this.t - this.bt[i] <= AVOID_MEMORY) {
+          fdx = -wrap(this.bx[i] - xi);
+          fdy = -wrap(this.by[i] - yi);
+        } else faced = false;
+        let still = false, half = false;
+        if (EXPERIMENT.thirst && this.tr8?.river && this.wet(xi, yi)) this.water[i] = Math.min(1, this.water[i] + DRINK);
+        if (act === 10) still = true;
+        if (act === 4) {
+          half = true;
+          still = EXPERIMENT.energyMove === "rest";
+        }
+        if (act === 5 && EXPERIMENT.tasteMove === "spit" && this.spitReady[i]) {
+          en[i] = Math.min(this.body.emax, en[i] + 0.5 * POISON * this.body.poisonHurt);
+          this.spitReady[i] = false;
+          this.stun[i] = SPIT_STUN;
+          still = true;
+        }
+        if (faced) {
+          const d = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
+          hx[i] = fdx / d;
+          hy[i] = fdy / d;
+        } else if (!still) {
+          const a = r.gauss() * 0.2, c = cos(a), s = sin(a), x = hxi;
+          hx[i] = x * c - hyi * s;
+          hy[i] = x * s + hyi * c;
+        }
+        const sprinting = this.sIdx >= 0 && out[this.sIdx] > 0;
+        const spd0 = still ? 0 : half ? this.body.speed * 0.5 : sprinting ? this.body.speed * this.body.sprint : this.body.speed;
+        const spd = this.tr8 && this.wet(xi, yi) ? spd0 * RIVER_SLOW : spd0;
+        if (!still) {
+          px[i] = mod(px[i] + hx[i] * spd + SIZE);
+          py[i] = mod(py[i] + hy[i] * spd + SIZE);
+        }
+        if (this.tr8?.river && this.wet(px[i], py[i]) && r.next() < DROWN) {
+          alive[i] = false;
+          continue;
+        }
+        if (this.tr8?.farm && inCircle(this.tr8.farm, px[i], py[i])) this.crowd++;
+        if (this.preyGrid) this.preyGrid.set(i, px[i], py[i]);
+        if (fi >= 0 && !(this.tr8 && this.off[fi])) {
           const dx = wrap(fx2[fi] - px[i]), dy = wrap(fy[fi] - py[i]);
           if (dx * dx + dy * dy < BITE * BITE) {
             if (bad[fi]) {
@@ -564,23 +964,60 @@
               st[i].score++;
               taste[i] = -1;
             }
+            if (this.toxin && bad[fi]) this.tox[i] += 1;
+            if (this.tIdx >= 0) {
+              this.spitReady[i] = bad[fi];
+              if (bad[fi]) {
+                this.bx[i] = fx2[fi];
+                this.by[i] = fy[fi];
+                this.bt[i] = this.t;
+              }
+            }
             if (this.wk && this.tr) en[i] -= LEARN_COST * learnFrom(this.wk[i], this.tr[i], this.body.learn * (bad[fi] ? -1 : 1));
-            fx2[fi] = r.next() * SIZE;
-            fy[fi] = r.next() * SIZE;
+            if (this.tr8 && this.farmBead[fi]) {
+              this.off[fi] = true;
+              this.foodGrid.remove(fi);
+            } else {
+              fx2[fi] = r.next() * SIZE;
+              fy[fi] = r.next() * SIZE;
+              if (this.tr8?.zone) while (inCircle(this.tr8.zone, fx2[fi], fy[fi])) {
+                fx2[fi] = r.next() * SIZE;
+                fy[fi] = r.next() * SIZE;
+              }
+              this.foodGrid.set(fi, fx2[fi], fy[fi]);
+            }
           }
         }
-        en[i] -= HUNGER * this.body.hunger;
+        let hm = this.body.hunger;
+        if (sprinting) hm = hm * this.body.sprint * this.body.sprint;
+        if (half) hm = hm * 0.5;
+        en[i] -= HUNGER * hm;
+        if (EXPERIMENT.thirst && this.tr8?.river) {
+          this.water[i] -= 1 / THIRST_T;
+          if (this.water[i] <= 0) {
+            alive[i] = false;
+            st[i].starved = 1;
+            continue;
+          }
+        }
+        if (this.toxin) {
+          const t = this.tox[i] > DETOX ? this.tox[i] - DETOX : 0;
+          this.tox[i] = t;
+          if (t > TOX_FREE) en[i] -= TOX_HARM * (t - TOX_FREE);
+        }
         if (en[i] <= 0) {
           alive[i] = false;
           st[i].starved = 1;
         }
       }
       for (let h2 = 0; h2 < lv.hunters; h2++) {
+        if (this.tr8 && this.hDead[h2]) continue;
         if (rest[h2] > 0) {
           rest[h2]--;
           continue;
         }
-        let ti = -1, td = HUNT_SEE * HUNT_SEE;
+        const hiding = this.ambush && this.burst[h2] === 0;
+        let ti = -1, td = hiding ? AMBUSH_R * AMBUSH_R : HUNT_SEE * HUNT_SEE;
         for (let i = 0; i < n; i++) {
           if (!alive[i]) continue;
           const dx = wrap(px[i] - kx[h2]), dx2 = dx * dx;
@@ -591,31 +1028,84 @@
             ti = i;
           }
         }
+        if (this.ambush) {
+          if (ti < 0) {
+            this.burst[h2] = 0;
+            continue;
+          }
+          if (hiding) this.burst[h2] = BURST_T;
+          else this.burst[h2]--;
+        }
         let sp2 = 1;
         if (ti >= 0) {
           const dx = wrap(px[ti] - kx[h2]), dy = wrap(py[ti] - ky[h2]), d = Math.sqrt(dx * dx + dy * dy) || 1;
           kdx[h2] = dx / d;
           kdy[h2] = dy / d;
-          sp2 = HUNTER_SPEED;
+          sp2 = this.ambush ? AMBUSH_SPEED : HUNTER_SPEED;
           if (d < CATCH) {
+            let crowd = 0;
+            if (EXPERIMENT.confusion) for (let j = 0; j < n && crowd < CONF_N; j++) {
+              if (j === ti || !alive[j]) continue;
+              const ex = wrap(px[j] - px[ti]), ey = wrap(py[j] - py[ti]);
+              if (ex * ex + ey * ey < CONF_R * CONF_R) crowd++;
+            }
+            if (crowd >= CONF_N) {
+              rest[h2] = CONF_REST;
+              continue;
+            }
             alive[ti] = false;
             st[ti].hunted = 1;
             rest[h2] = REST;
+            if (this.ambush) this.burst[h2] = 0;
+            if (EXPERIMENT.neighbourInfo) this.catches.push(px[ti], py[ti], this.t);
             continue;
           }
+        } else if (this.tr8?.farm && this.tr8.raid && !inCircle({ ...this.tr8.farm, r: this.tr8.farm.r + 30 }, kx[h2], ky[h2])) {
+          const dx = wrap(this.tr8.farm.x - kx[h2]), dy = wrap(this.tr8.farm.y - ky[h2]), d = Math.sqrt(dx * dx + dy * dy) || 1;
+          kdx[h2] = dx / d;
+          kdy[h2] = dy / d;
         } else {
           const a = r.gauss() * 0.2, c = cos(a), s = sin(a), x = kdx[h2];
           kdx[h2] = x * c - kdy[h2] * s;
           kdy[h2] = x * s + kdy[h2] * c;
         }
-        kx[h2] = (kx[h2] + kdx[h2] * sp2 + SIZE) % SIZE;
-        ky[h2] = (ky[h2] + kdy[h2] * sp2 + SIZE) % SIZE;
+        if (this.tr8) {
+          if (this.wet(kx[h2], ky[h2])) sp2 *= RIVER_SLOW;
+          const nx = mod(kx[h2] + kdx[h2] * sp2 + SIZE), ny = mod(ky[h2] + kdy[h2] * sp2 + SIZE);
+          if (this.zoneUp() && !inCircle(this.tr8.zone, kx[h2], ky[h2]) && inCircle(this.tr8.zone, nx, ny)) {
+            if (ti >= 0 && --this.zoneHp <= 0) {
+              this.zoneDown = ZONE_DOWN;
+              this.zoneHp = ZONE_HP;
+            }
+            continue;
+          }
+          kx[h2] = nx;
+          ky[h2] = ny;
+          if (this.tr8.river && this.wet(nx, ny) && r.next() < DROWN) this.hDead[h2] = true;
+          continue;
+        }
+        kx[h2] = mod(kx[h2] + kdx[h2] * sp2 + SIZE);
+        ky[h2] = mod(ky[h2] + kdy[h2] * sp2 + SIZE);
+      }
+      if (this.tr8) {
+        if (this.zoneDown > 0) this.zoneDown--;
+        const fm = this.tr8.farm;
+        if (fm && (this.t + 1) % RIPEN === 0) {
+          let ripe = Math.round(FARM_BEADS * CROWD_K / (CROWD_K + this.crowd / RIPEN));
+          for (let f = 0; f < fx2.length && ripe > 0; f++) if (this.farmBead[f] && this.off[f]) {
+            [fx2[f], fy[f]] = this.inFarm(fm);
+            this.off[f] = false;
+            this.foodGrid.set(f, fx2[f], fy[f]);
+            ripe--;
+          }
+          this.crowd = 0;
+        }
       }
       this.t++;
     }
   };
-  var INPUT_ORDER = [["food", 3], ["poison", 3], ["taste", 1], ["hunter", 3], ["energy", 1], ["neighbour", 3]];
-  var inputKeys = (b) => INPUT_ORDER.flatMap(([s, n]) => s === "food" || b.includes(s) ? Array.from({ length: n }, (_, i) => s + i) : []);
+  var INPUT_ORDER = [["food", 3], ["poison", 3], ["taste", 1], ["hunter", 3], ["energy", 1], ["terrain", TERRAIN_IN], ["neighbour", 3]];
+  var inputKeys = (b) => [...INPUT_ORDER, ["thirst", 2], ["mem", EXPERIMENT.memory]].flatMap(([s, n]) => s === "food" || b.includes(s) || s === "thirst" && EXPERIMENT.thirst || s === "mem" && n > 0 ? Array.from({ length: n }, (_, i) => s + i) : []);
   function expandGenome(g, from, to, layers2) {
     const a = inputKeys(from), map = inputKeys(to).map((k2) => a.indexOf(k2));
     const out = [];
@@ -648,16 +1138,39 @@
     for (const key of Object.keys(m)) m[key] /= st.length;
     return m;
   }
+  var botCache = /* @__PURE__ */ new Map();
   function heldOut(lv, rule, build, layers2, g, sp2 = SPECIES[0], body) {
+    if (rule && !body) {
+      const k = `${sp2.id}|${JSON.stringify(lv)}`;
+      let st = botCache.get(k);
+      if (!st) {
+        st = heldOutRaw(lv, true, build, layers2, g, sp2);
+        botCache.set(k, st);
+      }
+      return { ...st };
+    }
+    return heldOutRaw(lv, rule, build, layers2, g, sp2, body);
+  }
+  function heldOutRaw(lv, rule, build, layers2, g, sp2, body) {
     const all = [];
     for (const s of HELD) all.push(...episode(lv, rule, build, layers2, Array.from({ length: POP }, () => g), s, sp2, body));
     return mean(all);
   }
-  var Evolver = class {
+  var Evolver = class _Evolver {
     gen = 0;
     hist = [];
     // progress every EVERY generations
     pop;
+    // Families (Rey 2026-10-30, "evolution is blind, you are not" test): fam[i] = the founder brain pop[i] descends
+    // from. favour = the player backs a family: that share of the parents comes from its best members. Tracking
+    // families draws no random numbers, so with favour unset every run is unchanged.
+    fam = [];
+    favour = null;
+    lastFit = [];
+    // fitness of the last generation's brains, in pop order (tests)
+    // Islands (tests, 2026-10-30): with islands = k the population breeds in k separate groups (fam = island), so k
+    // lines always survive; favour then gives the backed island share x the whole population's places.
+    islands = 0;
     champ = null;
     champStats = null;
     ruleStats;
@@ -673,13 +1186,17 @@
     effects = [];
     // Tests only: skip checks before this generation (they never change evolution, only the progress shown).
     checkAfter = 0;
+    stageStart = 0;
+    legsSince = -1;
+    // experiments: stage's first generation, generation legs was picked
     usePower(kind) {
-      this.effects.push({ kind, until: this.gen + POWERS[kind].gens });
+      this.effects.push({ kind, from: this.gen + 1, until: this.gen + powerGens(kind) });
     }
     activePowers(gen = this.gen + 1) {
       return this.effects.filter((e) => gen <= e.until).map((e) => e.kind);
     }
     constructor(lv, build, layers2, seed, set = DEFAULT_SETTINGS, sp2 = SPECIES[0]) {
+      if (EXPERIMENT.terrain.length) lv = { ...lv, terrain: makeTerrain(seed, EXPERIMENT.terrain) };
       this.lv = lv;
       this.build = build;
       this.layers = layers2;
@@ -688,16 +1205,19 @@
       this.sp = sp2;
       this.er = createRng(seed * 7919 + 13);
       this.ruleStats = heldOut(lv, true, build, layers2, [], sp2);
-      const size = gSize(nIn(build), layers2);
+      const nin = nIn(build), size = gSize(nin, layers2, nOut(build, makeBody(sp2, set.body ?? [])));
       this.pop = Array.from({ length: set.pop }, () => Array.from({ length: size }, () => this.er.gauss() * 0.5));
+      if (EXPERIMENT.zeroSenses) for (const g of this.pop) for (let j = 0; j < layers2[0]; j++) for (let i = 3; i < nin; i++) g[j * (nin + 1) + i] = 0;
     }
     // Roguelite runs (Rey 2026-10-29): the same species moves on to the next stage. Its brains keep what
     // they learned; inputs for newly added senses start at weight 0 (the brain ignores them until evolution
     // finds a use). Changes no random numbers, so a run is still fully set by its seed and choices.
     nextStage(lv, build) {
       this.pop = this.pop.map((g) => expandGenome(g, this.build, build, this.layers));
+      if (EXPERIMENT.terrain.length) lv = { ...lv, terrain: makeTerrain(this.seed, EXPERIMENT.terrain) };
       this.lv = lv;
       this.build = build;
+      this.stageStart = this.gen;
       this.ruleStats = heldOut(lv, true, build, this.layers, [], this.sp);
       this.champ = null;
       this.champStats = null;
@@ -706,11 +1226,21 @@
     // the new progress when this generation was a check (else null). step() runs it straight through.
     *generation() {
       const gen = this.gen + 1, er = this.er;
-      const body = makeBody(this.sp, this.set.body ?? []);
+      if (EXPERIMENT.legsGrow > 0 && (this.set.body ?? []).includes("legs") && this.legsSince < 0) this.legsSince = this.gen;
+      const body = makeBody(this.sp, this.set.body ?? [], this.legsSince < 0 ? 0 : gen - this.legsSince);
+      if (EXPERIMENT.farmRaid > 0 && this.lv.terrain?.farm && !this.lv.terrain.raid && gen - this.stageStart > EXPERIMENT.farmRaid) {
+        this.lv = { ...this.lv, terrain: { ...this.lv.terrain, raid: true } };
+        this.ruleStats = heldOut(this.lv, true, this.build, this.layers, [], this.sp);
+      }
       const on = this.activePowers(gen);
       let trainLv = this.lv;
       if (on.includes("food")) trainLv = { ...trainLv, good: Math.round(trainLv.good * 1.5) };
       if (on.includes("shelter")) trainLv = { ...trainLv, hunters: 0 };
+      const threat = (lv, x) => ({ ...lv, bad: Math.round(lv.bad * x), hunters: Math.round(lv.hunters * x) });
+      if (on.includes("hard") || on.includes("hardlong")) trainLv = threat(trainLv, 2);
+      const sw = this.effects.find((e) => e.kind === "switch" && gen >= e.from && gen <= e.until);
+      if (sw) trainLv = threat(trainLv, Math.floor((gen - sw.from) / 2) % 2 === 0 ? 0 : 2);
+      if (on.includes("dark")) trainLv = { ...trainLv, sight: (trainLv.sight ?? 1) * 0.6 };
       const w = new World(trainLv, false, this.build, this.layers, this.pop, this.seed * 1e3 + gen, this.sp, body);
       while (!w.done) {
         w.step();
@@ -745,11 +1275,66 @@
         np = Math.min(np, 3);
         ne = Math.min(ne, np);
       }
-      const parents = order.slice(0, np).map((i) => this.pop[i]);
-      const next = parents.slice(0, ne).map((g) => g.slice());
-      while (next.length < this.pop.length) next.push(parents[next.length % np].map((x) => er.next() < 0.2 ? x + er.gauss() * mu : x));
+      if (this.islands > 0) {
+        const k = this.islands, n = this.pop.length;
+        if (this.fam.length !== n) this.fam = this.pop.map((_, i) => Math.floor(i * k / n));
+        const places = Array.from({ length: k }, (_, I) => Math.floor((I + 1) * n / k) - Math.floor(I * n / k));
+        if (this.favour) {
+          const big = Math.round(n * this.favour.share), rest = n - big;
+          for (let I = 0, o = 0; I < k; I++) places[I] = I === this.favour.fam ? big : Math.floor((o + 1) * rest / (k - 1)) - Math.floor(o++ * rest / (k - 1));
+        }
+        const next2 = [], nfam2 = [];
+        for (let I = 0; I < k; I++) {
+          const mine = order.filter((i) => this.fam[i] === I);
+          if (!mine.length) continue;
+          const inp = Math.max(1, Math.round(mine.length / 5)), ine = Math.max(1, Math.round(mine.length / 10));
+          const par = mine.slice(0, inp).map((i) => this.pop[i]);
+          for (let c = 0; c < places[I]; c++) {
+            nfam2.push(I);
+            next2.push(c < ine ? par[c % inp].slice() : par[c % inp].map((x) => er.next() < 0.2 ? x + er.gauss() * mu : x));
+          }
+        }
+        this.lastFit = fit;
+        this.pop = next2;
+        this.fam = nfam2;
+        return p;
+      }
+      if (this.fam.length !== this.pop.length) this.fam = this.pop.map((_, i) => i);
+      let pick2 = order.slice(0, np);
+      if (this.favour) {
+        const fv = this.favour, mine = order.filter((i) => this.fam[i] === fv.fam).slice(0, Math.round(np * fv.share));
+        if (mine.length) pick2 = [...mine, ...order.filter((i) => !mine.includes(i))].slice(0, np);
+      }
+      const parents = pick2.map((i) => this.pop[i]), pfam = pick2.map((i) => this.fam[i]);
+      const next = parents.slice(0, ne).map((g) => g.slice()), nfam = pfam.slice(0, ne);
+      while (next.length < this.pop.length) {
+        nfam.push(pfam[next.length % np]);
+        next.push(parents[next.length % np].map((x) => er.next() < 0.2 ? x + er.gauss() * mu : x));
+      }
+      this.lastFit = fit;
       this.pop = next;
+      this.fam = nfam;
       return p;
+    }
+    // An independent copy of this evolution at this point (tests: run gens 0-29 once, then branch per power).
+    // Copies the random number state too, so the copy goes on exactly as this one would.
+    fork() {
+      const c = Object.create(_Evolver.prototype);
+      Object.assign(c, this, {
+        hist: this.hist.slice(),
+        pop: this.pop.map((g) => g.slice()),
+        champ: this.champ?.slice() ?? null,
+        fam: this.fam.slice(),
+        favour: this.favour && { ...this.favour },
+        lastFit: this.lastFit.slice(),
+        champStats: this.champStats && { ...this.champStats },
+        ruleStats: { ...this.ruleStats },
+        er: this.er.fork(),
+        set: { ...this.set },
+        effects: this.effects.map((e) => ({ ...e })),
+        build: this.build.slice()
+      });
+      return c;
     }
     step() {
       const it = this.generation();
@@ -914,7 +1499,7 @@
     };
   }
   try {
-    const w = new Worker(URL.createObjectURL(new Blob(['"use strict";(()=>{var ue=1.5707963267341256,le=6077100506506192e-26,he=.6366197723675814,de=.6931471803691238,ce=19082149292705877e-26,He=1.4426950408889634,Be=.7071067811865476,Ge=1.4142135623730951,y=[1];for(let t=1;t<=20;t++)y.push(y[t-1]/t);var q=new Array(129);q[64]=1;for(let t=1;t<=64;t++)q[64+t]=q[63+t]*2,q[64-t]=q[65-t]/2;function K(t){let e=t*t;return t*(y[0]-e*(y[3]-e*(y[5]-e*(y[7]-e*(y[9]-e*(y[11]-e*(y[13]-e*(y[15]-e*(y[17]-e*y[19])))))))))}function Q(t){let e=t*t;return y[0]-e*(y[2]-e*(y[4]-e*(y[6]-e*(y[8]-e*(y[10]-e*(y[12]-e*(y[14]-e*(y[16]-e*y[18]))))))))}function j(t){let e=Math.floor(t*he+.5),n=t-e*ue-e*le,s=(e%4+4)%4;return s===0?K(n):s===1?Q(n):s===2?-K(n):-Q(n)}function U(t){let e=Math.floor(t*he+.5),n=t-e*ue-e*le,s=(e%4+4)%4;return s===0?Q(n):s===1?-K(n):s===2?-Q(n):K(n)}function Fe(t){let e=Math.floor(t*He+.5),n=t-e*de-e*ce,s=y[17];for(let i=16;i>=0;i--)s=s*n+y[i];return s*q[64+e]}function ee(t){if(t!==t)return NaN;let e=t<0?-t:t,n;if(e>=20)n=1;else if(e<.05){let s=e*e;n=e*(1-s*(1/3-s*(2/15-s*(17/315-s*(62/2835-s*(1382/155925))))))}else{let s=Fe(-2*e);n=(1-s)/(1+s)}return t<0?-n:n}function pe(t){if(!(t>0))return t===0?-1/0:NaN;if(t===1/0)return 1/0;let e=t,n=0;for(;e<Be;)e*=2,n--;for(;e>=Ge;)e/=2,n++;let s=(e-1)/(e+1),i=s*s,o=1/23;for(let u=21;u>=1;u-=2)o=o*i+1/u;return n*de+(n*ce+2*s*o)}function te(t){let e=t,n=()=>{e|=0,e=e+1831565813|0;let i=Math.imul(e^e>>>15,1|e);return i=i+Math.imul(i^i>>>7,61|i)^i,((i^i>>>14)>>>0)/4294967296};return{next:n,gauss:()=>{let i=n()||1e-9,o=n();return Math.sqrt(-2*pe(i))*U(2*Math.PI*o)}}}var x=400,ve=800,ne=30,we=5,Ee=[101,102];var me=40,De=150,be=60,fe=6,We=8,Ue=1.9,Ye=20,ge=120,qe=.0015,Ve=.3,je=.35,ze=1.5;var Ke=.9,Qe=.002;function Pe(t,e=[]){let n={speed:t.speed,hunger:t.hunger,poisonHurt:t.poisonHurt,meal:Ve,emax:ze,seeMul:1,learn:0};return e.includes("legs")&&(n.speed*=1.15,n.hunger*=1.5),e.includes("eyes")&&(n.seeMul*=200/150,n.hunger*=1.15),e.includes("stomach")&&(n.poisonHurt*=.5,n.meal*=.8),e.includes("belly")&&(n.emax*=1.5,n.hunger*=1.1),n}var Le={calm:{name:"Calm",info:"nothing extra",hard:!1,apply:t=>t},drought:{name:"Drought",info:"40% less food",hard:!0,apply:t=>({...t,good:Math.round(t.good*.6)})},night:{name:"Night",info:"sight 40% shorter",hard:!0,apply:t=>({...t,sight:(t.sight??1)*.6})},bloom:{name:"Toxic bloom",info:"50% more poison",hard:!0,apply:t=>({...t,bad:Math.round(t.bad*1.5)})},swarm:{name:"Swarm",info:"+3 hunters",hard:!0,apply:t=>({...t,hunters:t.hunters+3})}},re={food:{name:"Food drop",info:"+50% food in training",cost:2,gens:10},shelter:{name:"Shelter",info:"no hunters in training",cost:3,gens:10},burst:{name:"Mutation burst",info:"mutations x3",cost:2,gens:5},cull:{name:"Cull",info:"only the top 3 become parents",cost:2,gens:5}};function Xe(t,e,n,s,i){let o=0,u=e,l=e.length,d=(h,a)=>{t[o]=Ke*t[o]+h*a,o++};for(let h=0;h<n.length;h++){let a=s[h];for(let f=0;f<n[h];f++){for(let P=0;P<l;P++)d(u[P],a[f]);d(1,a[f])}u=a,l=n[h]}for(let h=0;h<i.length;h++){for(let a=0;a<l;a++)d(u[a],i[h]);d(1,i[h])}}function Ze(t,e,n){let s=0;for(let i=0;i<t.length;i++){let o=n*e[i];t[i]+=o,s+=o<0?-o:o}return s}var V=[{id:"grazer",name:"Grazer",goal:"clean",speed:2,hunger:1,poisonHurt:1,start:[],blurb:"Goal: clean food (food minus poison). Normal body."},{id:"sprinter",name:"Sprinter",goal:"alive",speed:2.5,hunger:1.5,poisonHurt:1,start:["hunter"],blurb:"Goal: stay alive. Fast, but gets hungry 1.5x faster. Starts able to see hunters."},{id:"scavenger",name:"Scavenger",goal:"eaten",speed:2,hunger:1,poisonHurt:.4,start:["energy"],blurb:"Goal: swallow as much as possible, poison included. Poison hurts it only 40%. Starts able to feel its energy."}],ye=(t,e)=>e==="clean"?t.score:e==="eaten"?t.good+t.bad:t.life;var ke=()=>({score:0,good:0,bad:0,hunted:0,starved:0,life:0});function Je(t,e,n){let s=e.eat+e.avoid+e.live||1,i=e.eat/s,o=e.avoid/s,u=e.live/s;return(i*t.good-o*t.bad)/(n||1)+u*t.life/ve}var se={reward:"balanced",mutation:.3,pop:ne};function $e(t,e){return e==="balanced"?t.score:e==="glutton"?t.good:t.life/40}var et=t=>3+(t.includes("poison")?3:0)+(t.includes("taste")?1:0)+(t.includes("hunter")?3:0)+(t.includes("energy")?1:0)+(t.includes("neighbour")?3:0);function tt(t,e,n=4){let s=0,i=t;for(let o of[...e,n])s+=i*o+o,i=o;return s}function nt(t,e,n,s,i){let o=e,u=e.length,l=0;for(let d=0;d<n.length;d++){let h=i[d],a=n[d];for(let f=0;f<a;f++){let P=0;for(let v=0;v<u;v++)P+=o[v]*t[l++];h[f]=ee(P+t[l++])}o=h,u=a}for(let d=0;d<s.length;d++){let h=0;for(let a=0;a<u;a++)h+=o[a]*t[l++];s[d]=ee(h+t[l++])}}function E(t){let e=t+1.5*x;return e>=2*x?e-=2*x:e>=x&&(e-=x),e-x/2}var z=class{t=0;r;fx=[];fy=[];bad=[];px=[];py=[];hx=[];hy=[];en=[];taste=[];alive=[];act=[];st=[];kx=[];ky=[];kdx=[];kdy=[];rest=[];b;inp=[];bufs;out=[0,0,0,0];lv;rule;layers;genomes;sp;body;see;wk=null;tr=null;constructor(e,n,s,i,o,u,l=V[0],d){this.sp=l,this.body=d??Pe(l),this.see=De*this.body.seeMul*(e.sight??1),!n&&this.body.learn>0&&(this.wk=o.map(a=>a.slice()),this.tr=o.map(a=>new Array(a.length).fill(0))),this.lv=e,this.rule=n,this.layers=i,this.genomes=o;let h=this.r=te(u);for(let a=0;a<e.good+e.bad;a++)this.fx.push(h.next()*x),this.fy.push(h.next()*x),this.bad.push(a>=e.good);for(let a=0;a<o.length;a++){this.px.push(h.next()*x),this.py.push(h.next()*x);let f=h.next()*2*Math.PI;this.hx.push(U(f)),this.hy.push(j(f)),this.en.push(1),this.taste.push(0),this.alive.push(!0),this.act.push(3),this.st.push(ke())}for(let a=0;a<e.hunters;a++){this.kx.push(h.next()*x),this.ky.push(h.next()*x);let f=h.next()*2*Math.PI;this.kdx.push(U(f)),this.kdy.push(j(f)),this.rest.push(0)}this.b=n?e.menu.filter(a=>a==="poison"||a==="hunter"):s,this.bufs=i.map(a=>new Array(a).fill(0))}get done(){return this.t>=ve}step(){let{lv:e,r:n,fx:s,fy:i,bad:o,px:u,py:l,hx:d,hy:h,en:a,taste:f,alive:P,st:v,kx:L,ky:N,kdx:G,kdy:O,rest:_,inp:b,out:A}=this,J=s.length,H=u.length,oe=this.b.includes("poison"),Ce=this.b.includes("taste"),ie=this.b.includes("hunter"),Te=this.b.includes("energy"),Oe=this.b.includes("neighbour");for(let r=0;r<H;r++){if(!P[r])continue;v[r].life++;let k=this.see,S=-1,F=k*k,g=-1,I=k*k,w=-1,C=k*k;for(let c=0;c<J;c++){let p=E(s[c]-u[r]),m=p*p;if(m>=F&&(!o[c]||m>=I))continue;let M=E(i[c]-l[r]),R=m+M*M;R<F&&(F=R,S=c),o[c]&&R<I&&(I=R,g=c)}for(let c=0;c<e.hunters;c++){let p=E(L[c]-u[r]),m=p*p;if(m>=C)continue;let M=E(N[c]-l[r]),R=m+M*M;R<C&&(C=R,w=c)}let D=(c,p,m,M)=>{if(!M)return b[m]=0,b[m+1]=0,b[m+2]=0,m+3;let R=E(c-u[r]),W=E(p-l[r]),Y=Math.sqrt(R*R+W*W)||1;return b[m]=(R*d[r]+W*h[r])/Y,b[m+1]=(-R*h[r]+W*d[r])/Y,b[m+2]=1-Y/k,m+3},T=D(S>=0?s[S]:0,S>=0?i[S]:0,0,S>=0);if(oe&&(T=D(g>=0?s[g]:0,g>=0?i[g]:0,T,g>=0)),Ce&&(b[T++]=f[r]),ie&&(T=D(w>=0?L[w]:0,w>=0?N[w]:0,T,w>=0)),Te&&(b[T++]=a[r]-1),Oe){let c=-1,p=k*k;for(let m=0;m<H;m++){if(m===r||!P[m])continue;let M=E(u[m]-u[r]),R=M*M;if(R>=p)continue;let W=E(l[m]-l[r]),Y=R+W*W;Y<p&&(p=Y,c=m)}T=D(c>=0?u[c]:0,c>=0?l[c]:0,T,c>=0)}b.length=T;let B=3;if(this.rule)w>=0&&C<be*be?B=2:S>=0&&S===g&&this.sp.goal!=="eaten"?B=1:B=0;else{nt(this.wk?this.wk[r]:this.genomes[r],b,this.layers,A,this.bufs),this.tr&&Xe(this.tr[r],b,this.layers,this.bufs,A);let c=-2;for(let p=0;p<4;p++)p===1&&!oe||p===2&&!ie||A[p]>c&&(c=A[p],B=p)}this.act[r]=B;let $=(c,p)=>{let m=Math.sqrt(c*c+p*p)||1;d[r]=c/m,h[r]=p/m},_e=c=>{let p=U(c),m=j(c),M=d[r];d[r]=M*p-h[r]*m,h[r]=M*m+h[r]*p};B===0&&S>=0?$(E(s[S]-u[r]),E(i[S]-l[r])):B===1&&g>=0?$(-E(s[g]-u[r]),-E(i[g]-l[r])):B===2&&w>=0?$(-E(L[w]-u[r]),-E(N[w]-l[r])):_e(n.gauss()*.2);let ae=this.body.speed;if(u[r]=(u[r]+d[r]*ae+x)%x,l[r]=(l[r]+h[r]*ae+x)%x,S>=0){let c=E(s[S]-u[r]),p=E(i[S]-l[r]);c*c+p*p<fe*fe&&(o[S]?(a[r]-=je*this.body.poisonHurt,v[r].bad++,v[r].score--,f[r]=1):(a[r]=Math.min(this.body.emax,a[r]+this.body.meal),v[r].good++,v[r].score++,f[r]=-1),this.wk&&this.tr&&(a[r]-=Qe*Ze(this.wk[r],this.tr[r],this.body.learn*(o[S]?-1:1))),s[S]=n.next()*x,i[S]=n.next()*x)}a[r]-=qe*this.body.hunger,a[r]<=0&&(P[r]=!1,v[r].starved=1)}for(let r=0;r<e.hunters;r++){if(_[r]>0){_[r]--;continue}let k=-1,S=ge*ge;for(let g=0;g<H;g++){if(!P[g])continue;let I=E(u[g]-L[r]),w=I*I;if(w>=S)continue;let C=E(l[g]-N[r]),D=w+C*C;D<S&&(S=D,k=g)}let F=1;if(k>=0){let g=E(u[k]-L[r]),I=E(l[k]-N[r]),w=Math.sqrt(g*g+I*I)||1;if(G[r]=g/w,O[r]=I/w,F=Ue,w<We){P[k]=!1,v[k].hunted=1,_[r]=Ye;continue}}else{let g=n.gauss()*.2,I=U(g),w=j(g),C=G[r];G[r]=C*I-O[r]*w,O[r]=C*w+O[r]*I}L[r]=(L[r]+G[r]*F+x)%x,N[r]=(N[r]+O[r]*F+x)%x}this.t++}},rt=[["food",3],["poison",3],["taste",1],["hunter",3],["energy",1],["neighbour",3]],Se=t=>rt.flatMap(([e,n])=>e==="food"||t.includes(e)?Array.from({length:n},(s,i)=>e+i):[]);function st(t,e,n,s){let i=Se(e),o=Se(n).map(d=>i.indexOf(d)),u=[],l=0;for(let d=0;d<s[0];d++){let h=t.slice(l,l+i.length);l+=i.length;let a=t[l++];for(let f of o)u.push(f<0?0:h[f]);u.push(a)}for(;l<t.length;l++)u.push(t[l]);return u}function ot(t,e,n,s,i,o,u=V[0],l){let d=new z(t,e,n,s,i,o,u,l);for(;!d.done;)d.step();return d.st}function Re(t){let e=ke();for(let n of t)e.score+=n.score,e.good+=n.good,e.bad+=n.bad,e.hunted+=n.hunted,e.starved+=n.starved,e.life+=n.life;for(let n of Object.keys(e))e[n]/=t.length;return e}function xe(t,e,n,s,i,o=V[0],u){let l=[];for(let d of Ee)l.push(...ot(t,e,n,s,Array.from({length:ne},()=>i),d,o,u));return Re(l)}var X=class{gen=0;hist=[];pop;champ=null;champStats=null;ruleStats;er;lv;build;layers;seed;set;sp;effects=[];checkAfter=0;usePower(e){this.effects.push({kind:e,until:this.gen+re[e].gens})}activePowers(e=this.gen+1){return this.effects.filter(n=>e<=n.until).map(n=>n.kind)}constructor(e,n,s,i,o=se,u=V[0]){this.lv=e,this.build=n,this.layers=s,this.seed=i,this.set=o,this.sp=u,this.er=te(i*7919+13),this.ruleStats=xe(e,!0,n,s,[],u);let l=tt(et(n),s);this.pop=Array.from({length:o.pop},()=>Array.from({length:l},()=>this.er.gauss()*.5))}nextStage(e,n){this.pop=this.pop.map(s=>st(s,this.build,n,this.layers)),this.lv=e,this.build=n,this.ruleStats=xe(e,!0,n,this.layers,[],this.sp),this.champ=null,this.champStats=null}*generation(){let e=this.gen+1,n=this.er,s=Pe(this.sp,this.set.body??[]),i=this.activePowers(e),o=this.lv;i.includes("food")&&(o={...o,good:Math.round(o.good*1.5)}),i.includes("shelter")&&(o={...o,hunters:0});let u=new z(o,!1,this.build,this.layers,this.pop,this.seed*1e3+e,this.sp,s);for(;!u.done;)u.step(),u.t%me===0&&(yield);this.gen=e;let l=u.st,d=this.set.reward,h=this.set.weights,a=this.ruleStats.good,f=l.map(b=>h?Je(b,h,a):$e(b,d)),P=this.pop.map((b,A)=>A).sort((b,A)=>f[A]-f[b]||b-A),v=null;if(e%we===0&&e>this.checkAfter){let b=this.pop[P[0]].slice(),A=[];for(let J of Ee){let H=new z(this.lv,!1,this.build,this.layers,Array.from({length:ne},()=>b),J,this.sp,s);for(;!H.done;)H.step(),H.t%me===0&&(yield);A.push(...H.st)}this.champ=b,this.champStats=Re(A),v=ye(this.champStats,this.sp.goal)/ye(this.ruleStats,this.sp.goal),this.hist.push(v)}let L=Math.round(this.pop.length/5),N=Math.round(this.pop.length/10),G=this.set.mutation;i.includes("burst")&&(G*=3),i.includes("cull")&&(L=Math.min(L,3),N=Math.min(N,L));let O=P.slice(0,L).map(b=>this.pop[b]),_=O.slice(0,N).map(b=>b.slice());for(;_.length<this.pop.length;)_.push(O[_.length%L].map(b=>n.next()<.2?b+n.gauss()*G:b));return this.pop=_,v}step(){let e=this.generation(),n=e.next();for(;!n.done;)n=e.next();return n.value}};var it=60,at=4,ut=[{id:"S1",name:"Meadow",good:40,bad:0,hunters:0,menu:["energy"],blurb:"Only food. Learn to find it."},{id:"S2",name:"Poison patch",good:30,bad:20,hunters:0,menu:["poison","taste","energy"],blurb:"20 of the 50 beads are poison."},{id:"S3",name:"Hunted",good:40,bad:8,hunters:6,menu:["poison","hunter","energy"],blurb:"Six hunters roam; a caught creature is out for the round."}],lt=t=>{let e=t.slice(-at);return e.reduce((n,s)=>n+s,0)/e.length},ht=(t,e="calm")=>Le[e].apply(ut[t]),Z=class{ev=null;run=-1;pending=[];queue(e){e.run===this.run&&this.pending.push({stage:e.stage,power:e.power})}*stage(e,n){let s=ht(e.stage,e.event),i={...se,weights:e.weights,body:e.body??[]};e.stage===0||!this.ev||this.run!==e.run?(this.ev=new X(s,e.build,e.layers,e.seed,i,V[e.sp]),this.run=e.run):(this.ev.set=i,this.ev.nextStage(s,e.build)),this.pending=[];let o=this.ev,u=o.hist.length,l=o.gen,d=l+it,h=performance.now(),a=0;for(;o.gen<d;){for(let L of this.pending.splice(0))L.stage===e.stage&&(o.usePower(L.power),n({type:"powered",run:e.run,stage:e.stage,power:L.power,gen:o.gen-l,until:o.gen-l+dt(L.power)}));let P=o.generation(),v=P.next();for(;!v.done;)yield,v=P.next();a++,v.value!==null&&(n({type:"check",run:e.run,stage:e.stage,gen:o.gen-l,progress:v.value,champ:o.champ,champStats:o.champStats,ruleStats:o.ruleStats,msPerGen:(performance.now()-h)/a}),h=performance.now(),a=0),yield}let f=o.hist.slice(u);n({type:"done",run:e.run,stage:e.stage,score:lt(f),hist:f})}},dt=t=>re[t].gens;var Ie=new Z,Me=0,Ae=new MessageChannel,Ne=()=>{};Ae.port1.onmessage=()=>Ne();var ct=()=>new Promise(t=>{Ne=t,Ae.port2.postMessage(0)});self.onmessage=async t=>{let e=t.data;if(e.type==="power"){Ie.queue(e);return}let n=++Me;if(e.type==="stop")return;let s=Ie.stage(e,o=>self.postMessage(o)),i=0;for(let o=s.next();!o.done;o=s.next())if(++i%40===0&&(await ct(),n!==Me))return};})();\n'], { type: "text/javascript" })));
+    const w = new Worker(URL.createObjectURL(new Blob(['"use strict";(()=>{var Fe=1.5707963267341256,Xe=6077100506506192e-26,Ue=.6366197723675814,We=.6931471803691238,qe=19082149292705877e-26,Pt=1.4426950408889634,kt=.7071067811865476,Tt=1.4142135623730951,G=[1];for(let t=1;t<=20;t++)G.push(G[t-1]/t);var le=new Array(129);le[64]=1;for(let t=1;t<=64;t++)le[64+t]=le[63+t]*2,le[64-t]=le[65-t]/2;function ve(t){let e=t*t;return t*(G[0]-e*(G[3]-e*(G[5]-e*(G[7]-e*(G[9]-e*(G[11]-e*(G[13]-e*(G[15]-e*(G[17]-e*G[19])))))))))}function we(t){let e=t*t;return G[0]-e*(G[2]-e*(G[4]-e*(G[6]-e*(G[8]-e*(G[10]-e*(G[12]-e*(G[14]-e*(G[16]-e*G[18]))))))))}function ae(t){let e=Math.floor(t*Ue+.5),n=t-e*Fe-e*Xe,r=(e%4+4)%4;return r===0?ve(n):r===1?we(n):r===2?-ve(n):-we(n)}function ie(t){let e=Math.floor(t*Ue+.5),n=t-e*Fe-e*Xe,r=(e%4+4)%4;return r===0?we(n):r===1?-ve(n):r===2?-we(n):ve(n)}var[At,Nt,Ot,_t,Lt,Gt,Ct,Ht,zt,Bt,Dt,Ft,Xt,Ut,Wt,qt,jt,Yt]=G;function Vt(t){let e=Math.floor(t*Pt+.5),n=t-e*We-e*qe;return(((((((((((((((((Yt*n+jt)*n+qt)*n+Wt)*n+Ut)*n+Xt)*n+Ft)*n+Dt)*n+Bt)*n+zt)*n+Ht)*n+Ct)*n+Gt)*n+Lt)*n+_t)*n+Ot)*n+Nt)*n+At)*le[64+e]}function Oe(t){if(t!==t)return NaN;let e=t<0?-t:t,n;if(e>=20)n=1;else if(e<.05){let r=e*e;n=e*(1-r*(1/3-r*(2/15-r*(17/315-r*(62/2835-r*(1382/155925))))))}else{let r=Vt(-2*e);n=(1-r)/(1+r)}return t<0?-n:n}function je(t){if(!(t>0))return t===0?-1/0:NaN;if(t===1/0)return 1/0;let e=t,n=0;for(;e<kt;)e*=2,n--;for(;e>=Tt;)e/=2,n++;let r=(e-1)/(e+1),o=r*r,i=1/23;for(let h=21;h>=1;h-=2)i=i*o+1/h;return n*We+(n*qe+2*r*i)}function ge(t){let e=t,n=()=>{e|=0,e=e+1831565813|0;let o=Math.imul(e^e>>>15,1|e);return o=o+Math.imul(o^o>>>7,61|o)^o,((o^o>>>14)>>>0)/4294967296};return{next:n,gauss:()=>{let o=n()||1e-9,i=n();return Math.sqrt(-2*je(o))*ie(2*Math.PI*i)},fork:()=>ge(e)}}var x=400,bt=800,Ge=30,gt=5,yt=[101,102];var Ye=40,Kt=150,Ve=60,Ke=6,$t=8,Zt=1.9,Qt=20,$e=120,Ze=.0015,Jt=.3,Qe=.35,en=1.5,Je=.5,et=.002,tt=15,nt=120,st=5,rt=200,tn=150,xt=8;function it(t,e){let n=ge(t*31+7),r=n.next()*x,o=n.next()*2*Math.PI,i=n.next()*x,h=n.next()*x,u=e.includes("river")?{y0:r,amp:40,phase:o,width:24}:null,m=45,p=25,d=i,a=h;u&&(d=((Math.PI/2-o)/(2*Math.PI)*x%x+x)%x,a=J(u.y0+u.amp-u.width/2-m-5+x));let g=e.includes("farm")?{x:d,y:a,r:m}:null,T=e.includes("zone")?{x:d,y:J(a-(m+p+10)+x),r:p}:null;return{river:u,farm:g,zone:T}}var Se=(t,e,n)=>y(n-(t.y0+t.amp*ae(2*Math.PI*e/x+t.phase))),ye=(t,e,n)=>{let r=y(e-t.x),o=y(n-t.y);return r*r+o*o<t.r*t.r};var f={zeroSenses:!1,sprintLegs:!1,energyMove:"",tasteMove:"",neighbourInfo:!1,confusion:!1,follow:!1,legs:null,stomach:null,ownThreats:!1,terrain:[],farmRaid:0,legsGrow:0,terrainMoves:!1,thirst:!1,memory:0},nn=200,sn=.1,rn=.35,ot=50,on=3.2,an=25,at=.01,ht=2,hn=.004,un=1.3,ln=20,dn=100,ut=80,fn=60,lt=40,dt=2,cn=10,pn=(t,e)=>4+(f.energyMove&&t.includes("energy")?1:0)+(f.tasteMove&&t.includes("taste")?1:0)+(f.follow&&t.includes("neighbour")?1:0)+(f.terrainMoves&&t.includes("terrain")?3:0)+(f.thirst&&f.terrainMoves&&t.includes("terrain")?1:0)+(e.sprint?1:0)+f.memory,mn=.9,bn=.002;function Le(t,e=[],n=0){let r={speed:t.speed,hunger:t.hunger,poisonHurt:t.poisonHurt,meal:Jt,emax:en,seeMul:1,learn:0,sprint:0};return e.includes("legs")&&(f.sprintLegs?r.sprint=un:f.legsGrow>0?(r.speed*=1+.15*Math.min(1,n/f.legsGrow),r.hunger*=1.5):f.legs?(r.speed*=f.legs[0],r.hunger*=f.legs[1]):(r.speed*=1.15,r.hunger*=1.5)),e.includes("eyes")&&(r.seeMul*=200/150,r.hunger*=1.15),e.includes("stomach")&&(f.stomach?(r.poisonHurt*=f.stomach[0],r.meal*=f.stomach[1]):(r.poisonHurt*=.5,r.meal*=.8)),e.includes("belly")&&(r.emax*=1.5,r.hunger*=1.1),r}var vt={calm:{name:"Calm",info:"nothing extra",hard:!1,apply:t=>t},drought:{name:"Drought",info:"40% less food",hard:!0,apply:t=>({...t,good:Math.round(t.good*.6)})},night:{name:"Night",info:"sight 40% shorter",hard:!0,apply:t=>({...t,sight:(t.sight??1)*.6})},bloom:{name:"Toxic bloom",info:"50% more poison",hard:!0,apply:t=>({...t,bad:Math.round(t.bad*1.5)})},swarm:{name:"Swarm",info:"+3 hunters",hard:!0,apply:t=>({...t,hunters:t.hunters+3})}},Ee={food:{name:"Food drop",info:"+50% food in training",cost:2,gens:10},shelter:{name:"Shelter",info:"no hunters in training",cost:3,gens:10},burst:{name:"Mutation burst",info:"mutations x3",cost:2,gens:5},cull:{name:"Cull",info:"only the top 3 become parents",cost:2,gens:5}},gn={hard:{name:"Hard practice",info:"threat x2 in training (poison and hunters)",gens:10},hardlong:{name:"Hard practice, rest of stage",info:"threat x2 in training until the stage ends",gens:60},switch:{name:"Switching",info:"training alternates every 2 generations: no threat, then threat x2",gens:20},dark:{name:"Dark practice",info:"sight 40% shorter in training",gens:10}},yn=t=>t in Ee?Ee[t].gens:gn[t].gens;function xn(t,e,n,r,o){let i=0,h=e,u=e.length,m=(p,d)=>{t[i]=mn*t[i]+p*d,i++};for(let p=0;p<n.length;p++){let d=r[p];for(let a=0;a<n[p];a++){for(let g=0;g<u;g++)m(h[g],d[a]);m(1,d[a])}h=d,u=n[p]}for(let p=0;p<o.length;p++){for(let d=0;d<u;d++)m(h[d],o[p]);m(1,o[p])}}function vn(t,e,n){let r=0;for(let o=0;o<t.length;o++){let i=n*e[o];t[o]+=i,r+=i<0?-i:i}return r}var fe=[{id:"grazer",name:"Grazer",goal:"clean",speed:2,hunger:1,poisonHurt:1,start:[],blurb:"Goal: clean food (food minus poison). Normal body."},{id:"sprinter",name:"Sprinter",goal:"alive",speed:2.5,hunger:1.5,poisonHurt:1,start:["hunter"],blurb:"Goal: stay alive. Fast, but gets hungry 1.5x faster. Starts able to see hunters."},{id:"scavenger",name:"Scavenger",goal:"eaten",speed:2,hunger:1,poisonHurt:.4,start:["energy"],blurb:"Goal: swallow as much as possible, poison included. Poison hurts it only 40%. Starts able to feel its energy."}],ft=(t,e)=>e==="clean"?t.score:e==="eaten"?t.good+t.bad:t.life;var wt=()=>({score:0,good:0,bad:0,hunted:0,starved:0,life:0});function wn(t,e,n){let r=e.eat+e.avoid+e.live||1,o=e.eat/r,i=e.avoid/r,h=e.live/r;return(o*t.good-i*t.bad)/(n||1)+h*t.life/bt}var Ce={reward:"balanced",mutation:.3,pop:Ge};function Sn(t,e){return e==="balanced"?t.score:e==="glutton"?t.good:t.life/40}var In=t=>3+(t.includes("poison")?3:0)+(t.includes("taste")?1:0)+(t.includes("hunter")?3:0)+(t.includes("energy")?1:0)+(t.includes("neighbour")?f.neighbourInfo?5:3:0)+(t.includes("terrain")?xt:0)+(f.thirst?2:0)+f.memory;function Mn(t,e,n=4){let r=0,o=t;for(let i of[...e,n])r+=o*i+i,o=i;return r}function En(t,e,n,r,o,i){let h=e,u=e.length,m=0;for(let p=0;p<n.length;p++){let d=o[p],a=n[p];for(let g=0;g<a;g++){let T=0;for(let M=0;M<u;M++)T+=h[M]*t[m++];d[g]=Oe(T+t[m++])}h=d,u=a}for(let p=0;p<r.length;p++){if(i&&!i[p]){m+=u+1;continue}let d=0;for(let a=0;a<u;a++)d+=h[a]*t[m++];r[p]=Oe(d+t[m++])}}function y(t){let e=t+1.5*x;return e>=2*x?e-=2*x:e>=x&&(e-=x),e-x/2}var Re=50,D=x/Re,de=t=>t/Re|0,Pe=class{remove(e){let n=this.cell[e];if(n===void 0)return;let r=this.buckets[n],o=r.indexOf(e);r[o]=r[r.length-1],r.pop(),this.cell[e]=void 0}cell=[];buckets=Array.from({length:D*D},()=>[]);set(e,n,r){let o=de(n)+de(r)*D,i=this.cell[e];if(i!==o){if(i!==void 0){let h=this.buckets[i],u=h.indexOf(e);h[u]=h[h.length-1],h.pop()}this.cell[e]=o,this.buckets[o].push(e)}}},Rn=(()=>{let t=new Set,e=[];for(let n=0;n<=D/2;n++){let r=[];for(let o=-n;o<=n;o++)for(let i=-n;i<=n;i++){if(Math.max(Math.abs(i),Math.abs(o))!==n)continue;let h=`${(i+D)%D},${(o+D)%D}`;t.has(h)||(t.add(h),r.push(i,o))}e.push(r)}return e})(),Ie=Rn.map(t=>Array.from({length:D*D},(e,n)=>{let r=n%D,o=n/D|0,i=new Int32Array(t.length/2);for(let h=0;h<t.length;h+=2)i[h/2]=(r+t[h]+D)%D+(o+t[h+1]+D)%D*D;return i})),J=t=>t>=2*x?t-2*x:t>=x?t-x:t;function Me(t,e,n,r,o,i,h,u,m,p){if(!n)return t[e]=0,t[e+1]=0,t[e+2]=0,e+3;let d=y(r-i),a=y(o-h),g=Math.sqrt(d*d+a*a)||1;return t[e]=(d*u+a*m)/g,t[e+1]=(-d*m+a*u)/g,t[e+2]=1-g/p,e+3}var xe=class{t=0;r;fx=[];fy=[];bad=[];px=[];py=[];hx=[];hy=[];en=[];taste=[];alive=[];act=[];st=[];kx=[];ky=[];kdx=[];kdy=[];rest=[];b;inp=[];bufs;out;use;eIdx=-1;tIdx=-1;fIdx=-1;tmIdx=-1;sIdx=-1;ambush=!1;burst=[];toxin=!1;tox=[];tr8=null;farmBead=[];off=[];crowd=0;mem=[];memIdx=-1;water=[];drIdx=-1;gwIdx=-1;zoneHp=rt;zoneDown=0;hDead=[];prevAct=[];catches=[];stun=[];spitReady=[];bx=[];by=[];bt=[];lv;rule;layers;genomes;sp;body;see;wk=null;tr=null;foodGrid=new Pe;preyGrid=null;constructor(e,n,r,o,i,h,u=fe[0],m){this.sp=u,this.body=m??Le(u),this.see=Kt*this.body.seeMul*(e.sight??1),!n&&this.body.learn>0&&(this.wk=i.map(a=>a.slice()),this.tr=i.map(a=>new Array(a.length).fill(0))),this.lv=e,this.rule=n,this.layers=o,this.genomes=i;let p=this.r=ge(h);for(let a=0;a<e.good+e.bad;a++)this.fx.push(p.next()*x),this.fy.push(p.next()*x),this.bad.push(a>=e.good);if(e.terrain){this.tr8=e.terrain;for(let g=0;g<this.fx.length;g++)this.farmBead.push(!1),this.off.push(!1);let a=e.terrain.farm;if(a)for(let g=0;g<tt;g++){let[T,M]=this.inFarm(a);this.fx.push(T),this.fy.push(M),this.bad.push(!1),this.farmBead.push(!0),this.off.push(!1)}}for(let a=0;a<i.length;a++){this.px.push(p.next()*x),this.py.push(p.next()*x);let g=p.next()*2*Math.PI;this.hx.push(ie(g)),this.hy.push(ae(g)),this.en.push(1),this.taste.push(0),this.alive.push(!0),this.act.push(3),this.st.push(wt())}for(let a=0;a<e.hunters;a++){this.kx.push(p.next()*x),this.ky.push(p.next()*x);let g=p.next()*2*Math.PI;this.kdx.push(ie(g)),this.kdy.push(ae(g)),this.rest.push(0)}this.b=n?e.menu.filter(a=>a==="poison"||a==="hunter"):r,this.bufs=o.map(a=>new Array(a).fill(0)),this.use=[!0,this.b.includes("poison"),this.b.includes("hunter"),!0],this.out=[0,0,0,0];let d=()=>(this.use.push(!0),this.out.push(0)-1);if(!n&&f.energyMove&&this.b.includes("energy")&&(this.eIdx=d()),!n&&f.tasteMove&&this.b.includes("taste")){this.tIdx=d();for(let a=0;a<i.length;a++)this.stun.push(0),this.spitReady.push(!1),this.bx.push(0),this.by.push(0),this.bt.push(-1)}if(!n&&f.follow&&this.b.includes("neighbour")&&(this.fIdx=d()),f.ownThreats&&u.id==="sprinter"){this.ambush=!0;for(let a=0;a<e.hunters;a++)this.burst.push(0)}if(f.ownThreats&&u.id==="scavenger"){this.toxin=!0;for(let a=0;a<i.length;a++)this.tox.push(0)}if(!n&&f.terrainMoves&&this.b.includes("terrain")&&(this.tmIdx=d(),d(),d()),f.thirst){for(let a=0;a<i.length;a++)this.water.push(1);n||f.terrainMoves&&this.b.includes("terrain")&&(this.gwIdx=d())}if(!n&&this.body.sprint&&(this.sIdx=d()),f.memory>0){for(let a=0;a<i.length*f.memory;a++)this.mem.push(0);if(!n){this.memIdx=d();for(let a=1;a<f.memory;a++)d()}}for(let a=0;a<this.fx.length;a++)this.foodGrid.set(a,this.fx[a],this.fy[a]);if(this.b.includes("neighbour")){this.preyGrid=new Pe;for(let a=0;a<this.px.length;a++)this.preyGrid.set(a,this.px[a],this.py[a])}}get done(){return this.t>=bt}inFarm(e){let n=this.r.next()*2*Math.PI,r=e.r*Math.sqrt(this.r.next());return[J(e.x+r*ie(n)+x),J(e.y+r*ae(n)+x)]}zoneUp(){return!!this.tr8?.zone&&this.zoneDown===0}wet(e,n){let r=this.tr8?.river;return!!r&&Math.abs(Se(r,e,n))<r.width/2}step(){let{lv:e,r:n,fx:r,fy:o,bad:i,px:h,py:u,hx:m,hy:p,en:d,taste:a,alive:g,st:T,kx:M,ky:F,kdx:U,kdy:q,rest:se,inp:E,out:z}=this,oe=h.length,re=(this.rule||this.b.includes("poison"))&&e.bad>0,ce=this.b.includes("poison"),b=this.b.includes("taste"),A=this.b.includes("hunter"),$=this.b.includes("energy"),Z=this.b.includes("neighbour"),pe=Z&&f.neighbourInfo&&!this.rule;if(pe)for(let s=0;s<oe;s++)this.prevAct[s]=this.act[s];let O=-1;for(let s=0;s<oe;s++){if(!g[s])continue;if(T[s].life++,this.tIdx>=0&&this.stun[s]>0){this.stun[s]--,d[s]-=Ze*this.body.hunger,d[s]<=0&&(g[s]=!1,T[s].starved=1);continue}let k=this.see,l=-1,W=k*k,R=-1,I=k*k,P=-1,X=k*k,v=h[s],w=u[s];{re||(I=0);let c=de(v)+de(w)*D,S=this.foodGrid.buckets;for(let C=0;C<Ie.length;C++){if(C>=1){let L=(C-1)*Re,B=W>I?W:I;if(L*L>=B)break}let H=Ie[C][c];for(let L=0;L<H.length;L++){let B=S[H[L]];for(let ee=0;ee<B.length;ee++){let V=B[ee],te=y(r[V]-v),ue=te*te;if(ue>W&&(!i[V]||ue>I))continue;let be=y(o[V]-w),ne=ue+be*be;(ne<W||ne===W&&V<l)&&(W=ne,l=V),re&&i[V]&&(ne<I||ne===I&&V<R)&&(I=ne,R=V)}}}}for(let c=0;c<e.hunters;c++){if(this.ambush&&this.burst[c]===0||this.tr8&&this.hDead[c])continue;let S=y(M[c]-h[s]),C=S*S;if(C>=X)continue;let H=y(F[c]-u[s]),L=C+H*H;L<X&&(X=L,P=c)}let Q=m[s],K=p[s],N=Me(E,0,l>=0,l>=0?r[l]:0,l>=0?o[l]:0,v,w,Q,K,k);if(ce&&(N=Me(E,N,R>=0,R>=0?r[R]:0,R>=0?o[R]:0,v,w,Q,K,k)),b&&(E[N++]=a[s]),A&&(N=Me(E,N,P>=0,P>=0?M[P]:0,P>=0?F[P]:0,v,w,Q,K,k)),$&&(E[N++]=d[s]-1),this.b.includes("terrain")){let c=this.tr8,S=c?.river;if(S){let C=Se(S,v,w);E[N++]=C>100?1:C<-100?-1:C/100,E[N++]=Math.abs(C)<S.width/2?1:0}else E[N++]=0,E[N++]=0;for(let C of[c?.farm??null,this.zoneUp()?c.zone:null]){if(!C){E[N++]=0,E[N++]=0,E[N++]=0;continue}let H=y(C.x-v),L=y(C.y-w),B=Math.sqrt(H*H+L*L)||1;E[N++]=(H*Q+L*K)/B,E[N++]=(-H*K+L*Q)/B,E[N++]=B<200?1-B/200:0}}if(Z&&this.preyGrid){let c=k*k;O=-1;let S=de(v)+de(w)*D,C=this.preyGrid.buckets;for(let H=0;H<Ie.length;H++){if(H>=1){let B=(H-1)*Re;if(B*B>=c)break}let L=Ie[H][S];for(let B=0;B<L.length;B++){let ee=C[L[B]];for(let V=0;V<ee.length;V++){let te=ee[V];if(te===s||!g[te])continue;let ue=y(h[te]-v),be=ue*ue;if(be>c)continue;let ne=y(u[te]-w),Ne=be+ne*ne;(Ne<c||Ne===c&&te<O)&&(c=Ne,O=te)}}}if(N=Me(E,N,O>=0,O>=0?h[O]:0,O>=0?u[O]:0,v,w,Q,K,k),pe){E[N++]=O>=0&&this.prevAct[O]===2?1:0;let H=0;for(let L=0;L<this.catches.length;L+=3){if(this.t-this.catches[L+2]>fn)continue;let B=y(this.catches[L]-v),ee=y(this.catches[L+1]-w);if(B*B+ee*ee<ut*ut){H=1;break}}E[N++]=H}}f.thirst&&(E[N++]=this.water[s]-1,E[N++]=this.wet(v,w)?1:0);for(let c=0;c<f.memory;c++)E[N++]=this.mem[s*f.memory+c];E.length!==N&&(E.length=N);let _=3;if(this.rule)f.thirst&&this.tr8?.river&&this.water[s]<rn?_=this.wet(v,w)?10:11:P>=0&&X<Ve*Ve?_=2:l>=0&&l===R&&this.sp.goal!=="eaten"?_=1:_=0;else{if(En(this.wk?this.wk[s]:this.genomes[s],E,this.layers,z,this.bufs,this.tr?void 0:this.use),this.tr&&xn(this.tr[s],E,this.layers,this.bufs,z),this.memIdx>=0)for(let S=0;S<f.memory;S++)this.mem[s*f.memory+S]=z[this.memIdx+S];let c=-2;for(let S=0;S<4;S++)S===1&&!ce||S===2&&!A||z[S]>c&&(c=z[S],_=S);if(this.eIdx>=0&&z[this.eIdx]>c&&(c=z[this.eIdx],_=4),this.tIdx>=0&&z[this.tIdx]>c&&(c=z[this.tIdx],_=5),this.fIdx>=0&&z[this.fIdx]>c&&(c=z[this.fIdx],_=6),this.tmIdx>=0)for(let S=0;S<3;S++)z[this.tmIdx+S]>c&&(c=z[this.tmIdx+S],_=7+S);this.drIdx>=0&&z[this.drIdx]>c&&(c=z[this.drIdx],_=10),this.gwIdx>=0&&z[this.gwIdx]>c&&(c=z[this.gwIdx],_=11)}this.act[s]=_;let j=0,Y=0,He=!0;_===0&&l>=0?(j=y(r[l]-v),Y=y(o[l]-w)):_===1&&R>=0?(j=-y(r[R]-v),Y=-y(o[R]-w)):_===2&&P>=0?(j=-y(M[P]-v),Y=-y(F[P]-w)):_===6&&O>=0?(j=y(h[O]-v),Y=y(u[O]-w)):_===7&&this.zoneUp()?(j=y(this.tr8.zone.x-v),Y=y(this.tr8.zone.y-w)):_===8&&this.tr8?.farm?(j=y(this.tr8.farm.x-v),Y=y(this.tr8.farm.y-w)):_===11&&this.tr8?.river&&!this.wet(v,w)?(j=0,Y=Se(this.tr8.river,v,w)>=0?-1:1):_===9&&this.tr8?.river&&this.wet(v,w)?(j=0,Y=Se(this.tr8.river,v,w)>=0?1:-1):_===5&&f.tasteMove==="avoid"&&this.bt[s]>=0&&this.t-this.bt[s]<=dn?(j=-y(this.bx[s]-v),Y=-y(this.by[s]-w)):He=!1;let he=!1,Ae=!1;if(f.thirst&&this.tr8?.river&&this.wet(v,w)&&(this.water[s]=Math.min(1,this.water[s]+sn)),_===10&&(he=!0),_===4&&(Ae=!0,he=f.energyMove==="rest"),_===5&&f.tasteMove==="spit"&&this.spitReady[s]&&(d[s]=Math.min(this.body.emax,d[s]+.5*Qe*this.body.poisonHurt),this.spitReady[s]=!1,this.stun[s]=ln,he=!0),He){let c=Math.sqrt(j*j+Y*Y)||1;m[s]=j/c,p[s]=Y/c}else if(!he){let c=n.gauss()*.2,S=ie(c),C=ae(c),H=Q;m[s]=H*S-K*C,p[s]=H*C+K*S}let ze=this.sIdx>=0&&z[this.sIdx]>0,Be=he?0:Ae?this.body.speed*.5:ze?this.body.speed*this.body.sprint:this.body.speed,De=this.tr8&&this.wet(v,w)?Be*Je:Be;if(he||(h[s]=J(h[s]+m[s]*De+x),u[s]=J(u[s]+p[s]*De+x)),this.tr8?.river&&this.wet(h[s],u[s])&&n.next()<et){g[s]=!1;continue}if(this.tr8?.farm&&ye(this.tr8.farm,h[s],u[s])&&this.crowd++,this.preyGrid&&this.preyGrid.set(s,h[s],u[s]),l>=0&&!(this.tr8&&this.off[l])){let c=y(r[l]-h[s]),S=y(o[l]-u[s]);if(c*c+S*S<Ke*Ke)if(i[l]?(d[s]-=Qe*this.body.poisonHurt,T[s].bad++,T[s].score--,a[s]=1):(d[s]=Math.min(this.body.emax,d[s]+this.body.meal),T[s].good++,T[s].score++,a[s]=-1),this.toxin&&i[l]&&(this.tox[s]+=1),this.tIdx>=0&&(this.spitReady[s]=i[l],i[l]&&(this.bx[s]=r[l],this.by[s]=o[l],this.bt[s]=this.t)),this.wk&&this.tr&&(d[s]-=bn*vn(this.wk[s],this.tr[s],this.body.learn*(i[l]?-1:1))),this.tr8&&this.farmBead[l])this.off[l]=!0,this.foodGrid.remove(l);else{if(r[l]=n.next()*x,o[l]=n.next()*x,this.tr8?.zone)for(;ye(this.tr8.zone,r[l],o[l]);)r[l]=n.next()*x,o[l]=n.next()*x;this.foodGrid.set(l,r[l],o[l])}}let me=this.body.hunger;if(ze&&(me=me*this.body.sprint*this.body.sprint),Ae&&(me=me*.5),d[s]-=Ze*me,f.thirst&&this.tr8?.river&&(this.water[s]-=1/nn,this.water[s]<=0)){g[s]=!1,T[s].starved=1;continue}if(this.toxin){let c=this.tox[s]>at?this.tox[s]-at:0;this.tox[s]=c,c>ht&&(d[s]-=hn*(c-ht))}d[s]<=0&&(g[s]=!1,T[s].starved=1)}for(let s=0;s<e.hunters;s++){if(this.tr8&&this.hDead[s])continue;if(se[s]>0){se[s]--;continue}let k=this.ambush&&this.burst[s]===0,l=-1,W=k?ot*ot:$e*$e;for(let I=0;I<oe;I++){if(!g[I])continue;let P=y(h[I]-M[s]),X=P*P;if(X>=W)continue;let v=y(u[I]-F[s]),w=X+v*v;w<W&&(W=w,l=I)}if(this.ambush){if(l<0){this.burst[s]=0;continue}k?this.burst[s]=an:this.burst[s]--}let R=1;if(l>=0){let I=y(h[l]-M[s]),P=y(u[l]-F[s]),X=Math.sqrt(I*I+P*P)||1;if(U[s]=I/X,q[s]=P/X,R=this.ambush?on:Zt,X<$t){let v=0;if(f.confusion)for(let w=0;w<oe&&v<dt;w++){if(w===l||!g[w])continue;let Q=y(h[w]-h[l]),K=y(u[w]-u[l]);Q*Q+K*K<lt*lt&&v++}if(v>=dt){se[s]=cn;continue}g[l]=!1,T[l].hunted=1,se[s]=Qt,this.ambush&&(this.burst[s]=0),f.neighbourInfo&&this.catches.push(h[l],u[l],this.t);continue}}else if(this.tr8?.farm&&this.tr8.raid&&!ye({...this.tr8.farm,r:this.tr8.farm.r+30},M[s],F[s])){let I=y(this.tr8.farm.x-M[s]),P=y(this.tr8.farm.y-F[s]),X=Math.sqrt(I*I+P*P)||1;U[s]=I/X,q[s]=P/X}else{let I=n.gauss()*.2,P=ie(I),X=ae(I),v=U[s];U[s]=v*P-q[s]*X,q[s]=v*X+q[s]*P}if(this.tr8){this.wet(M[s],F[s])&&(R*=Je);let I=J(M[s]+U[s]*R+x),P=J(F[s]+q[s]*R+x);if(this.zoneUp()&&!ye(this.tr8.zone,M[s],F[s])&&ye(this.tr8.zone,I,P)){l>=0&&--this.zoneHp<=0&&(this.zoneDown=tn,this.zoneHp=rt);continue}M[s]=I,F[s]=P,this.tr8.river&&this.wet(I,P)&&n.next()<et&&(this.hDead[s]=!0);continue}M[s]=J(M[s]+U[s]*R+x),F[s]=J(F[s]+q[s]*R+x)}if(this.tr8){this.zoneDown>0&&this.zoneDown--;let s=this.tr8.farm;if(s&&(this.t+1)%nt===0){let k=Math.round(tt*st/(st+this.crowd/nt));for(let l=0;l<r.length&&k>0;l++)this.farmBead[l]&&this.off[l]&&([r[l],o[l]]=this.inFarm(s),this.off[l]=!1,this.foodGrid.set(l,r[l],o[l]),k--);this.crowd=0}}this.t++}},Pn=[["food",3],["poison",3],["taste",1],["hunter",3],["energy",1],["terrain",xt],["neighbour",3]],ct=t=>[...Pn,["thirst",2],["mem",f.memory]].flatMap(([e,n])=>e==="food"||t.includes(e)||e==="thirst"&&f.thirst||e==="mem"&&n>0?Array.from({length:n},(r,o)=>e+o):[]);function kn(t,e,n,r){let o=ct(e),i=ct(n).map(m=>o.indexOf(m)),h=[],u=0;for(let m=0;m<r[0];m++){let p=t.slice(u,u+o.length);u+=o.length;let d=t[u++];for(let a of i)h.push(a<0?0:p[a]);h.push(d)}for(;u<t.length;u++)h.push(t[u]);return h}function Tn(t,e,n,r,o,i,h=fe[0],u){let m=new xe(t,e,n,r,o,i,h,u);for(;!m.done;)m.step();return m.st}function St(t){let e=wt();for(let n of t)e.score+=n.score,e.good+=n.good,e.bad+=n.bad,e.hunted+=n.hunted,e.starved+=n.starved,e.life+=n.life;for(let n of Object.keys(e))e[n]/=t.length;return e}var pt=new Map;function _e(t,e,n,r,o,i=fe[0],h){if(e&&!h){let u=`${i.id}|${JSON.stringify(t)}`,m=pt.get(u);return m||(m=mt(t,!0,n,r,o,i),pt.set(u,m)),{...m}}return mt(t,e,n,r,o,i,h)}function mt(t,e,n,r,o,i,h){let u=[];for(let m of yt)u.push(...Tn(t,e,n,r,Array.from({length:Ge},()=>o),m,i,h));return St(u)}var ke=class t{gen=0;hist=[];pop;fam=[];favour=null;lastFit=[];islands=0;champ=null;champStats=null;ruleStats;er;lv;build;layers;seed;set;sp;effects=[];checkAfter=0;stageStart=0;legsSince=-1;usePower(e){this.effects.push({kind:e,from:this.gen+1,until:this.gen+yn(e)})}activePowers(e=this.gen+1){return this.effects.filter(n=>e<=n.until).map(n=>n.kind)}constructor(e,n,r,o,i=Ce,h=fe[0]){f.terrain.length&&(e={...e,terrain:it(o,f.terrain)}),this.lv=e,this.build=n,this.layers=r,this.seed=o,this.set=i,this.sp=h,this.er=ge(o*7919+13),this.ruleStats=_e(e,!0,n,r,[],h);let u=In(n),m=Mn(u,r,pn(n,Le(h,i.body??[])));if(this.pop=Array.from({length:i.pop},()=>Array.from({length:m},()=>this.er.gauss()*.5)),f.zeroSenses)for(let p of this.pop)for(let d=0;d<r[0];d++)for(let a=3;a<u;a++)p[d*(u+1)+a]=0}nextStage(e,n){this.pop=this.pop.map(r=>kn(r,this.build,n,this.layers)),f.terrain.length&&(e={...e,terrain:it(this.seed,f.terrain)}),this.lv=e,this.build=n,this.stageStart=this.gen,this.ruleStats=_e(e,!0,n,this.layers,[],this.sp),this.champ=null,this.champStats=null}*generation(){let e=this.gen+1,n=this.er;f.legsGrow>0&&(this.set.body??[]).includes("legs")&&this.legsSince<0&&(this.legsSince=this.gen);let r=Le(this.sp,this.set.body??[],this.legsSince<0?0:e-this.legsSince);f.farmRaid>0&&this.lv.terrain?.farm&&!this.lv.terrain.raid&&e-this.stageStart>f.farmRaid&&(this.lv={...this.lv,terrain:{...this.lv.terrain,raid:!0}},this.ruleStats=_e(this.lv,!0,this.build,this.layers,[],this.sp));let o=this.activePowers(e),i=this.lv;o.includes("food")&&(i={...i,good:Math.round(i.good*1.5)}),o.includes("shelter")&&(i={...i,hunters:0});let h=(b,A)=>({...b,bad:Math.round(b.bad*A),hunters:Math.round(b.hunters*A)});(o.includes("hard")||o.includes("hardlong"))&&(i=h(i,2));let u=this.effects.find(b=>b.kind==="switch"&&e>=b.from&&e<=b.until);u&&(i=h(i,Math.floor((e-u.from)/2)%2===0?0:2)),o.includes("dark")&&(i={...i,sight:(i.sight??1)*.6});let m=new xe(i,!1,this.build,this.layers,this.pop,this.seed*1e3+e,this.sp,r);for(;!m.done;)m.step(),m.t%Ye===0&&(yield);this.gen=e;let p=m.st,d=this.set.reward,a=this.set.weights,g=this.ruleStats.good,T=p.map(b=>a?wn(b,a,g):Sn(b,d)),M=this.pop.map((b,A)=>A).sort((b,A)=>T[A]-T[b]||b-A),F=null;if(e%gt===0&&e>this.checkAfter){let b=this.pop[M[0]].slice(),A=[];for(let $ of yt){let Z=new xe(this.lv,!1,this.build,this.layers,Array.from({length:Ge},()=>b),$,this.sp,r);for(;!Z.done;)Z.step(),Z.t%Ye===0&&(yield);A.push(...Z.st)}this.champ=b,this.champStats=St(A),F=ft(this.champStats,this.sp.goal)/ft(this.ruleStats,this.sp.goal),this.hist.push(F)}let U=Math.round(this.pop.length/5),q=Math.round(this.pop.length/10),se=this.set.mutation;if(o.includes("burst")&&(se*=3),o.includes("cull")&&(U=Math.min(U,3),q=Math.min(q,U)),this.islands>0){let b=this.islands,A=this.pop.length;this.fam.length!==A&&(this.fam=this.pop.map((O,s)=>Math.floor(s*b/A)));let $=Array.from({length:b},(O,s)=>Math.floor((s+1)*A/b)-Math.floor(s*A/b));if(this.favour){let O=Math.round(A*this.favour.share),s=A-O;for(let k=0,l=0;k<b;k++)$[k]=k===this.favour.fam?O:Math.floor((l+1)*s/(b-1))-Math.floor(l++*s/(b-1))}let Z=[],pe=[];for(let O=0;O<b;O++){let s=M.filter(R=>this.fam[R]===O);if(!s.length)continue;let k=Math.max(1,Math.round(s.length/5)),l=Math.max(1,Math.round(s.length/10)),W=s.slice(0,k).map(R=>this.pop[R]);for(let R=0;R<$[O];R++)pe.push(O),Z.push(R<l?W[R%k].slice():W[R%k].map(I=>n.next()<.2?I+n.gauss()*se:I))}return this.lastFit=T,this.pop=Z,this.fam=pe,F}this.fam.length!==this.pop.length&&(this.fam=this.pop.map((b,A)=>A));let E=M.slice(0,U);if(this.favour){let b=this.favour,A=M.filter($=>this.fam[$]===b.fam).slice(0,Math.round(U*b.share));A.length&&(E=[...A,...M.filter($=>!A.includes($))].slice(0,U))}let z=E.map(b=>this.pop[b]),oe=E.map(b=>this.fam[b]),re=z.slice(0,q).map(b=>b.slice()),ce=oe.slice(0,q);for(;re.length<this.pop.length;)ce.push(oe[re.length%U]),re.push(z[re.length%U].map(b=>n.next()<.2?b+n.gauss()*se:b));return this.lastFit=T,this.pop=re,this.fam=ce,F}fork(){let e=Object.create(t.prototype);return Object.assign(e,this,{hist:this.hist.slice(),pop:this.pop.map(n=>n.slice()),champ:this.champ?.slice()??null,fam:this.fam.slice(),favour:this.favour&&{...this.favour},lastFit:this.lastFit.slice(),champStats:this.champStats&&{...this.champStats},ruleStats:{...this.ruleStats},er:this.er.fork(),set:{...this.set},effects:this.effects.map(n=>({...n})),build:this.build.slice()}),e}step(){let e=this.generation(),n=e.next();for(;!n.done;)n=e.next();return n.value}};var An=60,Nn=4,On=[{id:"S1",name:"Meadow",good:40,bad:0,hunters:0,menu:["energy"],blurb:"Only food. Learn to find it."},{id:"S2",name:"Poison patch",good:30,bad:20,hunters:0,menu:["poison","taste","energy"],blurb:"20 of the 50 beads are poison."},{id:"S3",name:"Hunted",good:40,bad:8,hunters:6,menu:["poison","hunter","energy"],blurb:"Six hunters roam; a caught creature is out for the round."}],_n=t=>{let e=t.slice(-Nn);return e.reduce((n,r)=>n+r,0)/e.length},Ln=(t,e="calm")=>vt[e].apply(On[t]),Te=class{ev=null;run=-1;pending=[];queue(e){e.run===this.run&&this.pending.push({stage:e.stage,power:e.power})}*stage(e,n){let r=Ln(e.stage,e.event),o={...Ce,weights:e.weights,body:e.body??[]};e.stage===0||!this.ev||this.run!==e.run?(this.ev=new ke(r,e.build,e.layers,e.seed,o,fe[e.sp]),this.run=e.run):(this.ev.set=o,this.ev.nextStage(r,e.build)),this.pending=[];let i=this.ev,h=i.hist.length,u=i.gen,m=u+An,p=performance.now(),d=0;for(;i.gen<m;){for(let M of this.pending.splice(0))M.stage===e.stage&&(i.usePower(M.power),n({type:"powered",run:e.run,stage:e.stage,power:M.power,gen:i.gen-u,until:i.gen-u+Gn(M.power)}));let g=i.generation(),T=g.next();for(;!T.done;)yield,T=g.next();d++,T.value!==null&&(n({type:"check",run:e.run,stage:e.stage,gen:i.gen-u,progress:T.value,champ:i.champ,champStats:i.champStats,ruleStats:i.ruleStats,msPerGen:(performance.now()-p)/d}),p=performance.now(),d=0),yield}let a=i.hist.slice(h);n({type:"done",run:e.run,stage:e.stage,score:_n(a),hist:a})}},Gn=t=>Ee[t].gens;var It=new Te,Mt=0,Et=new MessageChannel,Rt=()=>{};Et.port1.onmessage=()=>Rt();var Cn=()=>new Promise(t=>{Rt=t,Et.port2.postMessage(0)});self.onmessage=async t=>{let e=t.data;if(e.type==="power"){It.queue(e);return}let n=++Mt;if(e.type==="stop")return;let r=It.stage(e,i=>self.postMessage(i)),o=0;for(let i=r.next();!i.done;i=r.next())if(++o%40===0&&(await Cn(),n!==Mt))return};})();\n'], { type: "text/javascript" })));
     w.onmessage = (e) => onOut(e.data);
     w.onerror = () => {
       if (engine !== "worker") return;

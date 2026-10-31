@@ -58,12 +58,13 @@ export function cos(x: number): number {
   return q === 0 ? cosSmall(r) : q === 1 ? -sinSmall(r) : q === 2 ? -cosSmall(r) : sinSmall(r);
 }
 
+const [X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14, X15, X16, X17] = F;
 // e^x for |x| <= 44 (x = k ln2 + r, |r| <= 0.35, Taylor to r^17)
 function expSmall(x: number): number {
   const k = Math.floor(x * INV_LN2 + 0.5);
   const r = x - k * LN2_HI - k * LN2_LO;
-  let p = F[17];
-  for (let n = 16; n >= 0; n--) p = p * r + F[n];
+  // Horner's rule written out (same operations in the same order as the old loop over F[16..0], no array reads)
+  const p = ((((((((((((((((X17 * r + X16) * r + X15) * r + X14) * r + X13) * r + X12) * r + X11) * r + X10) * r + X9) * r + X8) * r + X7) * r + X6) * r + X5) * r + X4) * r + X3) * r + X2) * r + X1) * r + X0;
   return p * P2[64 + k];
 }
 

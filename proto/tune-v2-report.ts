@@ -1,7 +1,7 @@
 // Analysis of proto/tune-v2.ts results (all proto/out/tune-v2-A*.json and -B*.json found).
 //   node proto/tune-v2-report.ts
 import { readdirSync, readFileSync } from "node:fs";
-import { SPECIES, EVENTS, CARD_INFO, POWERS, type Card, type EventId } from "./game/sim.ts";
+import { SPECIES, EVENTS, CARD_INFO, POWERS, TEST_POWERS, type Card, type EventId, type AnyPower } from "./game/sim.ts";
 import { STAGES } from "./game/runner.ts";
 import { margin } from "../src/cli/stats.ts";
 import type { Result } from "./tune-v2.ts";
@@ -9,7 +9,12 @@ import type { Result } from "./tune-v2.ts";
 const BARS: Record<string, number[]> = { grazer: [0.6, 0.35, 0.45], sprinter: [0.6, 0.6, 0.4], scavenger: [0.6, 1.1, 0.45] };
 const DIR = process.argv.find((a) => a.startsWith("--dir="))?.slice(6) ?? "proto/out"; // round 1: --dir=proto/out/round1
 const load = (ph: string): Result[] => readdirSync(DIR).filter((f) => f.startsWith(`tune-v2-${ph}`) && f.endsWith(".json")).flatMap((f) => JSON.parse(readFileSync(`${DIR}/${f}`, "utf8")));
-const A = load("A"), B = load("B");
+// --base=DIR: take phase A builds that DIR lacks from the base (T3 ran only the Long legs builds)
+const BASE = process.argv.find((a) => a.startsWith("--base="))?.slice(7);
+const loadFrom = (dir: string, ph: string): Result[] => readdirSync(dir).filter((f) => f.startsWith(`tune-v2-${ph}`) && f.endsWith(".json")).flatMap((f) => JSON.parse(readFileSync(`${dir}/${f}`, "utf8")));
+const A0 = load("A"), have = new Set(A0.map((r) => `${r.sp}|${[...r.cards].sort().join("+")}`));
+const A = BASE ? [...A0, ...loadFrom(BASE, "A").filter((r) => !have.has(`${r.sp}|${[...r.cards].sort().join("+")}`))] : A0;
+const B = load("B");
 const f = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "-");
 const avg = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 const key = (cards: Card[]) => (cards.length ? [...cards].sort().join("+") : "(none)");
@@ -50,8 +55,9 @@ for (let si = 0; si < SPECIES.length; si++) {
   const pairs = builds.filter((k) => k.split("+").length === 2).map((k) => {
     const [a, b] = k.split("+");
     const per = SE.map((se) => {
-      const p = scores(k, se.stage, se.event), x = scores(a, se.stage, se.event), y = scores(b, se.stage, se.event);
-      const d = p.map((v, i) => v - Math.max(x[i], y[i]));
+      const bySeed = (kk: string) => new Map(R.filter((r) => key(r.cards) === kk && r.stage === se.stage && r.event === se.event).map((r) => [r.seed, r.score]));
+      const P = bySeed(k), X = bySeed(a), Y = bySeed(b);
+      const d = [...P].filter(([sd]) => X.has(sd) && Y.has(sd)).map(([sd, v]) => v - Math.max(X.get(sd)!, Y.get(sd)!)); // paired by seed (raced pairs: fewer seeds)
       return { label: se.label, m: avg(d), real: real(d) };
     });
     const pos = per.filter((x) => x.real && x.m > 0), neg = per.filter((x) => x.real && x.m < 0);
@@ -72,7 +78,7 @@ if (B.length) {
     if (!R.length) continue;
     for (const k of [...new Set(R.map((r) => key(r.cards)))]) {
       console.log(`  ${SPECIES[si].name}, ${name(k)}:`);
-      for (const p of Object.keys(POWERS) as (keyof typeof POWERS)[]) for (const at of [0, 30]) {
+      for (const p of [...new Set(R.map((r) => r.power).filter(Boolean))] as AnyPower[]) for (const at of [0, 30]) {
         const per = SE.map((se) => {
           const base = R.filter((r) => key(r.cards) === k && !r.power && r.stage === se.stage && r.event === se.event).sort((a, b) => a.seed - b.seed);
           const pw = R.filter((r) => key(r.cards) === k && r.power === p && r.at === at && r.stage === se.stage && r.event === se.event).sort((a, b) => a.seed - b.seed);
@@ -80,7 +86,7 @@ if (B.length) {
           return { label: se.label, m: avg(d), real: real(d) };
         });
         const up = per.filter((x) => x.real && x.m > 0).map((x) => x.label), down = per.filter((x) => x.real && x.m < 0).map((x) => x.label);
-        console.log(`    ${POWERS[p].name.padEnd(15)} at gen ${String(at).padEnd(2)} avg ${f(avg(per.map((x) => x.m)))} | helps* ${up.length}/10 ${up.join(", ")} | hurts* ${down.length}/10 ${down.join(", ")}`);
+        console.log(`    ${((POWERS as Record<string, { name: string }>)[p] ?? (TEST_POWERS as Record<string, { name: string }>)[p]).name.padEnd(28)} at gen ${String(at).padEnd(2)} avg ${f(avg(per.map((x) => x.m)))} | helps* ${up.length}/10 ${up.join(", ")} | hurts* ${down.length}/10 ${down.join(", ")}`);
       }
     }
   }
