@@ -6,6 +6,7 @@ import { newFood } from "./creature.ts";
 import { learn, thinkInto } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { senseInto } from "./senses.ts";
+import { SENSE_GENES, senseOn } from "./genes.ts";
 import { H, W } from "./space.ts";
 import { spreading } from "./plants.ts";
 import { dose, fade, fadeResist, harm, newPoison, preyLife, train } from "./toxin.ts";
@@ -41,6 +42,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
   if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot!, c.x, c.y); // later creatures this tick sense where it is now
   const sick = newPoison(w) ? 1 + harm(c.toxin, c.resist) : 1; // poison level: everything costs more (toxin.ts), less with resistance
   c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick; // moving costs energy; standing still costs a little
+  if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) { let on = 0; for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++; c.energy -= w.rules.senseCost * on; } // switched-on senses cost energy
   if (c.toxin > 0) c.toxin = fade(c.toxin, w);
   if (c.resist > 0) {
     c.energy -= w.rules.resistUpkeep * c.resist; // resistance has upkeep

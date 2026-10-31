@@ -13,6 +13,7 @@ export { POISON_HIT } from "./life.ts";
 import { H, W } from "./space.ts";
 import { prepareGrids, sense, type Grids } from "./senses.ts";
 import { genomeLength, newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
+import { SENSE_GENES } from "./genes.ts";
 import {
   addNewcomer, crownChampions, judgeBranches, maybeSplit, newFamily, protectNewcomers, recordFamilyStats,
   settleLineage, type Branch, type Family,
@@ -86,6 +87,9 @@ export interface Rules {
   hunterFrom: number; // generation the hunters arrive in (1 = from the start). With brains, half of the first
   // hunters borrow the main brains of extinct prey families, so give the prey some generations first
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
+  senseGenes: number; // 1 = each optional sense (2nd food, neighbour, poison, hunter) is switched on by a gene at the end of the genome (on when > 0); founders start with all off, mutation can switch them on (Rey 2026-10-31: senses evolved, not handed out)
+  eye: number; // 0 = off; 4 or 8 = raw all-around eye with that many slices instead of the "nearest X" senses (senses.ts eyeInto; Rey 2026-10-31)
+  senseCost: number; // with senseGenes: energy per tick for each switched-on sense (eyes cost something)
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
 }
 
@@ -94,7 +98,7 @@ export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
-  mutationRate: 1, centreShare: 0, hidden: 6,
+  mutationRate: 1, centreShare: 0, hidden: 6, senseGenes: 0, senseCost: 0, eye: 0,
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
@@ -186,6 +190,7 @@ export interface EcoStats {
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
 // Or one brain per creature (cli/split.ts rebuilds a generation on another thread this way).
 export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[]): World {
+  if (rules.eye > 0 && rules.hunterBrains > 0) throw new Error("rules.eye does not work with hunter brains yet (they read the old senses)");
   const each = start && Array.isArray(start[0]) ? (start as Genome[]) : null;
   const one = start && !each ? (start as Genome) : null;
   for (const g of each ?? (one ? [one] : [])) {
@@ -240,6 +245,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
   };
   for (let i = 0; i < rules.pop; i++) {
     const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+    if (rules.senseGenes > 0 && !each && !one) for (let s = 1; s <= SENSE_GENES; s++) genome[genome.length - s] = -0.5; // founders: every optional sense off
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }

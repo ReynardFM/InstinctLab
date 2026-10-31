@@ -3,6 +3,7 @@ import type { Rules, World } from "./world.ts"; // types only, no import at run 
 import { genomeSize, type Genome } from "./brain.ts";
 import { inputCount } from "./senses.ts";
 import { H, W } from "./space.ts";
+import { SENSE_GENES as SENSE_GENES_N } from "./genes.ts";
 
 export interface Food {
   x: number;
@@ -65,7 +66,7 @@ export function newFoodLayout(w: World): Food[] {
 // Genome length: the brain's weights, then (rules.plasticity) one evolved learning rate per weight.
 export function genomeLength(r: Rules): number {
   const weights = genomeSize(inputCount(r), r.hidden);
-  return r.plasticity > 0 ? weights * 2 : weights;
+  return (r.plasticity > 0 ? weights * 2 : weights) + (r.senseGenes > 0 ? SENSE_GENES_N : 0); // rules.senseGenes: genes.ts
 }
 
 // parentHue: null for founders. Elites keep their colour exactly; children drift a little.
@@ -83,7 +84,8 @@ export function newCreature(w: World, genome: Genome, family: number, elite: boo
     streak: 0,
     g: genome,
     // the working brain is the weights part only; its own copy when it can change during life
-    w: w.rules.plasticity > 0 ? genome.slice(0, genome.length / 2) : w.rules.learnRate > 0 ? genome.slice() : genome,
+    // (with rules.senseGenes the sense switches at the end are not brain weights)
+    w: w.rules.senseGenes > 0 ? genome.slice(0, genome.length - SENSE_GENES_N) : w.rules.plasticity > 0 ? genome.slice(0, genome.length / 2) : w.rules.learnRate > 0 ? genome.slice() : genome,
     trace: w.rules.learnRate > 0 ? new Array(w.rules.plasticity > 0 ? genome.length / 2 : genome.length).fill(0) : [],
     learned: 0,
     usual: 0,

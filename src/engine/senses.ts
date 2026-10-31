@@ -2,6 +2,7 @@
 // to the brain, so the brain (and the genome) grows with them.
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
+import { senseOn } from "./genes.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearestBruteInto, nearestOneInto, offset, type Hit, type Near } from "./space.ts";
@@ -13,15 +14,31 @@ export interface SenseRules {
   poison: number; // share of food that is poison; above 0, creatures also sense the nearest poison
   hunters?: number; // hunters on the map; above 0 (with hunterSense), prey sense the nearest one
   hunterSense?: number;
+  eye?: number; // 0 = off; 4 or 8 = raw all-around eye (Rey 2026-10-31): the view is cut into that many slices and each
+  // slice reports how much green, purple, creature and hunter it sees. It replaces every "nearest X" sense (see eyeInto)
 }
+
+// Slices in the raw eye: 0 = no eye, otherwise 4 or 8 (anything from 8 up counts as 8).
+export const eyeSlices = (r: SenseRules): number => !((r.eye ?? 0) > 0) ? 0 : (r.eye as number) >= 8 ? 8 : 4;
+export const EYE_CHANNELS = ["green", "purple", "creature", "hunter"];
 
 const sensesHunter = (r: SenseRules) => (r.hunters ?? 0) > 0 && (r.hunterSense ?? 1) > 0;
 
 export function inputCount(r: SenseRules): number {
+  const K = eyeSlices(r);
+  if (K > 0) return K * EYE_CHANNELS.length + 1 + (r.walls ? 1 : 0);
   return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
 }
 
 export function inputLabels(r: SenseRules): string[] {
+  const K = eyeSlices(r);
+  if (K > 0) {
+    const eye: string[] = [];
+    for (const ch of EYE_CHANNELS) for (let i = 0; i < K; i++) eye.push(`Eye ${ch} slice ${i + 1}`);
+    eye.push("Energy");
+    if (r.walls) eye.push("Wall distance ahead");
+    return eye;
+  }
   const labels = ["Food left/right", "Food ahead", "Food distance", "Energy"];
   if (r.senseFood2) labels.push("2nd food left/right", "2nd food ahead", "2nd food distance");
   if (r.senseCreature) labels.push("Neighbour left/right", "Neighbour ahead", "Neighbour distance");
@@ -322,22 +339,25 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   const cosH = cos(c.a);
   const sinH = sin(c.a);
   const f = h.goodN > 0 ? h.good[0] : null;
+  if (eyeSlices(r) > 0) return eyeInto(w, c, h, f, cosH, sinH);
   // no food at all: the distance reads as far (same numbers as always)
   let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
   inputs[k++] = c.energy;
-  if (r.senseFood2) {
+  if (r.senseFood2 && !senseOn(w.rules, c.g, 0)) k = writeNothing(inputs, k);
+  else if (r.senseFood2) {
     const s2 = h.goodN > 1 ? h.good[1] : null;
     k = s2 ? writeTowards(inputs, k, s2.dx, s2.dy, s2.d2, cosH, sinH) : writeNothing(inputs, k);
   }
-  if (r.senseCreature) {
+  if (r.senseCreature && !senseOn(w.rules, c.g, 1)) k = writeNothing(inputs, k);
+  else if (r.senseCreature) {
     const found = g !== null && g.creaturesOn
       ? nearestOneInto(creatureHit, g.creatures, w.creatures, c.x, c.y, walls, c, true)
       : nearestBruteInto(creatureHit, w.creatures, c.x, c.y, walls, c, true);
     k = found ? writeTowards(inputs, k, creatureHit.dx, creatureHit.dy, creatureHit.d2, cosH, sinH) : writeNothing(inputs, k);
   }
   const p = h.hasPoison ? h.poison : null;
-  if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
-  if (sensesHunter(r) && r.hunterSense === 2) k = writeNothing(inputs, k);
+  if (r.poison > 0) k = p && senseOn(w.rules, c.g, 2) ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
+  if (sensesHunter(r) && (r.hunterSense === 2 || !senseOn(w.rules, c.g, 3))) k = writeNothing(inputs, k);
   else if (sensesHunter(r)) {
     let bdx = 0;
     let bdy = 0;
@@ -357,6 +377,82 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
   if (inputs.length !== k) inputs.length = k;
   // what it would eat: the nearest pellet of either kind (good wins a tie)
+  const eat = p && (!f || p.d2 < f.d2) ? p : f;
+  perceived.food = eat ? eat.item : null;
+  perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
+  return perceived;
+}
+
+// The raw eye (rules.eye). Nothing here says "nearest" or "which one is food": each slice just adds up how much
+// of each colour it sees, closer counting more (1 - d²/200², nothing past 200). Food is a green dot; poison is
+// a green dot with a purple ring (food that also glows purple), so telling them apart is the brain's job: per
+// slice, green minus purple. Inputs: channel-major (all green slices, then purple, creature, hunter), energy,
+// wall. With senseGenes, purple / creature / hunter are switched on by genes 2 / 1 / 3; gene 0 does nothing
+// (a control). Green is always on. Slices: rotate the target into the creature's frame (ahead, side), turn it
+// by half a slice so the slice edges fall on the axes and the diagonals, then read signs and sizes: no angle,
+// no atan2. Eating is unchanged: the nearest pellet of either kind (h, f from the food scan).
+const EYE_R2 = 200 * 200;
+const C8 = 0.9238795325112867; // cos(pi/8)
+const S8 = 0.3826834323650898; // sin(pi/8)
+
+function eyeSlice(dx: number, dy: number, cosH: number, sinH: number, K: number): number {
+  const a = dx * cosH + dy * sinH; // ahead
+  const s = dy * cosH - dx * sinH; // side
+  // turn by half a slice (45 or 22.5 degrees); for 4 slices the common factor cos(pi/4) is dropped (signs only)
+  const ar = K === 8 ? a * C8 + s * S8 : a + s;
+  const sr = K === 8 ? s * C8 - a * S8 : s - a;
+  const q = ar >= 0 ? (sr >= 0 ? 0 : 3) : (sr >= 0 ? 1 : 2);
+  if (K === 4) return q;
+  const absA = ar < 0 ? -ar : ar;
+  const absS = sr < 0 ? -sr : sr;
+  return 2 * q + ((q & 1) === 0 ? (absS > absA ? 1 : 0) : (absA > absS ? 1 : 0));
+}
+
+function eyeInto(w: World, c: Creature, h: FoodHits, f: (Hit<Food> & { idx: number }) | null, cosH: number, sinH: number): { food: Food | null; foodDist: number } {
+  const r = w.rules;
+  const K = eyeSlices(r);
+  const walls = r.walls > 0;
+  const inputs = c.inputs;
+  const n = K * EYE_CHANNELS.length;
+  for (let i = 0; i < n; i++) inputs[i] = 0;
+  const purple = senseOn(r, c.g, 2);
+  const tick = w.tick;
+  const swapped = w.swapped;
+  for (const fd of w.food) {
+    if (fd.readyAt > tick) continue;
+    const dx = offset(fd.x - c.x, W, walls);
+    const dy = offset(fd.y - c.y, H, walls);
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= EYE_R2) continue;
+    const v = 1 - d2 / EYE_R2;
+    const sl = eyeSlice(dx, dy, cosH, sinH, K);
+    inputs[sl] += v;
+    if (purple && fd.poison !== swapped) inputs[K + sl] += v; // looksPoison, inlined
+  }
+  if (senseOn(r, c.g, 1)) {
+    for (const o of w.creatures) {
+      if (o === c || !o.alive) continue;
+      const dx = offset(o.x - c.x, W, walls);
+      const dy = offset(o.y - c.y, H, walls);
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= EYE_R2) continue;
+      inputs[2 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+    }
+  }
+  if (sensesHunter(r) && r.hunterSense !== 2 && senseOn(r, c.g, 3)) {
+    for (const hu of w.hunters) {
+      const dx = offset(hu.x - c.x, W, walls);
+      const dy = offset(hu.y - c.y, H, walls);
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= EYE_R2) continue;
+      inputs[3 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+    }
+  }
+  let k = n;
+  inputs[k++] = c.energy;
+  if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
+  if (inputs.length !== k) inputs.length = k;
+  const p = h.hasPoison ? h.poison : null;
   const eat = p && (!f || p.d2 < f.d2) ? p : f;
   perceived.food = eat ? eat.item : null;
   perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;

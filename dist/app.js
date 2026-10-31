@@ -37,11 +37,11 @@
     const q = (k % 4 + 4) % 4;
     return q === 0 ? cosSmall(r) : q === 1 ? -sinSmall(r) : q === 2 ? -cosSmall(r) : sinSmall(r);
   }
+  var [X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14, X15, X16, X17] = F;
   function expSmall(x) {
     const k = Math.floor(x * INV_LN2 + 0.5);
     const r = x - k * LN2_HI - k * LN2_LO;
-    let p = F[17];
-    for (let n = 16; n >= 0; n--) p = p * r + F[n];
+    const p = ((((((((((((((((X17 * r + X16) * r + X15) * r + X14) * r + X13) * r + X12) * r + X11) * r + X10) * r + X9) * r + X8) * r + X7) * r + X6) * r + X5) * r + X4) * r + X3) * r + X2) * r + X1) * r + X0;
     return p * P2[64 + k];
   }
   function tanh(x) {
@@ -93,7 +93,7 @@
       const v = next();
       return Math.sqrt(-2 * log(u)) * cos(2 * Math.PI * v);
     };
-    return { next, gauss };
+    return { next, gauss, fork: () => createRng(a) };
   }
   function seedFrom(text) {
     const n = Number(text);
@@ -172,6 +172,10 @@
     }
     return out;
   }
+
+  // src/engine/genes.ts
+  var SENSE_GENES = 4;
+  var senseOn = (r, g, s) => !(r.senseGenes > 0) || g[g.length - SENSE_GENES + s] > 0;
 
   // src/engine/space.ts
   var W = 800;
@@ -379,11 +383,23 @@
   }
 
   // src/engine/senses.ts
+  var eyeSlices = (r) => !((r.eye ?? 0) > 0) ? 0 : r.eye >= 8 ? 8 : 4;
+  var EYE_CHANNELS = ["green", "purple", "creature", "hunter"];
   var sensesHunter = (r) => (r.hunters ?? 0) > 0 && (r.hunterSense ?? 1) > 0;
   function inputCount(r) {
+    const K = eyeSlices(r);
+    if (K > 0) return K * EYE_CHANNELS.length + 1 + (r.walls ? 1 : 0);
     return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
   }
   function inputLabels(r) {
+    const K = eyeSlices(r);
+    if (K > 0) {
+      const eye = [];
+      for (const ch of EYE_CHANNELS) for (let i = 0; i < K; i++) eye.push(`Eye ${ch} slice ${i + 1}`);
+      eye.push("Energy");
+      if (r.walls) eye.push("Wall distance ahead");
+      return eye;
+    }
     const labels = ["Food left/right", "Food ahead", "Food distance", "Energy"];
     if (r.senseFood2) labels.push("2nd food left/right", "2nd food ahead", "2nd food distance");
     if (r.senseCreature) labels.push("Neighbour left/right", "Neighbour ahead", "Neighbour distance");
@@ -597,19 +613,22 @@
     const cosH = cos(c.a);
     const sinH = sin(c.a);
     const f = h.goodN > 0 ? h.good[0] : null;
+    if (eyeSlices(r) > 0) return eyeInto(w, c, h, f, cosH, sinH);
     let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
     inputs[k++] = c.energy;
-    if (r.senseFood2) {
+    if (r.senseFood2 && !senseOn(w.rules, c.g, 0)) k = writeNothing(inputs, k);
+    else if (r.senseFood2) {
       const s2 = h.goodN > 1 ? h.good[1] : null;
       k = s2 ? writeTowards(inputs, k, s2.dx, s2.dy, s2.d2, cosH, sinH) : writeNothing(inputs, k);
     }
-    if (r.senseCreature) {
+    if (r.senseCreature && !senseOn(w.rules, c.g, 1)) k = writeNothing(inputs, k);
+    else if (r.senseCreature) {
       const found = g !== null && g.creaturesOn ? nearestOneInto(creatureHit, g.creatures, w.creatures, c.x, c.y, walls, c, true) : nearestBruteInto(creatureHit, w.creatures, c.x, c.y, walls, c, true);
       k = found ? writeTowards(inputs, k, creatureHit.dx, creatureHit.dy, creatureHit.d2, cosH, sinH) : writeNothing(inputs, k);
     }
     const p = h.hasPoison ? h.poison : null;
-    if (r.poison > 0) k = p ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
-    if (sensesHunter(r) && r.hunterSense === 2) k = writeNothing(inputs, k);
+    if (r.poison > 0) k = p && senseOn(w.rules, c.g, 2) ? writeTowards(inputs, k, p.dx, p.dy, p.d2, cosH, sinH) : writeNothing(inputs, k);
+    if (sensesHunter(r) && (r.hunterSense === 2 || !senseOn(w.rules, c.g, 3))) k = writeNothing(inputs, k);
     else if (sensesHunter(r)) {
       let bdx = 0;
       let bdy = 0;
@@ -633,6 +652,70 @@
     perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
     return perceived;
   }
+  var EYE_R2 = 200 * 200;
+  var C8 = 0.9238795325112867;
+  var S8 = 0.3826834323650898;
+  function eyeSlice(dx, dy, cosH, sinH, K) {
+    const a = dx * cosH + dy * sinH;
+    const s = dy * cosH - dx * sinH;
+    const ar = K === 8 ? a * C8 + s * S8 : a + s;
+    const sr = K === 8 ? s * C8 - a * S8 : s - a;
+    const q = ar >= 0 ? sr >= 0 ? 0 : 3 : sr >= 0 ? 1 : 2;
+    if (K === 4) return q;
+    const absA = ar < 0 ? -ar : ar;
+    const absS = sr < 0 ? -sr : sr;
+    return 2 * q + ((q & 1) === 0 ? absS > absA ? 1 : 0 : absA > absS ? 1 : 0);
+  }
+  function eyeInto(w, c, h, f, cosH, sinH) {
+    const r = w.rules;
+    const K = eyeSlices(r);
+    const walls = r.walls > 0;
+    const inputs = c.inputs;
+    const n = K * EYE_CHANNELS.length;
+    for (let i = 0; i < n; i++) inputs[i] = 0;
+    const purple = senseOn(r, c.g, 2);
+    const tick = w.tick;
+    const swapped = w.swapped;
+    for (const fd of w.food) {
+      if (fd.readyAt > tick) continue;
+      const dx = offset(fd.x - c.x, W, walls);
+      const dy = offset(fd.y - c.y, H, walls);
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= EYE_R2) continue;
+      const v = 1 - d2 / EYE_R2;
+      const sl = eyeSlice(dx, dy, cosH, sinH, K);
+      inputs[sl] += v;
+      if (purple && fd.poison !== swapped) inputs[K + sl] += v;
+    }
+    if (senseOn(r, c.g, 1)) {
+      for (const o of w.creatures) {
+        if (o === c || !o.alive) continue;
+        const dx = offset(o.x - c.x, W, walls);
+        const dy = offset(o.y - c.y, H, walls);
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= EYE_R2) continue;
+        inputs[2 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+      }
+    }
+    if (sensesHunter(r) && r.hunterSense !== 2 && senseOn(r, c.g, 3)) {
+      for (const hu of w.hunters) {
+        const dx = offset(hu.x - c.x, W, walls);
+        const dy = offset(hu.y - c.y, H, walls);
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= EYE_R2) continue;
+        inputs[3 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+      }
+    }
+    let k = n;
+    inputs[k++] = c.energy;
+    if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
+    if (inputs.length !== k) inputs.length = k;
+    const p = h.hasPoison ? h.poison : null;
+    const eat = p && (!f || p.d2 < f.d2) ? p : f;
+    perceived.food = eat ? eat.item : null;
+    perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
+    return perceived;
+  }
 
   // src/engine/creature.ts
   function newFood(w, poison = false) {
@@ -645,7 +728,7 @@
   }
   function genomeLength(r) {
     const weights = genomeSize(inputCount(r), r.hidden);
-    return r.plasticity > 0 ? weights * 2 : weights;
+    return (r.plasticity > 0 ? weights * 2 : weights) + (r.senseGenes > 0 ? SENSE_GENES : 0);
   }
   function newCreature(w, genome, family, elite, parentHue) {
     const { env } = w;
@@ -660,7 +743,8 @@
       streak: 0,
       g: genome,
       // the working brain is the weights part only; its own copy when it can change during life
-      w: w.rules.plasticity > 0 ? genome.slice(0, genome.length / 2) : w.rules.learnRate > 0 ? genome.slice() : genome,
+      // (with rules.senseGenes the sense switches at the end are not brain weights)
+      w: w.rules.senseGenes > 0 ? genome.slice(0, genome.length - SENSE_GENES) : w.rules.plasticity > 0 ? genome.slice(0, genome.length / 2) : w.rules.learnRate > 0 ? genome.slice() : genome,
       trace: w.rules.learnRate > 0 ? new Array(w.rules.plasticity > 0 ? genome.length / 2 : genome.length).fill(0) : [],
       learned: 0,
       usual: 0,
@@ -980,6 +1064,11 @@
     if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot, c.x, c.y);
     const sick = newPoison(w) ? 1 + harm(c.toxin, c.resist) : 1;
     c.energy -= (5e-4 + speed2 * 4e-4) * w.rules.energyCost * costFactor * sick;
+    if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) {
+      let on = 0;
+      for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++;
+      c.energy -= w.rules.senseCost * on;
+    }
     if (c.toxin > 0) c.toxin = fade(c.toxin, w);
     if (c.resist > 0) {
       c.energy -= w.rules.resistUpkeep * c.resist;
@@ -1618,6 +1707,9 @@
     mutationRate: 1,
     centreShare: 0,
     hidden: 6,
+    senseGenes: 0,
+    senseCost: 0,
+    eye: 0,
     poison: 0.3,
     regrow: 0,
     energyCost: 1,
@@ -1664,6 +1756,7 @@
     // tuned with food 120 (README 2026-10-23)
   };
   function createWorld(seed, rules, start) {
+    if (rules.eye > 0 && rules.hunterBrains > 0) throw new Error("rules.eye does not work with hunter brains yet (they read the old senses)");
     const each = start && Array.isArray(start[0]) ? start : null;
     const one = start && !each ? start : null;
     for (const g of each ?? (one ? [one] : [])) {
@@ -1733,6 +1826,7 @@
     };
     for (let i = 0; i < rules.pop; i++) {
       const genome = each ? each[i].slice() : one ? one.slice() : Array.from({ length: genomeLength(rules) }, () => w.rng.gauss() * 0.5);
+      if (rules.senseGenes > 0 && !each && !one) for (let s = 1; s <= SENSE_GENES; s++) genome[genome.length - s] = -0.5;
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
