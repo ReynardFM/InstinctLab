@@ -358,6 +358,7 @@
     if (K > 0) return K * EYE_CHANNELS.length + 1 + (r.walls ? 1 : 0);
     return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
   }
+  var hunterInputCount = (r) => inputCount({ ...r, eye: 0 });
   var NOTHING = [0, 0, 1];
   function wallAhead(x, y, heading) {
     const cx = cos(heading);
@@ -1136,7 +1137,7 @@
     }
     for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0, resist: 0 });
   }
-  var hunterGenomeLength = (w) => genomeSize(inputCount(w.rules), w.rules.hidden);
+  var hunterGenomeLength = (w) => genomeSize(hunterInputCount(w.rules), w.rules.hidden);
   function newHunterBrain(w, g, origin, from) {
     return {
       id: w.nextHunterId++,
@@ -1148,7 +1149,7 @@
       a: 0,
       w: w.rules.hunterLearn > 0 ? g.slice() : g,
       trace: w.rules.hunterLearn > 0 ? new Array(g.length).fill(0) : [],
-      inputs: new Array(inputCount(w.rules)).fill(0),
+      inputs: new Array(hunterInputCount(w.rules)).fill(0),
       hidden: new Array(w.rules.hidden).fill(0),
       out: [0, 0]
     };
@@ -1156,7 +1157,7 @@
   var poolSize = (w) => Math.max(w.rules.hunters, w.rules.hunterPool);
   function firstHunterBrains(w, n = poolSize(w)) {
     const len = hunterGenomeLength(w);
-    const dead = w.legacy.filter((f) => f.ref.length >= len).reverse();
+    const dead = eyeSlices(w.rules) > 0 ? [] : w.legacy.filter((f) => f.ref.length >= len).reverse();
     const out = [];
     let used = 0;
     for (let i = 0; i < n; i++) {
@@ -1527,7 +1528,7 @@
       w.eco.deaths++;
       notePreyDeath(w, c.age);
       if (scale > 0 && c.age >= scale) w.eco.oldAge++;
-      if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
+      if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family, depth: c.depth });
       w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
     }
     if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
@@ -1585,7 +1586,9 @@
     for (let i = 0; i < RESCUE; i++) {
       const k = i % best.length;
       const genome = i < best.length ? best[k].g.slice() : mutate(w, best[k].g, rules.mutation);
-      w.creatures.push(newCreature(w, genome, fams[k], false, null));
+      const c = newCreature(w, genome, fams[k], false, null);
+      c.depth = (best[k].depth ?? 0) + (i < best.length ? 0 : 1);
+      w.creatures.push(c);
     }
     w.eco.rescues++;
   }
@@ -1695,7 +1698,6 @@
     // tuned with food 120 (README 2026-10-23)
   };
   function createWorld(seed, rules, start) {
-    if (rules.eye > 0 && rules.hunterBrains > 0) throw new Error("rules.eye does not work with hunter brains yet (they read the old senses)");
     const each = start && Array.isArray(start[0]) ? start : null;
     const one = start && !each ? start : null;
     for (const g of each ?? (one ? [one] : [])) {

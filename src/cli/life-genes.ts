@@ -1,0 +1,99 @@
+// Rey 2026-11-01: life mode with the raw eye. Can senses evolve with no generations at all? Ecosystem from
+// zero (ecoWarmup 0: random founders, all sense genes off), split births, 4 evolving hunters from the first
+// tick, poison 30%, eye with 4 slices (genes 0 control, 1 creature, 2 purple, 3 hunter). Handed out vs
+// evolved with a cost. Births since the founder ("depth") is the yardstick against generations mode
+// (130 generations = depth 130; 130 gens x 3 maps x 1500 ticks = 585,000 ticks there).
+//   node src/cli/life-genes.ts [--ticks=200000] [--seeds=1-14] [--workers=N] [--cost=0.0002] [--out=name]
+// Raw results: proto/out/life-genes/<out>.json. The summary is short on purpose (token rules).
+import { createWorld, runTicks, DEFAULT_RULES, type Rules, type World } from "../engine/world.ts";
+import { SENSE_GENES } from "../engine/genes.ts";
+import { ECO_BASE } from "./eco-lab.ts";
+import { ecoResultOf } from "./job.ts";
+import { ecoMetrics, type EcoMetrics } from "./eco-metrics.ts";
+import { margin } from "./stats.ts";
+import { Worker, isMainThread, parentPort } from "node:worker_threads";
+import { availableParallelism, setPriority, constants } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
+
+const opt = (k: string, d: string) => process.argv.find((x) => x.startsWith(`--${k}=`))?.split("=")[1] ?? d;
+const TICKS = Number(opt("ticks", "200000")), COST = Number(opt("cost", "0.0002"));
+const [s0, s1] = opt("seeds", "1-14").split("-").map(Number);
+const OUT = opt("out", "eye4");
+const SENSES = ["control", "creature", "purple", "hunter"];
+const base = Object.fromEntries(Object.entries(ECO_BASE).map(([k, v]) => [k, v![0]])) as Partial<Rules>;
+// senseFood2 / senseCreature only shape the hunters' inputs here (prey use the eye)
+const WORLD: Partial<Rules> = { ...base, poison: 0.3, eye: 4, ecoWarmup: 0, birth: 0, senseFood2: 1, senseCreature: 1 };
+const CONDS: [string, Partial<Rules>][] = [
+  ["handed out", { senseGenes: 0 }],
+  [`evolved, cost ${COST}/tick`, { senseGenes: 1, senseCost: COST }],
+];
+const MARKS = [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS].filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
+interface Job { cond: number; seed: number }
+interface Mark { prey: number; hunters: number; depth: number; maxDepth: number; adopt: number[] }
+interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number; restarts: number }
+
+const mark = (w: World, genes: boolean): Mark => {
+  const cs = w.creatures, n = Math.max(1, cs.length);
+  return {
+    prey: cs.length, hunters: w.hunters.length,
+    depth: cs.reduce((a, c) => a + c.depth, 0) / n, maxDepth: cs.reduce((a, c) => Math.max(a, c.depth), 0),
+    adopt: Array.from({ length: SENSE_GENES }, (_, s) => genes ? cs.filter((c) => c.g[c.g.length - SENSE_GENES + s] > 0).length / n : 1),
+  };
+};
+
+function run(j: Job): Result {
+  const rules = { ...DEFAULT_RULES, ...WORLD, ...CONDS[j.cond][1] } as Rules;
+  const w = createWorld(j.seed, rules);
+  const marks: Mark[] = [];
+  let t = 0;
+  for (const m of MARKS) { runTicks(w, m - t); t = m; marks.push(mark(w, rules.senseGenes > 0)); }
+  const e = ecoResultOf(w, false);
+  return { ...j, marks, m: ecoMetrics(e), caughtPer1k: (1000 * w.eco.caught) / TICKS, restarts: w.eco.rescues };
+}
+
+if (isMainThread) {
+  const threads = Number(opt("workers", String(Math.max(1, Math.floor(availableParallelism() / 2)))));
+  try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
+  const js: Job[] = [];
+  for (let cond = 0; cond < CONDS.length; cond++) for (let seed = s0; seed <= (s1 ?? s0); seed++) js.push({ cond, seed });
+  console.error(`${js.length} runs of ${TICKS} ticks on ${threads} of ${availableParallelism()} threads, low priority`);
+  const t0 = performance.now(), res: Result[] = new Array(js.length);
+  let next = 0, done = 0;
+  await new Promise<void>((ok, bad) => {
+    for (let wi = 0; wi < Math.min(threads, js.length); wi++) {
+      const wk = new Worker(new URL(import.meta.url), { argv: process.argv.slice(2) });
+      let mine = -1;
+      const feed = () => { if (next < js.length) { mine = next++; wk.postMessage(js[mine]); } else wk.terminate(); };
+      wk.on("message", (r: Result) => { res[mine] = r; done++; if (done === js.length) ok(); feed(); });
+      wk.on("error", bad);
+      feed();
+    }
+  });
+  mkdirSync("proto/out/life-genes", { recursive: true });
+  writeFileSync(`proto/out/life-genes/${OUT}.json`, JSON.stringify(res));
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const pct = (x: number) => `${Math.round(100 * x)}%`;
+  const f1 = (x: number) => x.toFixed(1);
+  console.log(`Life mode: eye4, poison 30%, 4 brain hunters from tick 0, ecosystem from zero, split births, ${TICKS} ticks, seeds ${s0}-${s1 ?? s0}.`);
+  const B = res.filter((r) => r.cond === 0).sort((a, b) => a.seed - b.seed);
+  for (let c = 0; c < CONDS.length; c++) {
+    const R = res.filter((r) => r.cond === c).sort((a, b) => a.seed - b.seed);
+    const d = R.map((r, i) => r.m.prey - B[i].m.prey), mg = margin(d, 0.05);
+    console.log(`\n${CONDS[c][0]}: prey ${f1(avg(R.map((r) => r.m.prey)))}${c ? ` (vs handed out ${(avg(d) >= 0 ? "+" : "") + f1(avg(d))} ±${f1(mg)}${Math.abs(avg(d)) > mg ? " *" : ""})` : ""}, hunters ${f1(avg(R.map((r) => r.m.hunters)))}, caught/1k ticks ${f1(avg(R.map((r) => r.caughtPer1k)))}, poison/prey/1k ${f1(avg(R.map((r) => r.m.poison)))}`);
+    console.log(`  die-outs per run: prey ${f1(avg(R.map((r) => r.m.preyDieOuts)))} (max ${Math.max(...R.map((r) => r.m.preyDieOuts))}), hunters ${f1(avg(R.map((r) => r.m.hunterDieOuts)))}; seeds with >10 prey die-outs ${R.filter((r) => r.m.preyDieOuts > 10).length}/${R.length}`);
+    console.log(`  ${"tick".padEnd(8)}${"depth (max)".padEnd(14)}${c ? SENSES.map((s) => s.padEnd(13)).join("") : ""}`);
+    MARKS.forEach((t, mi) => {
+      const M = R.map((r) => r.marks[mi]);
+      const genes = c ? SENSES.map((_, s) => `${pct(avg(M.map((m) => m.adopt[s])))} (${M.filter((m) => m.adopt[s] > 0.5).length})`.padEnd(13)).join("") : "";
+      console.log(`  ${String(t).padEnd(8)}${`${f1(avg(M.map((m) => m.depth)))} (${Math.max(...M.map((m) => m.maxDepth))})`.padEnd(14)}${genes}`);
+    });
+    if (c) {
+      const L = R.map((r) => r.marks.at(-1)!);
+      const beat = (s: number) => L.filter((m) => m.adopt[s] - m.adopt[0] > 0.2).length;
+      console.log(`  done check (gene beats control by >20 points at the end): hunter ${beat(3)}/${R.length}, purple ${beat(2)}/${R.length}, creature ${beat(1)}/${R.length}`);
+    }
+  }
+  console.log(`\ndone in ${((performance.now() - t0) / 60000).toFixed(1)} min. Raw: proto/out/life-genes/${OUT}.json`);
+} else {
+  parentPort!.on("message", (j: Job) => parentPort!.postMessage(run(j)));
+}

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createWorld, runGenerations, DEFAULT_RULES, type World } from "../src/engine/world.ts";
 import { firstHunterBrains } from "../src/engine/hunters.ts";
 import { genomeSize } from "../src/engine/brain.ts";
-import { inputCount } from "../src/engine/senses.ts";
+import { inputCount, hunterInputCount } from "../src/engine/senses.ts";
 import { LayoutPool, runGenerationsSplit } from "../src/cli/split.ts";
 
 const SMALL = { ...DEFAULT_RULES, pop: 20, genTicks: 300, hunters: 4, hunterBrains: 1 };
@@ -209,4 +209,38 @@ test("ecosystem hunters: older is harder; at old age no babies at all", () => {
   const births = w.eco.hunterBirths;
   liveEcoHunters(w); // age becomes 1000 = hunterAge: fertility 0 -> no babies, and they die of old age
   assert.equal(w.eco.hunterBirths, births);
+});
+
+// Eye on (rules.eye): prey brains read the eye, hunter brains keep the old "nearest X" layout and never
+// borrow a prey brain (the shapes differ). Found 2026-11-01 before the life-mode test: ecosystem hunters
+// always have brains, and they were sized by the prey's input count.
+const EYE_ECO = { ...DEFAULT_RULES, mode: 1, ecoWarmup: 0, eye: 4, hunters: 4, food: 60, foodSpread: 0.0005, regrow: 100, poison: 0.3, senseFood2: 1, senseCreature: 1, senseGenes: 1, senseCost: 0.0002 };
+const hunterShapeOk = (w: World) => {
+  const n = hunterInputCount(w.rules), len = genomeSize(n, w.rules.hidden);
+  for (const h of w.hunters) {
+    assert.equal(h.brain!.g.length, len);
+    assert.equal(h.brain!.inputs.length, n);
+    assert.equal(h.brain!.origin, "random");
+  }
+};
+
+test("eye + ecosystem: hunters keep the old input layout, start random, same seed same run", () => {
+  assert.notEqual(hunterInputCount(EYE_ECO), inputCount(EYE_ECO), "the two layouts really differ");
+  assert.equal(hunterInputCount(EYE_ECO), inputCount({ ...EYE_ECO, eye: 0 }));
+  const a = createWorld(3, EYE_ECO), b = createWorld(3, EYE_ECO);
+  runTicks(a, 3000);
+  runTicks(b, 3000);
+  assert.ok(a.eco.hunterBirths + a.hunters.length > 0, "hunters took part");
+  hunterShapeOk(a);
+  assert.equal(JSON.stringify([a.hunters.map((h) => [h.x, h.y, h.brain!.g]), a.creatures.map((c) => c.g)]),
+    JSON.stringify([b.hunters.map((h) => [h.x, h.y, h.brain!.g]), b.creatures.map((c) => c.g)]));
+});
+
+test("eye + generations: first brain hunters are all random even with extinct families", () => {
+  const w = createWorld(2, { ...SMALL, eye: 4, hunters: 5, hunterPool: 5, hunterFrom: 1000 });
+  runGenerations(w, 6);
+  assert.ok(w.legacy.length >= 3, `enough extinct families for the test (${w.legacy.length})`);
+  const first = firstHunterBrains(w);
+  assert.ok(first.every((h) => h.origin === "random"));
+  for (const h of first) assert.equal(h.g.length, genomeSize(hunterInputCount(w.rules), w.rules.hidden));
 });

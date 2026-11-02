@@ -30,6 +30,9 @@ export function inputCount(r: SenseRules): number {
   return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
 }
 
+// Hunter brains always read the old "nearest X" layout (hunters.ts writes it), even when prey use the eye.
+export const hunterInputCount = (r: SenseRules): number => inputCount({ ...r, eye: 0 });
+
 export function inputLabels(r: SenseRules): string[] {
   const K = eyeSlices(r);
   if (K > 0) {

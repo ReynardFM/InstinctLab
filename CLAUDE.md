@@ -2,6 +2,18 @@
 
 Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's laptop). Project renamed Evolution Lab -> Instinct Lab 2026-10-28 (Rey; GitHub: ReynardFM/InstinctLab); old browser storage keys kept so saved data survives. This file is versioned with the code.
 
+## How to work with Rey (read first, every new session; Rey 2026-11-02)
+- Decisions: lettered options (a/b/c), **no pick or "my pick"** unless Rey asks ("your pick", "what do you suggest"). Give the facts each option turns on, then stop.
+- Order: things to notice or change first (risks, failure points ranked by severity), then verdict (sound / sound with fixes / unsound), then details.
+- Treat Rey's premises, maths and logic as unverified: recompute, check from first principles. If he's right, say so plainly; don't invent objections or agree to be polite.
+- Simple words, short sentences, terse; tables OK; no charts/widgets unless asked. Mark facts verified (with source) or unverified; say "unsure" over guessing.
+- Propose before building anything big; one question at a time.
+- Commit only when Rey says "commit"; push only when he says "push". Commit author: repo-local noreply email.
+- Heavy runs: half the threads, low priority by default (his laptop froze once). Long runs go on his Windows terminal.
+- Every speed change must be checked bit-identical (golden tests, fingerprints). Experiments behind flags, off by default.
+- Follow the token rules (Rules section): results via tail/grep, compact summaries, no polling.
+- Record every result and every call Rey makes in this file.
+
 ## What this is
 A 2D world where creatures with tiny neural-network brains evolve by mutation and selection. Rey sets the rules and watches what evolves.
 Two goals: (1) fun to experiment with, (2) a vehicle for system design and scaling practice. Not a capstone (Rey 2026-10-26: dropped, not doable).
@@ -196,4 +208,6 @@ Format (Rey 2026-10-19, "make decisions easier to digest"): at most 3 decisions 
 - Mark facts as verified (with source) or unverified.
 - Resume claims: design decisions, measured results, errors caught. Not "TypeScript" unless Rey wrote it.
 - 2026-10-31 raw eye (rules.eye 4|8, senses.ts eyeInto; Rey: "raw sense so they evolve their own smart sense"): slices sum green/purple/creature/hunter (1-d²/200²), replaces nearest-X senses; senseGenes slots 0 control, 1 creature, 2 purple, 3 hunter. 14 seeds x 130 gens (sense-genes.ts --eye=K), cost 0.0002, gen 130: eye4 purple 92% (13/14), hunter 84% (12/14), creature 2%, control 38%; eye8 purple 65%, hunter 29%, control 40%. Old nearest-X: poison 1-5%, hunter 36%. Free runs: control drifts to 55%, so trust the cost runs. Food lower (eye 6-13 vs old 18); poison ~13% of intake vs ~6% (eating automatic, so purple helps only via steering). Eye4 evolves senses best; eye8 forages better when handed out. Rey: keep outputs raw (turn, speed). Next idea: life mode (no generations) with eye4.
+- 2026-11-01 eye + hunter brains fix (Rey caught it): hunter brains keep the old "nearest X" input layout when the eye is on (senses.hunterInputCount), never borrow prey brains then (all start random); createWorld guard removed. Old code crashed in ecosystem + eye ("Invalid array length"); test in hunters.test.ts fails on old code, passes now. Prey depth now survives restartPrey (BestBrain.depth, stats only). job.ts ecoResultOf extracted. Life-mode test: node src/cli/life-genes.ts (eye4, ecosystem from zero, split births, 4 brain hunters from tick 0, handed out vs cost 0.0002; default 200,000 ticks; depth is the yardstick: 130 gens = 130 x 3 x 1500 = 585k ticks in generations mode, but depth 130). Smoke (2 seeds, 10k ticks): depth ~20 by 10k ticks; hunters die out 8-11 times per 10k ticks, prey 0-1. Runs on Rey's Windows terminal.
+- Life-mode result 2026-11-01 (Rey's laptop, 14 seeds x 200k ticks, eye4, cost 0.0002): depth 259 avg (max 417), past the 130-gen yardstick. Done check failed: hunter gene beats control by >20 pts in 3/14 (gens mode eye4: 12/14), purple 7/14 (gens: 13/14); purple still rising (12->17->28->34->46% at 10k..200k), hunter flat until the end (11-15% -> 20%). Prey stable (die-outs max 3, so not a restart artefact on the prey side); hunters die out ~64-66 times per run and average 4-5 alive (restart level; old tuned defaults peaked 60-80), so hunter pressure is weak. Evolved-with-cost prey 194 vs handed out 226. Brief round check passes 9/14 and 10/14.
 - Token rules (Rey 2026-10-31, "reduce it"): whatever enters the conversation is re-read every reply. Scripts print a compact summary (raw data to a file); read results with tail/grep, never full logs/test output; no progress polling, wait for the finish notice; short replies, one message per answer; research only when Rey asks. For a big output read once (long log, many files, research pages), hand it to a small subagent (model haiku) that reads it and returns a short summary; only the summary enters the main conversation. Not for small outputs: tail/grep is cheaper. Suggest a fresh session when the context gets large.

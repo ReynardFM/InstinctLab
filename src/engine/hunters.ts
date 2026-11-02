@@ -4,7 +4,8 @@
 //       Its senses are the prey's senses re-pointed: "food" = the nearest prey, "2nd food" = the second-nearest
 //       prey, "neighbour" = the nearest other hunter, "energy" = ready to catch (1) or resting (0); the poison
 //       and hunter inputs read "nothing there". The same shape is what lets a dead prey family's brain be
-//       reused as a hunter: its "go to food" wiring becomes "go to prey".
+//       reused as a hunter: its "go to food" wiring becomes "go to prey". With the eye on (rules.eye), prey
+//       brains have another shape: hunters keep this old layout and every hunter brain starts random.
 // A caught prey is out for the rest of that food map (it eats nothing more, so it scores less).
 // Hunters arrive at generation rules.hunterFrom: with brains, half of the first hunters get the main brains
 // of the most recently extinct prey families ("borrowed"), half random brains ("random"). Every hunter keeps
@@ -18,7 +19,7 @@ import type { Creature } from "./creature.ts";
 import { genomeSize, learn, thinkInto, type Genome } from "./brain.ts";
 import { LEARN_DECAY } from "./life.ts";
 import { cos, sin } from "./dmath.ts";
-import { inputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
+import { eyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
 import { SICK, dose, fade, fadeResist, harm, train } from "./toxin.ts";
@@ -92,13 +93,13 @@ export function placeHunters(w: World): void {
   for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0, resist: 0 });
 }
 
-const hunterGenomeLength = (w: World) => genomeSize(inputCount(w.rules), w.rules.hidden);
+const hunterGenomeLength = (w: World) => genomeSize(hunterInputCount(w.rules), w.rules.hidden);
 
 function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null): HunterBrain {
   return {
     id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0,
     w: w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(g.length).fill(0) : [],
-    inputs: new Array(inputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
+    inputs: new Array(hunterInputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
   };
 }
 
@@ -109,7 +110,8 @@ export const poolSize = (w: World) => Math.max(w.rules.hunters, w.rules.hunterPo
 
 export function firstHunterBrains(w: World, n = poolSize(w)): HunterBrain[] {
   const len = hunterGenomeLength(w);
-  const dead = w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
+  // with the eye on, prey brains have another shape, so nothing can be borrowed: every first hunter is random
+  const dead = eyeSlices(w.rules) > 0 ? [] : w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
   const out: HunterBrain[] = [];
   let used = 0;
   for (let i = 0; i < n; i++) {
@@ -360,6 +362,7 @@ export interface BestBrain {
   score: number; // hunters: prey caught in its life; prey: ticks lived
   origin: Origin;
   from: number | null;
+  depth?: number; // prey: births since its founder (stats only), carried through a restart
 }
 
 // Keeps the BEST_KEEP highest scores, highest first. A tie doesn't push out an earlier brain.

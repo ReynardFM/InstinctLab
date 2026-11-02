@@ -95,7 +95,7 @@ export function stepEcosystem(w: World): void {
     w.eco.deaths++;
     notePreyDeath(w, c.age);
     if (scale > 0 && c.age >= scale) w.eco.oldAge++;
-    if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family });
+    if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family, depth: c.depth });
     w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
   }
   if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
@@ -164,7 +164,9 @@ function restartPrey(w: World): void {
   for (let i = 0; i < RESCUE; i++) {
     const k = i % best.length;
     const genome = i < best.length ? best[k].g.slice() : mutate(w, best[k].g, rules.mutation);
-    w.creatures.push(newCreature(w, genome, fams[k], false, null));
+    const c = newCreature(w, genome, fams[k], false, null);
+    c.depth = (best[k].depth ?? 0) + (i < best.length ? 0 : 1); // stats only: a restart doesn't reset the count
+    w.creatures.push(c);
   }
   w.eco.rescues++;
 }

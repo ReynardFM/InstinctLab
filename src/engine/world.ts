@@ -190,7 +190,6 @@ export interface EcoStats {
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
 // Or one brain per creature (cli/split.ts rebuilds a generation on another thread this way).
 export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[]): World {
-  if (rules.eye > 0 && rules.hunterBrains > 0) throw new Error("rules.eye does not work with hunter brains yet (they read the old senses)");
   const each = start && Array.isArray(start[0]) ? (start as Genome[]) : null;
   const one = start && !each ? (start as Genome) : null;
   for (const g of each ?? (one ? [one] : [])) {

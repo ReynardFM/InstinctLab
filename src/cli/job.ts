@@ -1,6 +1,6 @@
 // One experiment run: a seed, a set of rules, a number of generations. Pure: same job, same result,
 // whichever thread runs it. This is why runs can be spread across CPU cores without changing the numbers.
-import { createWorld, inEcosystem, runGenerations, runTicks, step, type EcoStats, type Round, type Rules } from "../engine/world.ts";
+import { createWorld, inEcosystem, runGenerations, runTicks, step, type EcoStats, type Round, type Rules, type World } from "../engine/world.ts";
 import type { HunterStats } from "../engine/hunters.ts";
 import { familySplit, type DefenceSummary } from "./eco-metrics.ts";
 
@@ -56,20 +56,24 @@ export function runJob(job: Job): JobResult {
   const result: JobResult = { avgHist: w.avgHist, bestHist: w.bestHist, topHalfHist: w.topHalfHist, poisonHist: w.poisonHist };
   if (job.rules.hunters > 0) result.caughtHist = w.caughtHist;
   if (job.rules.hunters > 0 && job.rules.hunterBrains > 0) result.hunterHist = w.hunterHist;
-  if (job.rules.mode === 1) {
-    const { popHist, ageHist, births, deaths, oldAge, rescues } = w.eco;
-    result.eco = { popHist, ageHist, births, deaths, oldAge, rescues };
-    if (job.rules.hunters > 0) {
-      const e = w.eco;
-      Object.assign(result.eco, {
-        hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
-        hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, spat: e.spat, toxin: e.toxin, sick: e.sick, resist: e.resist,
-      });
-      if (job.measure) {
-        const { top, rest } = familySplit([...e.m.fam.values()]);
-        result.eco!.defence = { win: e.m.win, famTop: top, famRest: rest };
-      }
+  if (job.rules.mode === 1) result.eco = ecoResultOf(w, !!job.measure);
+  return result;
+}
+
+// The ecosystem part of a result (also used by cli/life-genes.ts, which runs its worlds itself).
+export function ecoResultOf(w: World, measure: boolean): EcoResult {
+  const { popHist, ageHist, births, deaths, oldAge, rescues } = w.eco;
+  const eco: EcoResult = { popHist, ageHist, births, deaths, oldAge, rescues };
+  if (w.rules.hunters > 0) {
+    const e = w.eco;
+    Object.assign(eco, {
+      hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
+      hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, spat: e.spat, toxin: e.toxin, sick: e.sick, resist: e.resist,
+    });
+    if (measure) {
+      const { top, rest } = familySplit([...e.m.fam.values()]);
+      eco.defence = { win: e.m.win, famTop: top, famRest: rest };
     }
   }
-  return result;
+  return eco;
 }
