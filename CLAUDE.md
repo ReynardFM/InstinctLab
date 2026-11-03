@@ -11,6 +11,7 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 - **Evidence ladder (Rey 2026-11-03):** screen = seed 1, 30k ("screen, weak"); check = 6 seeds, 30k, only if the screen shows a big effect ("likely"); proof = 14 seeds, 200k, only for the main question ("done"). Never mark done from a screen or a check. Results here and in IDEAS.md carry their level in [brackets].
 - **Stop rules (Rey 2026-11-03):** every branch starts with done-if / kill-if / max runs; at the limit, record and park. Main problem finish line: hunters alive = die-outs <= 5 per 60k and >= 10 hunters on average in 4/6 seeds; then run the 200k hunter-sense proof and stop, whatever the result. New problems found meanwhile go to IDEAS.md as parked, not into the current work.
 - **Commit policy (Rey 2026-11-03, a):** Claude commits by itself at each checkpoint (feature + passing test, or a recorded result), clear messages, repo-local noreply author. Push only when Rey says "push".
+- **Reporting results (Rey 2026-11-03):** one test at a time, each with a simple conclusion (with its evidence level), before proposing any fix or new test.
 - After the learning-off re-tests: list each new hunter flag (hunterEye, eyeMotion, remains, hunterBite, hunterDoseCap, hunter resistance rules, hunterForget) as keep or delete.
 - Heavy runs: half the threads, low priority by default (his laptop froze once). Long runs go on his Windows terminal.
 - Every speed change must be checked bit-identical (golden tests, fingerprints). Experiments behind flags, off by default.
