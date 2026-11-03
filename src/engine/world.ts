@@ -53,6 +53,21 @@ export interface Rules {
   resistHalfLife: number; // ecosystem: ticks for resistance to halve without poison
   resistInherit: number; // ecosystem: share of a parent's resistance its baby is born with
   resistUpkeep: number; // ecosystem: energy per tick at full resistance
+  hunterForget: number; // ecosystem, with hunterLearn: each tick a hunter's working brain moves this share back toward its
+  // inborn brain, like prey rules.forget (Rey 2026-11-03: hunter learning had no limit and halved hunters); 0 = off
+  hunterDoseCap: number; // ecosystem: the most poison a hunter takes from one prey (after age frailty); 0 = no cap.
+  // Rey 2026-11-02 (a): keep the food chain but make a poisoned catch painful, not deadly. Window: above 0.5 the
+  // learning reward (1 - 2 x dose) is negative; below ~0.8 the extra hunger (0.0025 x dose x 721 ticks) stays under 1.5 energy
+  hunterBite: number; // brain hunters (Rey 2026-11-02): above 0 = a third output, bite; a prey in reach is caught only if it
+  // is above 0. Its weights ride at the end of the hunter genome (inherited and mutated, not learned); this value is
+  // added to the bite sum as a start bias toward biting (1: ~55-58% bite at first; 2-3: more)
+  hunterResistGene: number; // generations mode, brain hunters (Rey 2026-11-02: breed resistance by hand): 1 = each hunter
+  // brain carries an inborn resistance gene 0..1 (founders 0, children = parent + mutation); its score pays for poison
+  hunterResistSlow: number; // with hunterResistGene: resistance costs speed, top speed x (1 - this x gene) (Rey 2026-11-02, b:
+  // like TTX-resistant garter snakes crawling slower); 0 = no speed cost
+  genPreyToxin: number; // generations mode with hunterResistGene: poison level every prey carries (a side arena of poisoned prey)
+  hunterResistCap: number; // ecosystem: the most resistance a hunter can train up to (Rey 2026-11-02: 0.5); 1 = no cap
+  hunterResistInherit: number; // ecosystem: share of a hunter parent's resistance its baby is born with; -1 = use resistInherit
   hunterResistTrain: number; // ecosystem: the same for hunters, per poisoned catch (scaled by the dose); 0 = none
   hunterSpit: number; // ecosystem: 1 = hunters may spit out a poisoned prey (it lives, wounded; the hunter gets a taste, no meal); 0 = off
   hunterLearn: number; // ecosystem: hunters learn during life (taste aversion): clean catch +1, poisoned down to -1; 0 = off
@@ -88,6 +103,10 @@ export interface Rules {
   // hunters borrow the main brains of extinct prey families, so give the prey some generations first
   swapKinds: number; // 1 = on each food map, a coin flip decides whether the two pellet looks swap roles (purple rings become the food). Born brains can't know which; only learning during life can tell
   senseGenes: number; // 1 = each optional sense (2nd food, neighbour, poison, hunter) is switched on by a gene at the end of the genome (on when > 0); founders start with all off, mutation can switch them on (Rey 2026-10-31: senses evolved, not handed out)
+  remains: number; // ecosystem: a dying prey (starved, old or caught) leaves remains for this many ticks: food for prey that
+  // carries the dead prey's poison level (Rey 2026-11-02: prey gather at remains); 0 = off
+  eyeMotion: number; // with the eye: 1 = prey also see how fast each hunter moves (closeness x speed), switched with the hunter gene
+  hunterEye: number; // 0 = hunters keep the old "nearest X" senses; 4 or 8 = hunters see prey, prey motion and hunters with a raw eye
   eye: number; // 0 = off; 4 or 8 = raw all-around eye with that many slices instead of the "nearest X" senses (senses.ts eyeInto; Rey 2026-10-31)
   senseCost: number; // with senseGenes: energy per tick for each switched-on sense (eyes cost something)
   energyGate: number; // learning: 1 = learn in proportion to current energy (hungry creatures learn less); 0 = off
@@ -98,14 +117,14 @@ export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
-  mutationRate: 1, centreShare: 0, hidden: 6, senseGenes: 0, senseCost: 0, eye: 0,
+  mutationRate: 1, centreShare: 0, hidden: 6, senseGenes: 0, senseCost: 0, eye: 0, eyeMotion: 0, hunterEye: 0, remains: 0,
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
   poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterSeeSpeed: 1, hunterLearn: 0.02,
-  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, // off: no prey defence emerged (README 2026-10-26)
+  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterForget: 0, hunterDoseCap: 0, hunterBite: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
@@ -157,6 +176,7 @@ export interface Round {
 
 export interface EcoStats {
   births: number;
+  remainsEaten: number; // rules.remains: remains eaten by prey
   deaths: number;
   oldAge: number; // deaths of creatures older than ageScale (they starved, but ageing is why)
   rescues: number; // times everyone had died and fresh founders were put in
@@ -185,6 +205,13 @@ export interface EcoStats {
   m: { win: { nearEat: number; farEat: number; nearTicks: number; farTicks: number }[]; fam: Map<number, { eat: number; ticks: number; nearEat: number; nearTicks: number }> };
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
+  // counting only (Rey 2026-11-02, "do small doses add up?"): catches and poison taken, by the caught prey's level
+  // (bins: 0, <=0.02, <=0.05, <=SICK 0.1, <=0.3, more); hunter deaths and their hunger factor (1 + harm) at death
+  dose: { n: number[]; taken: number[]; deaths: number; deathHarm: number; deathsHarmed: number;
+    // brain-hunter catches by where the prey was vs the hunter's heading: [ahead (< 45 deg), side, behind (> 90 deg)]
+    dirSick: number[]; dirClean: number[];
+    // rules.hunterBite: prey in reach, [bitten, refused], sick and clean; hunter energy summed over sick bitten / refused
+    biteSick: number[]; biteClean: number[]; eSickBit: number; eSickRefused: number };
 }
 
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
@@ -231,7 +258,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     failedBranches: 0,
     newcomerCount: 0,
     eco: {
-      births: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [],
+      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [],
       huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
@@ -239,6 +266,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
       toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 },
+      dose: { n: [0, 0, 0, 0, 0, 0], taken: [0, 0, 0, 0, 0, 0], deaths: 0, deathHarm: 0, deathsHarmed: 0, dirSick: [0, 0, 0], dirClean: [0, 0, 0], biteSick: [0, 0], biteClean: [0, 0], eSickBit: 0, eSickRefused: 0 },
     },
     measure: false,
   };

@@ -10,6 +10,9 @@ export interface Food {
   y: number;
   poison: boolean; // costs energy, worth nothing
   readyAt: number; // tick it (re)appears at; before that it is gone (rules.regrow)
+  remains?: boolean; // rules.remains: left where a prey died; food like a plant, gone when eaten or at `until`
+  until?: number; // remains: the tick it rots away
+  toxin?: number; // remains: the dead prey's poison level, taken in by whoever eats it (looks like normal food)
   slot?: number; // its index in w.food, set each tick for the grid (senses.prepareGrids)
 }
 

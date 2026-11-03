@@ -97,7 +97,10 @@ export function stepEcosystem(w: World): void {
     if (scale > 0 && c.age >= scale) w.eco.oldAge++;
     if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family, depth: c.depth });
     w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
+    if (rules.remains > 0) w.food.push({ x: c.x, y: c.y, poison: false, readyAt: w.tick + 1, remains: true, until: w.tick + rules.remains, toxin: c.toxin });
   }
+  // remains that were eaten or rotted leave the map (grids are rebuilt every tick)
+  if (rules.remains > 0) w.food = w.food.filter((f) => !f.remains || (f.readyAt !== Infinity && f.until! > w.tick));
   if (w.eco.recentDeaths.length > KEEP_DEATHS) w.eco.recentDeaths.splice(0, w.eco.recentDeaths.length - KEEP_DEATHS);
   w.creatures = alive.concat(born);
 

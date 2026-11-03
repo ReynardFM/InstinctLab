@@ -3,7 +3,7 @@
 // tick, poison 30%, eye with 4 slices (genes 0 control, 1 creature, 2 purple, 3 hunter). Handed out vs
 // evolved with a cost. Births since the founder ("depth") is the yardstick against generations mode
 // (130 generations = depth 130; 130 gens x 3 maps x 1500 ticks = 585,000 ticks there).
-//   node src/cli/life-genes.ts [--ticks=200000] [--seeds=1-14] [--workers=N] [--cost=0.0002] [--out=name]
+//   node src/cli/life-genes.ts [--ticks=200000] [--seeds=1-14] [--workers=N] [--cost=0.0002] [--out=name] [--anyRule=value]
 // Raw results: proto/out/life-genes/<out>.json. The summary is short on purpose (token rules).
 import { createWorld, runTicks, DEFAULT_RULES, type Rules, type World } from "../engine/world.ts";
 import { SENSE_GENES } from "../engine/genes.ts";
@@ -23,19 +23,31 @@ const SENSES = ["control", "creature", "purple", "hunter"];
 const base = Object.fromEntries(Object.entries(ECO_BASE).map(([k, v]) => [k, v![0]])) as Partial<Rules>;
 // senseFood2 / senseCreature only shape the hunters' inputs here (prey use the eye)
 const WORLD: Partial<Rules> = { ...base, poison: 0.3, eye: 4, ecoWarmup: 0, birth: 0, senseFood2: 1, senseCreature: 1 };
+// any other --rule=value overrides that rule in both conditions (e.g. --poisonDose=0)
+const OWN = new Set(["ticks", "seeds", "workers", "cost", "out"]);
+const EXTRA: Partial<Rules> = {};
+for (const a of process.argv.slice(2)) {
+  const m = /^--(\w+)=(.+)$/.exec(a);
+  if (!m || OWN.has(m[1])) continue;
+  if (!(m[1] in DEFAULT_RULES)) throw new Error(`unknown rule ${m[1]}`);
+  (EXTRA as Record<string, number>)[m[1]] = Number(m[2]);
+}
+Object.assign(WORLD, EXTRA);
 const CONDS: [string, Partial<Rules>][] = [
   ["handed out", { senseGenes: 0 }],
   [`evolved, cost ${COST}/tick`, { senseGenes: 1, senseCost: COST }],
 ];
 const MARKS = [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS].filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
 interface Job { cond: number; seed: number }
-interface Mark { prey: number; hunters: number; depth: number; maxDepth: number; adopt: number[] }
-interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number; restarts: number }
+interface Mark { prey: number; hunters: number; hResist: number; hDrift: number; depth: number; maxDepth: number; adopt: number[] }
+interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number; restarts: number; remainsPer1k: number; dose: World["eco"]["dose"] }
 
 const mark = (w: World, genes: boolean): Mark => {
   const cs = w.creatures, n = Math.max(1, cs.length);
   return {
-    prey: cs.length, hunters: w.hunters.length,
+    prey: cs.length, hunters: w.hunters.length, hResist: w.hunters.length ? w.hunters.reduce((a, h) => a + h.resist, 0) / w.hunters.length : 0,
+    // learned change: mean |working - inborn| weight per hunter (0 without learning)
+    hDrift: w.hunters.length ? w.hunters.reduce((a, h) => { const b = h.brain!; let d = 0; for (let k = 0; k < b.w.length; k++) d += Math.abs(b.w[k] - b.g[k]); return a + d / b.w.length; }, 0) / w.hunters.length : 0,
     depth: cs.reduce((a, c) => a + c.depth, 0) / n, maxDepth: cs.reduce((a, c) => Math.max(a, c.depth), 0),
     adopt: Array.from({ length: SENSE_GENES }, (_, s) => genes ? cs.filter((c) => c.g[c.g.length - SENSE_GENES + s] > 0).length / n : 1),
   };
@@ -48,7 +60,7 @@ function run(j: Job): Result {
   let t = 0;
   for (const m of MARKS) { runTicks(w, m - t); t = m; marks.push(mark(w, rules.senseGenes > 0)); }
   const e = ecoResultOf(w, false);
-  return { ...j, marks, m: ecoMetrics(e), caughtPer1k: (1000 * w.eco.caught) / TICKS, restarts: w.eco.rescues };
+  return { ...j, marks, m: ecoMetrics(e), caughtPer1k: (1000 * w.eco.caught) / TICKS, restarts: w.eco.rescues, remainsPer1k: (1000 * w.eco.remainsEaten) / TICKS, dose: w.eco.dose };
 }
 
 if (isMainThread) {
@@ -74,19 +86,37 @@ if (isMainThread) {
   const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const pct = (x: number) => `${Math.round(100 * x)}%`;
   const f1 = (x: number) => x.toFixed(1);
-  console.log(`Life mode: eye4, poison 30%, 4 brain hunters from tick 0, ecosystem from zero, split births, ${TICKS} ticks, seeds ${s0}-${s1 ?? s0}.`);
+  console.log(`Life mode: eye4, poison 30%, 4 brain hunters (${WORLD.hunterEye ? `hunter eye ${WORLD.hunterEye}` : "old hunter senses"}${WORLD.eyeMotion ? ", motion channels" : ""}) from tick 0, ecosystem from zero, split births, ${TICKS} ticks, seeds ${s0}-${s1 ?? s0}${Object.keys(EXTRA).length ? `, ${JSON.stringify(EXTRA)}` : ""}.`);
   const B = res.filter((r) => r.cond === 0).sort((a, b) => a.seed - b.seed);
   for (let c = 0; c < CONDS.length; c++) {
     const R = res.filter((r) => r.cond === c).sort((a, b) => a.seed - b.seed);
     const d = R.map((r, i) => r.m.prey - B[i].m.prey), mg = margin(d, 0.05);
-    console.log(`\n${CONDS[c][0]}: prey ${f1(avg(R.map((r) => r.m.prey)))}${c ? ` (vs handed out ${(avg(d) >= 0 ? "+" : "") + f1(avg(d))} ±${f1(mg)}${Math.abs(avg(d)) > mg ? " *" : ""})` : ""}, hunters ${f1(avg(R.map((r) => r.m.hunters)))}, caught/1k ticks ${f1(avg(R.map((r) => r.caughtPer1k)))}, poison/prey/1k ${f1(avg(R.map((r) => r.m.poison)))}`);
-    console.log(`  die-outs per run: prey ${f1(avg(R.map((r) => r.m.preyDieOuts)))} (max ${Math.max(...R.map((r) => r.m.preyDieOuts))}), hunters ${f1(avg(R.map((r) => r.m.hunterDieOuts)))}; seeds with >10 prey die-outs ${R.filter((r) => r.m.preyDieOuts > 10).length}/${R.length}`);
+    console.log(`\n${CONDS[c][0]}: prey ${f1(avg(R.map((r) => r.m.prey)))}${c ? ` (vs handed out ${(avg(d) >= 0 ? "+" : "") + f1(avg(d))} ±${f1(mg)}${Math.abs(avg(d)) > mg ? " *" : ""})` : ""}, hunters ${f1(avg(R.map((r) => r.m.hunters)))}, caught/1k ticks ${f1(avg(R.map((r) => r.caughtPer1k)))}, poison/prey/1k ${f1(avg(R.map((r) => r.m.poison)))}, pick ${avg(R.map((r) => r.m.pick)).toFixed(2)} (sick share of catches / sick share of prey; below 1 = hunters avoid sick prey)`);
+    console.log(`  ${WORLD.remains ? `remains eaten/1k ticks ${f1(avg(R.map((r) => r.remainsPer1k)))}; ` : ""}die-outs per run: prey ${f1(avg(R.map((r) => r.m.preyDieOuts)))} (max ${Math.max(...R.map((r) => r.m.preyDieOuts))}), hunters ${f1(avg(R.map((r) => r.m.hunterDieOuts)))}; seeds with >10 prey die-outs ${R.filter((r) => r.m.preyDieOuts > 10).length}/${R.length}`);
     console.log(`  ${"tick".padEnd(8)}${"depth (max)".padEnd(14)}${c ? SENSES.map((s) => s.padEnd(13)).join("") : ""}`);
     MARKS.forEach((t, mi) => {
       const M = R.map((r) => r.marks[mi]);
       const genes = c ? SENSES.map((_, s) => `${pct(avg(M.map((m) => m.adopt[s])))} (${M.filter((m) => m.adopt[s] > 0.5).length})`.padEnd(13)).join("") : "";
       console.log(`  ${String(t).padEnd(8)}${`${f1(avg(M.map((m) => m.depth)))} (${Math.max(...M.map((m) => m.maxDepth))})`.padEnd(14)}${genes}`);
     });
+    // where the hunters' poison comes from (prey level bins) and how harmed hunters are when they die
+    const sum = (k: "n" | "taken") => [0, 1, 2, 3, 4, 5].map((b) => R.reduce((a, r) => a + r.dose[k][b], 0));
+    const n = sum("n"), tk = sum("taken"), nT = n.reduce((a, b) => a + b, 0), tT = tk.reduce((a, b) => a + b, 0) || 1;
+    const BINS = ["0", "<=.02", "<=.05", "<=.1", "<=.3", ">.3"];
+    console.log(`  catches by prey poison level: ${BINS.map((b, i) => `${b} ${pct(n[i] / (nT || 1))}`).join(", ")}`);
+    console.log(`  poison taken by prey level:   ${BINS.map((b, i) => `${b} ${pct(tk[i] / tT)}`).join(", ")}; from not-sick prey (<=0.1): ${pct((tk[1] + tk[2] + tk[3]) / tT)}`);
+    console.log(`  hunter learned drift |w - g| at ${MARKS.map((t) => t / 1000 + "k").join("/")}: ${MARKS.map((_, mi) => avg(R.map((r) => r.marks[mi].hDrift)).toFixed(3)).join(" / ")}`);
+    const dd = R.reduce((a, r) => a + r.dose.deaths, 0) || 1;
+    const ds = [0, 1, 2].map((k) => R.reduce((a, r) => a + r.dose.dirSick[k], 0)), dc = [0, 1, 2].map((k) => R.reduce((a, r) => a + r.dose.dirClean[k], 0));
+    const sh = (v: number[]) => { const t = v[0] + v[1] + v[2] || 1; return `ahead ${pct(v[0] / t)}, side ${pct(v[1] / t)}, behind ${pct(v[2] / t)} (n ${v[0] + v[1] + v[2]})`; };
+    console.log(`  catch direction, sick prey: ${sh(ds)}; clean prey: ${sh(dc)}`);
+    if (WORLD.hunterBite) {
+      const bs = [0, 1].map((k) => R.reduce((a, r) => a + r.dose.biteSick[k], 0)), bc = [0, 1].map((k) => R.reduce((a, r) => a + r.dose.biteClean[k], 0));
+      const eb = R.reduce((a, r) => a + r.dose.eSickBit, 0) / (bs[0] || 1), er = R.reduce((a, r) => a + r.dose.eSickRefused, 0) / (bs[1] || 1);
+      console.log(`  bite: sick prey in reach refused ${pct(bs[1] / (bs[0] + bs[1] || 1))} (n ${bs[0] + bs[1]}), clean refused ${pct(bc[1] / (bc[0] + bc[1] || 1))} (n ${bc[0] + bc[1]}); hunter energy when biting sick ${eb.toFixed(2)} vs refusing ${er.toFixed(2)}`);
+    }
+    if (WORLD.hunterResistTrain) console.log(`  hunter resistance at ${MARKS.map((t) => t / 1000 + "k").join("/")}: ${MARKS.map((_, mi) => avg(R.map((r) => r.marks[mi].hResist)).toFixed(2)).join(" / ")}`);
+    console.log(`  hunter deaths ${dd}: hunger factor at death ${(R.reduce((a, r) => a + r.dose.deathHarm, 0) / dd).toFixed(2)}x, harm > 0.5 in ${pct(R.reduce((a, r) => a + r.dose.deathsHarmed, 0) / dd)}`);
     if (c) {
       const L = R.map((r) => r.marks.at(-1)!);
       const beat = (s: number) => L.filter((m) => m.adopt[s] - m.adopt[0] > 0.2).length;

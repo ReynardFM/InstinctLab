@@ -18,8 +18,8 @@ import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { genomeSize, learn, thinkInto, type Genome } from "./brain.ts";
 import { LEARN_DECAY } from "./life.ts";
-import { cos, sin } from "./dmath.ts";
-import { eyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
+import { cos, sin, tanh } from "./dmath.ts";
+import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
 import { SICK, dose, fade, fadeResist, harm, train } from "./toxin.ts";
@@ -28,6 +28,7 @@ export interface Hunter {
   x: number;
   y: number;
   rest: number; // ticks left digesting after a catch (doesn't move or catch)
+  speed: number; // how far it moved last tick (prey with rules.eyeMotion see it)
   brain: HunterBrain | null; // null for chasers
   energy: number; // ecosystem mode: drains each tick, a catch refills it; at 0 the hunter dies (1 elsewhere, unused)
   age: number; // ecosystem mode: ticks lived
@@ -47,6 +48,8 @@ export interface HunterBrain {
   from: number | null; // borrowed: the prey family whose main brain it started as
   caught: number; // prey caught this generation, all food maps it played
   maps: number; // food maps it played this generation
+  resistGene: number; // rules.hunterResistGene: inborn poison resistance 0..1 (0 when off)
+  poisonCost: number; // rules.hunterResistGene: meals lost to poison this generation (see POISON_MEALS)
   a: number; // heading on the current map
   // last senses and thoughts (like a creature's), for the page
   inputs: number[];
@@ -60,7 +63,15 @@ export interface HunterStats {
   borrowed: number; // share of hunters whose line started from a borrowed brain
   avgBorrowed: number | null; // average catch per map of borrowed-line hunters (null: none)
   avgRandom: number | null;
+  resist?: number; // rules.hunterResistGene: average resistance gene of the pool
 }
+
+// Breeding resistance by hand (rules.hunterResistGene, generations mode). Scores are in meals (a catch = 1 meal).
+// From the ecosystem numbers (2026-11-02): poison level 1 costs an adult hunter hunterHunger 0.0025 x ~721 harm-ticks
+// = 1.8 energy = 3.6 meals of 0.5; resistance r cuts that by (1 - r). Upkeep: resistUpkeep 0.0002 x r per tick =
+// 0.3 r energy = 0.6 r meals per 1500-tick map.
+export const POISON_MEALS = 3.6;
+export const UPKEEP_MEALS_PER_MAP = 0.6;
 
 export const CATCH = 6; // a hunter this close to a prey catches it (same reach as eating)
 export const REST = 30; // ticks a hunter rests after a catch
@@ -86,19 +97,24 @@ export function placeHunters(w: World): void {
       const b = w.hunterBrains[(start + i) % pool];
       b.maps++;
       b.a = w.env.next() * Math.PI * 2;
-      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: b, energy: 1, age: 0, toxin: 0, resist: 0 });
+      w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, speed: 0, brain: b, energy: 1, age: 0, toxin: 0, resist: 0 });
     }
     return;
   }
-  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, brain: null, energy: 1, age: 0, toxin: 0, resist: 0 });
+  for (let i = 0; i < w.rules.hunters; i++) w.hunters.push({ x: w.env.next() * W, y: w.env.next() * H, rest: 0, speed: 0, brain: null, energy: 1, age: 0, toxin: 0, resist: 0 });
 }
 
-const hunterGenomeLength = (w: World) => genomeSize(hunterInputCount(w.rules), w.rules.hidden);
+const brainLength = (w: World) => genomeSize(hunterInputCount(w.rules), w.rules.hidden);
+// rules.hunterBite: the bite output's weights (one per middle neuron + a bias) ride at the end of the genome
+const biteLength = (w: World) => (w.rules.hunterBite > 0 ? w.rules.hidden + 1 : 0);
+const hunterGenomeLength = (w: World) => brainLength(w) + biteLength(w);
 
-function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null): HunterBrain {
+function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null, resistGene = 0): HunterBrain {
+  const bl = brainLength(w);
+  const bite = w.rules.hunterBite > 0;
   return {
-    id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0,
-    w: w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(g.length).fill(0) : [],
+    id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0, resistGene, poisonCost: 0,
+    w: bite ? g.slice(0, bl) : w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(bl).fill(0) : [],
     inputs: new Array(hunterInputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
   };
 }
@@ -111,7 +127,7 @@ export const poolSize = (w: World) => Math.max(w.rules.hunters, w.rules.hunterPo
 export function firstHunterBrains(w: World, n = poolSize(w)): HunterBrain[] {
   const len = hunterGenomeLength(w);
   // with the eye on, prey brains have another shape, so nothing can be borrowed: every first hunter is random
-  const dead = eyeSlices(w.rules) > 0 ? [] : w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
+  const dead = eyeSlices(w.rules) > 0 || hunterEyeSlices(w.rules) > 0 || w.rules.hunterBite > 0 ? [] : w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
   const out: HunterBrain[] = [];
   let used = 0;
   for (let i = 0; i < n; i++) {
@@ -136,6 +152,7 @@ function moveChasers(w: World): void {
   const walls = w.rules.walls > 0;
   const speed = w.rules.hunterSpeed;
   for (const h of w.hunters) {
+    h.speed = 0;
     if (h.rest > 0) {
       h.rest--;
       continue;
@@ -159,6 +176,7 @@ function moveChasers(w: World): void {
     if (!prey) continue;
     const d = Math.sqrt(bd2);
     const step = Math.min(speed, d);
+    h.speed = step;
     if (d > 0) {
       const nx = h.x + (bdx / d) * step;
       const ny = h.y + (bdy / d) * step;
@@ -181,9 +199,10 @@ function spitOut(w: World, h: Hunter, prey: Creature): boolean {
   if (w.hrng.next() >= prey.toxin / (prey.toxin + SPIT_HALF)) return false;
   prey.energy -= SPIT_WOUND;
   h.rest = REST;
-  const taken = dose(prey.toxin * SPIT_TASTE, h.age, w.rules.hunterAge, w);
+  const raw = dose(prey.toxin * SPIT_TASTE, h.age, w.rules.hunterAge, w);
+  const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw;
   h.toxin += taken;
-  h.resist = train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken));
+  h.resist = Math.min(w.rules.hunterResistCap, train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken)));
   w.eco.spat++;
   return true;
 }
@@ -195,12 +214,18 @@ function catchPrey(w: World, h: Hunter, prey: Creature): boolean {
   prey.caught++;
   h.rest = REST;
   if (h.brain) h.brain.caught++;
+  if (h.brain && w.rules.hunterResistGene > 0 && !inEcosystem(w)) h.brain.poisonCost += POISON_MEALS * w.rules.genPreyToxin * (1 - h.brain.resistGene);
   if (inEcosystem(w)) {
     h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+    const lv = prey.toxin;
+    const bin = lv <= 0 ? 0 : lv <= 0.02 ? 1 : lv <= 0.05 ? 2 : lv <= SICK ? 3 : lv <= 0.3 ? 4 : 5;
+    w.eco.dose.n[bin]++;
     if (prey.toxin > 0) {
-      const taken = dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's age resistance
+      const raw = dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's age resistance
+      const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw; // rules.hunterDoseCap
+      w.eco.dose.taken[bin] += taken;
       h.toxin += taken;
-      h.resist = train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken)); // hunters build resistance too, more slowly
+      h.resist = Math.min(w.rules.hunterResistCap, train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken))); // hunters build resistance too, up to hunterResistCap
     }
     w.eco.caught++;
     w.eco.sick.caught++;
@@ -239,6 +264,35 @@ function nearestPrey(w: World, x: number, y: number, walls: boolean): void {
   }
 }
 
+// The hunters' raw eye (rules.hunterEye; Rey 2026-11-02): like the prey eye, K slices around the heading, each
+// summing closeness (1 - d^2/200^2) of prey, of prey movement (closeness x speed / 3: a sick prey is slow, so it
+// shows strong in "prey" and weak in "prey motion") and of other hunters; then energy and the wall. Returns k.
+export function hunterEyeInto(w: World, h: Hunter, inputs: number[], cosH: number, sinH: number, K: number, walls: boolean, eco: boolean): number {
+  const n = K * 3;
+  for (let i = 0; i < n; i++) inputs[i] = 0;
+  for (const c of w.creatures) {
+    if (!c.alive) continue;
+    const dx = offset(c.x - h.x, W, walls);
+    const dy = offset(c.y - h.y, H, walls);
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= EYE_R2) continue;
+    const v = 1 - d2 / EYE_R2;
+    const sl = eyeSlice(dx, dy, cosH, sinH, K);
+    inputs[sl] += v;
+    inputs[K + sl] += v * Math.min(c.speed / 3, 1);
+  }
+  for (const o of w.hunters) {
+    if (o === h) continue;
+    const dx = offset(o.x - h.x, W, walls);
+    const dy = offset(o.y - h.y, H, walls);
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= EYE_R2) continue;
+    inputs[2 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+  }
+  inputs[n] = eco ? h.energy : 1;
+  return n + 1;
+}
+
 // Brain hunters: sense, think, turn and move like a creature (top speed rules.hunterSpeed), then catch the
 // nearest prey if it is within reach. Resting hunters don't think or move.
 function moveBrainHunters(w: World): void {
@@ -246,9 +300,11 @@ function moveBrainHunters(w: World): void {
   const walls = r.walls > 0;
   const hs = w.hunters;
   const eco = inEcosystem(w);
+  const hEye = hunterEyeSlices(r);
   for (let n = 0; n < hs.length; n++) {
     const h = hs[n];
     const b = h.brain!;
+    h.speed = 0;
     if (h.rest > 0) {
       h.rest--;
       continue;
@@ -258,41 +314,47 @@ function moveBrainHunters(w: World): void {
     const inputs = b.inputs;
     const cosH = cos(b.a);
     const sinH = sin(b.a);
-    let k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH); // "food" = nearest prey
-    inputs[k++] = eco ? h.energy : 1; // "energy": its real energy in ecosystem mode; elsewhere 1 = ready (resting hunters don't think)
-    if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
-    if (r.senseCreature) {
-      let bdx = 0;
-      let bdy = 0;
-      let bd2 = Infinity;
-      for (let m = 0; m < hs.length; m++) {
-        if (m === n) continue;
-        const dx = offset(hs[m].x - h.x, W, walls);
-        const dy = offset(hs[m].y - h.y, H, walls);
-        const d2 = dx * dx + dy * dy;
-        if (d2 < bd2) {
-          bd2 = d2;
-          bdx = dx;
-          bdy = dy;
+    let k: number;
+    if (hEye > 0) k = hunterEyeInto(w, h, inputs, cosH, sinH, hEye, walls, eco);
+    else {
+      k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH); // "food" = nearest prey
+      inputs[k++] = eco ? h.energy : 1; // "energy": its real energy in ecosystem mode; elsewhere 1 = ready (resting hunters don't think)
+      if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
+      if (r.senseCreature) {
+        let bdx = 0;
+        let bdy = 0;
+        let bd2 = Infinity;
+        for (let m = 0; m < hs.length; m++) {
+          if (m === n) continue;
+          const dx = offset(hs[m].x - h.x, W, walls);
+          const dy = offset(hs[m].y - h.y, H, walls);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bd2) {
+            bd2 = d2;
+            bdx = dx;
+            bdy = dy;
+          }
         }
+        k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
       }
-      k = bd2 < Infinity ? writeTowards(inputs, k, bdx, bdy, bd2, cosH, sinH) : writeNothing(inputs, k);
+      if (r.poison > 0) {
+        // ecosystem: the prey's "poison" sense becomes the nearest prey's direction and speed (in place of distance):
+        // a slow prey reads like poison close by, so a borrowed prey brain starts out avoiding slow (maybe sick) prey
+        if (eco && r.hunterSeeSpeed > 0) {
+          const p = w.creatures[near.i1];
+          k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
+          inputs[k - 1] = Math.min(p.speed / 3, 1);
+        } else k = writeNothing(inputs, k);
+      }
+      if (r.hunterSense > 0) k = writeNothing(inputs, k); // prey have hunter inputs; for a hunter they read nothing
     }
-    if (r.poison > 0) {
-      // ecosystem: the prey's "poison" sense becomes the nearest prey's direction and speed (in place of distance):
-      // a slow prey reads like poison close by, so a borrowed prey brain starts out avoiding slow (maybe sick) prey
-      if (eco && r.hunterSeeSpeed > 0) {
-        const p = w.creatures[near.i1];
-        k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
-        inputs[k - 1] = Math.min(p.speed / 3, 1);
-      } else k = writeNothing(inputs, k);
-    }
-    if (r.hunterSense > 0) k = writeNothing(inputs, k); // prey have hunter inputs; for a hunter they read nothing
     if (walls) inputs[k++] = wallAhead(h.x, h.y, b.a);
     if (inputs.length !== k) inputs.length = k;
     thinkInto(b.w, inputs, b.hidden, b.out);
     b.a += b.out[0] * TURN;
-    const speed = ((b.out[1] + 1) / 2) * r.hunterSpeed;
+    let speed = ((b.out[1] + 1) / 2) * r.hunterSpeed;
+    if (r.hunterResistSlow > 0) speed *= 1 - r.hunterResistSlow * b.resistGene; // resistance costs speed
+    h.speed = speed;
     if (walls) {
       h.x = Math.min(Math.max(h.x + cos(b.a) * speed, 0), W);
       h.y = Math.min(Math.max(h.y + sin(b.a) * speed, 0), H);
@@ -302,13 +364,32 @@ function moveBrainHunters(w: World): void {
     }
     nearestPrey(w, h.x, h.y, walls);
     const toxinBefore = h.toxin;
-    const caughtNow = near.i1 >= 0 && near.d21 < CATCH * CATCH;
+    const inReach = near.i1 >= 0 && near.d21 < CATCH * CATCH;
+    let caughtNow = inReach;
+    if (inReach && r.hunterBite > 0) {
+      // the bite output: weights after the brain in the genome, read from the middle neurons of this tick's thought
+      const hid = b.hidden, g = b.g, k0 = g.length - hid.length - 1;
+      let s = g[g.length - 1] + r.hunterBite; // rules.hunterBite is also the start bias toward biting (don't starve at start)
+      for (let i = 0; i < hid.length; i++) s += hid[i] * g[k0 + i];
+      caughtNow = tanh(s) > 0;
+      const sick = w.creatures[near.i1].toxin > SICK, d = w.eco.dose;
+      (sick ? d.biteSick : d.biteClean)[caughtNow ? 0 : 1]++;
+      if (sick) { if (caughtNow) d.eSickBit += h.energy; else d.eSickRefused += h.energy; }
+    }
+    if (caughtNow && eco) {
+      // counting only (Rey 2026-11-02): was the prey ahead of the hunter (chased) or to the side / behind (bumped into)?
+      const d = Math.sqrt(near.d21);
+      const c = d > 0 ? (near.dx1 * cos(b.a) + near.dy1 * sin(b.a)) / d : 1;
+      const dir = c > Math.SQRT1_2 ? 0 : c >= 0 ? 1 : 2;
+      (w.creatures[near.i1].toxin > SICK ? w.eco.dose.dirSick : w.eco.dose.dirClean)[dir]++;
+    }
     const spat = caughtNow && catchPrey(w, h, w.creatures[near.i1]);
     // taste aversion (Rey 2026-10-25): a hunter learns during its life, like prey do. A clean catch is +1; a poisoned
     // one counts down to -1 by the poison it took in, so what led it to that prey (including how fast it moved) fades
     if (eco && r.hunterLearn > 0) {
       const reward = spat ? -1 : caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0; // spat out: bad taste, no meal
       learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
+      if (r.hunterForget > 0) { const wk = b.w, gk = b.g; for (let k = 0; k < wk.length; k++) wk[k] += r.hunterForget * (gk[k] - wk[k]); }
     }
   }
 }
@@ -320,7 +401,9 @@ function moveBrainHunters(w: World): void {
 export function breedHunters(w: World): void {
   const bs = w.hunterBrains;
   if (bs.length === 0) return;
-  const rate = (b: HunterBrain) => (b.maps > 0 ? b.caught / b.maps : -1);
+  const gene = w.rules.hunterResistGene > 0;
+  // with the resistance gene the judge scores net meals per map: catches minus poison minus upkeep
+  const rate = (b: HunterBrain) => (b.maps > 0 ? (gene ? (b.caught - b.poisonCost) / b.maps - UPKEEP_MEALS_PER_MAP * b.resistGene : b.caught / b.maps) : -Infinity);
   const ranked = [...bs].sort((a, b) => rate(b) - rate(a)); // stable: ties keep the earlier hunter
   const perMap = (xs: HunterBrain[]) => {
     const maps = xs.reduce((s, b) => s + b.maps, 0);
@@ -333,13 +416,16 @@ export function breedHunters(w: World): void {
     borrowed: bs.filter((b) => b.origin === "borrowed").length / bs.length,
     avgBorrowed: avgOf("borrowed"),
     avgRandom: avgOf("random"),
+    ...(gene ? { resist: bs.reduce((s, b) => s + b.resistGene, 0) / bs.length } : {}),
   });
   const n = poolSize(w);
   const parents = Math.max(1, Math.ceil(ranked.length / 2));
-  const next: HunterBrain[] = [newHunterBrain(w, ranked[0].g, ranked[0].origin, ranked[0].from)];
+  const next: HunterBrain[] = [newHunterBrain(w, ranked[0].g, ranked[0].origin, ranked[0].from, ranked[0].resistGene)];
   while (next.length < n) {
     const p = ranked[Math.floor(w.hrng.next() * parents)];
-    next.push(newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), p.origin, p.from));
+    const g = p.g.map((x) => x + w.hrng.gauss() * w.rules.mutation);
+    const r = gene ? Math.min(1, Math.max(0, p.resistGene + w.hrng.gauss() * w.rules.mutation)) : 0; // no draw when off
+    next.push(newHunterBrain(w, g, p.origin, p.from, r));
   }
   w.hunterBrains = next;
 }
@@ -376,7 +462,7 @@ export function remember(list: BestBrain[], b: BestBrain): void {
 
 function newEcoHunter(w: World, brain: HunterBrain, x: number, y: number, energy: number): Hunter {
   brain.a = w.hrng.next() * Math.PI * 2;
-  return { x, y, rest: 0, brain, energy, age: 0, toxin: 0, resist: 0 };
+  return { x, y, rest: 0, speed: 0, brain, energy, age: 0, toxin: 0, resist: 0 };
 }
 
 // The ecosystem's first hunters (rules.hunters of them): borrowed and random, as in generations mode.
@@ -404,7 +490,7 @@ export function liveEcoHunters(w: World): void {
       const p = h.brain!;
       const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
       const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
-      baby.resist = h.resist * r.resistInherit;
+      baby.resist = h.resist * (r.hunterResistInherit >= 0 ? r.hunterResistInherit : r.resistInherit);
       born.push(baby);
       w.eco.hunterBirths++;
     }
@@ -417,6 +503,10 @@ export function liveEcoHunters(w: World): void {
       continue;
     }
     w.eco.hunterDeaths++;
+    const hm = harm(h.toxin, h.resist);
+    w.eco.dose.deaths++;
+    w.eco.dose.deathHarm += 1 + hm;
+    if (hm > 0.5) w.eco.dose.deathsHarmed++;
     if (old) w.eco.hunterOldAge++;
     const b = h.brain!;
     remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });

@@ -50,7 +50,16 @@ export function live(w: World, c: Creature, costFactor: number): void {
   }
   const near = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
   let reward = 0;
-  if (seen.food && seen.foodDist < 6) {
+  if (seen.food && seen.foodDist < 6 && seen.food.remains) {
+    // remains (rules.remains): a meal like a plant, plus the dead prey's poison; gone once eaten
+    reward = 1;
+    c.eaten++;
+    c.energy = Math.min(c.energy + 0.3, 1.5);
+    const t = seen.food.toxin ?? 0;
+    if (t > 0 && newPoison(w)) c.toxin += t;
+    w.eco.remainsEaten++;
+    seen.food.readyAt = Infinity;
+  } else if (seen.food && seen.foodDist < 6) {
     reward = seen.food.poison ? -1 : 1;
     if (seen.food.poison) {
       c.poisoned++;

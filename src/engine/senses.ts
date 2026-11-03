@@ -14,6 +14,8 @@ export interface SenseRules {
   poison: number; // share of food that is poison; above 0, creatures also sense the nearest poison
   hunters?: number; // hunters on the map; above 0 (with hunterSense), prey sense the nearest one
   hunterSense?: number;
+  eyeMotion?: number; // with the eye: 1 = one more channel, how much hunter movement each slice sees (closeness x speed)
+  hunterEye?: number; // 0 = hunters keep the old senses; 4 or 8 = hunters see with a raw eye too (hunters.ts hunterEyeInto)
   eye?: number; // 0 = off; 4 or 8 = raw all-around eye (Rey 2026-10-31): the view is cut into that many slices and each
   // slice reports how much green, purple, creature and hunter it sees. It replaces every "nearest X" sense (see eyeInto)
 }
@@ -21,23 +23,31 @@ export interface SenseRules {
 // Slices in the raw eye: 0 = no eye, otherwise 4 or 8 (anything from 8 up counts as 8).
 export const eyeSlices = (r: SenseRules): number => !((r.eye ?? 0) > 0) ? 0 : (r.eye as number) >= 8 ? 8 : 4;
 export const EYE_CHANNELS = ["green", "purple", "creature", "hunter"];
+const eyeChannels = (r: SenseRules) => EYE_CHANNELS.length + ((r.eyeMotion ?? 0) > 0 ? 1 : 0);
+// The hunters' eye (Rey 2026-11-02): prey, prey movement (sick prey are slow), other hunters; then energy.
+export const HUNTER_EYE_CHANNELS = ["prey", "prey motion", "hunter"];
+export const hunterEyeSlices = (r: SenseRules): number => eyeSlices({ ...r, eye: r.hunterEye ?? 0 });
 
 const sensesHunter = (r: SenseRules) => (r.hunters ?? 0) > 0 && (r.hunterSense ?? 1) > 0;
 
 export function inputCount(r: SenseRules): number {
   const K = eyeSlices(r);
-  if (K > 0) return K * EYE_CHANNELS.length + 1 + (r.walls ? 1 : 0);
+  if (K > 0) return K * eyeChannels(r) + 1 + (r.walls ? 1 : 0);
   return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
 }
 
 // Hunter brains always read the old "nearest X" layout (hunters.ts writes it), even when prey use the eye.
-export const hunterInputCount = (r: SenseRules): number => inputCount({ ...r, eye: 0 });
+export const hunterInputCount = (r: SenseRules): number => {
+  const K = hunterEyeSlices(r);
+  return K > 0 ? K * HUNTER_EYE_CHANNELS.length + 1 + (r.walls ? 1 : 0) : inputCount({ ...r, eye: 0 });
+};
 
 export function inputLabels(r: SenseRules): string[] {
   const K = eyeSlices(r);
   if (K > 0) {
     const eye: string[] = [];
     for (const ch of EYE_CHANNELS) for (let i = 0; i < K; i++) eye.push(`Eye ${ch} slice ${i + 1}`);
+    if (eyeChannels(r) > EYE_CHANNELS.length) for (let i = 0; i < K; i++) eye.push(`Eye hunter motion slice ${i + 1}`);
     eye.push("Energy");
     if (r.walls) eye.push("Wall distance ahead");
     return eye;
@@ -394,11 +404,11 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
 // (a control). Green is always on. Slices: rotate the target into the creature's frame (ahead, side), turn it
 // by half a slice so the slice edges fall on the axes and the diagonals, then read signs and sizes: no angle,
 // no atan2. Eating is unchanged: the nearest pellet of either kind (h, f from the food scan).
-const EYE_R2 = 200 * 200;
+export const EYE_R2 = 200 * 200;
 const C8 = 0.9238795325112867; // cos(pi/8)
 const S8 = 0.3826834323650898; // sin(pi/8)
 
-function eyeSlice(dx: number, dy: number, cosH: number, sinH: number, K: number): number {
+export function eyeSlice(dx: number, dy: number, cosH: number, sinH: number, K: number): number {
   const a = dx * cosH + dy * sinH; // ahead
   const s = dy * cosH - dx * sinH; // side
   // turn by half a slice (45 or 22.5 degrees); for 4 slices the common factor cos(pi/4) is dropped (signs only)
@@ -416,8 +426,9 @@ function eyeInto(w: World, c: Creature, h: FoodHits, f: (Hit<Food> & { idx: numb
   const K = eyeSlices(r);
   const walls = r.walls > 0;
   const inputs = c.inputs;
-  const n = K * EYE_CHANNELS.length;
+  const n = K * eyeChannels(r);
   for (let i = 0; i < n; i++) inputs[i] = 0;
+  const motion = (r.eyeMotion ?? 0) > 0;
   const purple = senseOn(r, c.g, 2);
   const tick = w.tick;
   const swapped = w.swapped;
@@ -448,7 +459,10 @@ function eyeInto(w: World, c: Creature, h: FoodHits, f: (Hit<Food> & { idx: numb
       const dy = offset(hu.y - c.y, H, walls);
       const d2 = dx * dx + dy * dy;
       if (d2 >= EYE_R2) continue;
-      inputs[3 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+      const v = 1 - d2 / EYE_R2;
+      const sl = eyeSlice(dx, dy, cosH, sinH, K);
+      inputs[3 * K + sl] += v;
+      if (motion) inputs[4 * K + sl] += v * Math.min(hu.speed / r.hunterSpeed, 1); // a charging hunter reads stronger
     }
   }
   let k = n;

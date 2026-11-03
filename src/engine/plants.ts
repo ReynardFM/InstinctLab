@@ -28,6 +28,7 @@ export function spreadFood(w: World): void {
   const active = [0, 0];
   for (let i = 0; i < food.length; i++) {
     const f = food[i];
+    if (f.remains) continue; // remains are not plants: they don't sprout or count
     const k = f.poison ? 1 : 0;
     count[k]++;
     if (f.readyAt === Infinity) free[k].push(i);
@@ -37,7 +38,7 @@ export function spreadFood(w: World): void {
   const n = food.length; // sprouts from this tick don't sprout again this tick (they appear next tick)
   for (let i = 0; i < n; i++) {
     const f = food[i];
-    if (f.readyAt > tick) continue;
+    if (f.readyAt > tick || f.remains) continue;
     if (w.env.next() >= r.foodSpread) continue;
     const k = f.poison ? 1 : 0;
     let slot = free[k].pop();

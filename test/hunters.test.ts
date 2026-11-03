@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createWorld, runGenerations, DEFAULT_RULES, type World } from "../src/engine/world.ts";
-import { firstHunterBrains } from "../src/engine/hunters.ts";
+import { firstHunterBrains, hunterEyeInto } from "../src/engine/hunters.ts";
 import { genomeSize } from "../src/engine/brain.ts";
 import { inputCount, hunterInputCount } from "../src/engine/senses.ts";
 import { LayoutPool, runGenerationsSplit } from "../src/cli/split.ts";
@@ -243,4 +243,147 @@ test("eye + generations: first brain hunters are all random even with extinct fa
   const first = firstHunterBrains(w);
   assert.ok(first.every((h) => h.origin === "random"));
   for (const h of first) assert.equal(h.g.length, genomeSize(hunterInputCount(w.rules), w.rules.hidden));
+});
+
+// Hunter eye + motion (Rey 2026-11-02): hunters see prey, prey motion and hunters with a raw eye; prey see how
+// fast hunters move. Shapes, determinism, and the sick-prey cue (slow prey = weak motion).
+const BOTH_EYES = { ...EYE_ECO, hunterEye: 4, eyeMotion: 1 };
+
+test("hunter eye + motion: shapes match, same seed same run", () => {
+  assert.equal(hunterInputCount(BOTH_EYES), 4 * 3 + 1);
+  assert.equal(inputCount(BOTH_EYES), 4 * 5 + 1);
+  const a = createWorld(3, BOTH_EYES), b = createWorld(3, BOTH_EYES);
+  runTicks(a, 3000);
+  runTicks(b, 3000);
+  hunterShapeOk(a);
+  for (const c of a.creatures) assert.equal(c.inputs.length, inputCount(BOTH_EYES));
+  assert.equal(JSON.stringify([a.hunters.map((h) => [h.x, h.y, h.brain!.g]), a.creatures.map((c) => c.g)]),
+    JSON.stringify([b.hunters.map((h) => [h.x, h.y, h.brain!.g]), b.creatures.map((c) => c.g)]));
+});
+
+test("hunter eye: a slow (sick) prey shows the same in 'prey' but weaker in 'prey motion'", () => {
+  const w = createWorld(3, BOTH_EYES);
+  runTicks(w, 1);
+  const h = w.hunters[0];
+  const c = w.creatures[0];
+  w.creatures = [c];
+  w.hunters = [h];
+  c.x = h.x + 50; c.y = h.y; c.alive = true; // straight ahead of a hunter facing +x (cosH 1, sinH 0)
+  const inputs = new Array(13).fill(0);
+  const read = (speed: number) => { c.speed = speed; hunterEyeInto(w, h, inputs, 1, 0, 4, BOTH_EYES.walls > 0, true); return [...inputs]; };
+  const fast = read(3), slow = read(0.75);
+  const sl = fast.slice(0, 4).findIndex((v) => v > 0);
+  assert.ok(sl >= 0, "the prey is in some slice");
+  assert.equal(fast[sl], slow[sl]);
+  assert.ok(Math.abs(slow[4 + sl] - fast[4 + sl] / 4) < 1e-12);
+});
+
+// Remains (Rey 2026-11-02): a dying prey leaves food that carries its poison; it rots after rules.remains ticks.
+test("remains: dead prey leave food with their poison, eaten or rotted remains leave, same seed same run", () => {
+  const R = { ...EYE_ECO, remains: 300 };
+  const a = createWorld(3, R), b = createWorld(3, R);
+  runTicks(a, 3000);
+  runTicks(b, 3000);
+  assert.ok(a.eco.deaths > 0, "some prey died");
+  const rem = a.food.filter((f) => f.remains);
+  assert.ok(rem.length > 0, "remains on the map");
+  for (const f of rem) {
+    assert.ok(f.until! > a.tick && f.readyAt !== Infinity, "no rotted or eaten remains kept");
+    assert.ok(f.until! - 300 <= a.tick);
+  }
+  assert.ok(a.eco.remainsEaten > 0, "prey ate some remains");
+  assert.equal(JSON.stringify([a.food, a.creatures.map((c) => c.g), a.eco.remainsEaten]), JSON.stringify([b.food, b.creatures.map((c) => c.g), b.eco.remainsEaten]));
+  const off = createWorld(3, EYE_ECO);
+  runTicks(off, 3000);
+  assert.equal(off.food.filter((f) => f.remains).length, 0);
+});
+
+// Trained hunter resistance with a cap and its own inheritance (Rey 2026-11-02: b, cap 0.5, babies get 25%).
+test("hunter resistance: trained by poisoned catches, never above hunterResistCap; babies start with the inherit share", () => {
+  const R = { ...EYE_ECO, hunterResistTrain: 0.5, hunterResistCap: 0.5, hunterResistInherit: 0.25 };
+  const w = createWorld(3, R);
+  let maxR = 0, trained = false;
+  for (let t = 0; t < 20000; t++) {
+    const before = new Map(w.hunters.map((h) => [h, h.resist]));
+    runTicks(w, 1);
+    for (const h of w.hunters) {
+      maxR = Math.max(maxR, h.resist);
+      if (h.resist > (before.get(h) ?? 0) + 1e-12) trained = true;
+      if (!before.has(h) && h.age === 0) assert.ok(h.resist <= 0.25 * 0.5 + 1e-12, "a baby starts with at most 25% of the cap");
+    }
+  }
+  assert.ok(trained, "some hunter trained resistance");
+  assert.ok(maxR <= 0.5 + 1e-12 && maxR > 0.3, `cap holds and is reachable (max ${maxR})`);
+});
+
+// Breeding resistance by hand (Rey 2026-11-02, c): generations mode, the judge pays for poison, so the gene rises;
+// off = no gene, no extra random draws (old runs unchanged).
+test("hunter resistance gene: bred up when every prey is poisoned; off leaves it at 0", () => {
+  // full-size world: in SMALL (pop 20, 300 ticks) too few catches per map, so luck beats the poison cost
+  const on = createWorld(5, { ...DEFAULT_RULES, hunters: 4, hunterBrains: 1, hunterFrom: 1, hunterResistGene: 1, genPreyToxin: 1 });
+  runGenerations(on, 10);
+  const r = on.hunterHist.at(-1)!.resist!;
+  assert.ok(r > 0.5, `resistance bred up (${r.toFixed(2)})`);
+  const off = createWorld(1, { ...SMALL, hunterFrom: 1 });
+  runGenerations(off, 5);
+  assert.ok(off.hunterBrains.every((b) => b.resistGene === 0));
+  assert.equal(off.hunterHist.at(-1)!.resist, undefined);
+});
+
+test("hunterResistSlow: a fully resistant hunter moves at most (1 - slow) x top speed", () => {
+  const w = createWorld(1, { ...SMALL, hunterFrom: 1, hunterResistGene: 1, hunterResistSlow: 0.5 });
+  for (const b of w.hunterBrains) b.resistGene = 1;
+  let top = 0;
+  for (let t = 0; t < 200; t++) { runTicks(w, 1); for (const h of w.hunters) top = Math.max(top, h.speed); }
+  assert.ok(top > 0, "hunters moved");
+  assert.ok(top <= 0.5 * w.rules.hunterSpeed + 1e-12, `top speed ${top}`);
+});
+
+// Bite choice (Rey 2026-11-02): a prey in reach is caught only if the hunter's bite output is above 0.
+test("hunterBite: genome carries the bite weights; a hunter whose bite is always no never catches", () => {
+  const R = { ...BOTH_EYES, hunterBite: 1 };
+  const a = createWorld(3, R);
+  runTicks(a, 2000);
+  const len = genomeSize(hunterInputCount(R), R.hidden) + R.hidden + 1;
+  for (const h of a.hunters) assert.equal(h.brain!.g.length, len);
+  assert.ok(a.eco.dose.biteClean[0] > a.eco.dose.biteClean[1], "the start bias makes most hunters bite");
+  const b = createWorld(3, R);
+  runTicks(b, 2000);
+  assert.equal(JSON.stringify(a.hunters.map((h) => h.brain!.g)), JSON.stringify(b.hunters.map((h) => h.brain!.g)));
+  const n = createWorld(3, R);
+  runTicks(n, 1);
+  for (const h of n.hunters) h.brain!.g[h.brain!.g.length - 1] = -100; // bias: never bite
+  const caught = n.eco.caught, rounds = n.eco.rounds.length;
+  runTicks(n, 200); // shorter than a hunter can starve (energy 1 / hunger 0.0025 = 400 ticks), so no restart brings new brains
+  assert.equal(n.eco.rounds.length, rounds, "no restart in between");
+  assert.ok(n.eco.dose.biteSick[1] + n.eco.dose.biteClean[1] > 0, "prey came into reach and were refused");
+  assert.equal(n.eco.caught, caught, "nobody was caught");
+});
+
+// Dose cap (Rey 2026-11-02, a): a hunter takes at most hunterDoseCap poison from one prey.
+test("hunterDoseCap: no single catch adds more than the cap to a hunter's poison", () => {
+  const w = createWorld(1, { ...BOTH_EYES, hunterDoseCap: 0.7 });
+  let maxStep = 0;
+  for (let t = 0; t < 20000; t++) {
+    const before = new Map(w.hunters.map((h) => [h, h.toxin]));
+    runTicks(w, 1);
+    for (const h of w.hunters) if (before.has(h)) maxStep = Math.max(maxStep, h.toxin - before.get(h)!);
+  }
+  const poisoned = w.eco.dose.n.slice(1).reduce((a, b) => a + b, 0);
+  assert.ok(poisoned > 0, "some poisoned prey were caught");
+  assert.ok(maxStep > 0.3 && maxStep <= 0.7 + 1e-9, `largest one-tick rise ${maxStep}`);
+});
+
+// Hunter forgetting (Rey 2026-11-03): learned changes fade back toward the inborn brain.
+test("hunterForget: learned weights stay much closer to the inborn brain", () => {
+  const drift = (forget: number) => {
+    const w = createWorld(1, { ...BOTH_EYES, hunterForget: forget });
+    runTicks(w, 8000);
+    let d = 0, n = 0;
+    for (const h of w.hunters) { const b = h.brain!; for (let k = 0; k < b.w.length; k++) { d += Math.abs(b.w[k] - b.g[k]); n++; } }
+    return d / Math.max(1, n);
+  };
+  const free = drift(0), held = drift(0.05); // measured seed 1, 8k ticks: 1.85 vs 0.35 (0.002 only gets 1.45)
+  assert.ok(free > 0, "hunters learned something");
+  assert.ok(held < free / 2, `drift with forgetting ${held} vs without ${free}`);
 });
