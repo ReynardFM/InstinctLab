@@ -11,6 +11,7 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 - **Evidence ladder (Rey 2026-11-03):** screen = seed 1, 30k ("screen, weak"); check = 6 seeds, 30k, only if the screen shows a big effect ("likely"); proof = 14 seeds, 200k, only for the main question ("done"). Never mark done from a screen or a check. Results here and in IDEAS.md carry their level in [brackets].
 - **Stop rules (Rey 2026-11-03):** every branch starts with done-if / kill-if / max runs; at the limit, record and park. Main problem finish line: hunters alive = die-outs <= 5 per 60k and >= 10 hunters on average in 4/6 seeds; then run the 200k hunter-sense proof and stop, whatever the result. New problems found meanwhile go to IDEAS.md as parked, not into the current work.
 - **Commit policy (Rey 2026-11-03, a):** Claude commits by itself at each checkpoint (feature + passing test, or a recorded result), clear messages, repo-local noreply author. Push only when Rey says "push".
+- **Parameter budget (Rey 2026-11-03):** a new setting must replace or delete an existing one, or Rey approves it as an exception. A failed experiment's setting is deleted once its result is recorded (git keeps the code). Keep the "Live settings" table below; anything not on it gets deleted. Prefer a gene that evolution sets over a hand-tuned setting when the question is "can evolution find it?". Defaults that change behaviour (like hunterLearn) are listed at the top of every result.
 - **Reporting results (Rey 2026-11-03):** one test at a time, each with a simple conclusion (with its evidence level), before proposing any fix or new test.
 - After the learning-off re-tests: list each new hunter flag (hunterEye, eyeMotion, remains, hunterBite, hunterDoseCap, hunter resistance rules, hunterForget) as keep or delete.
 - Heavy runs: half the threads, low priority by default (his laptop froze once). Long runs go on his Windows terminal.
@@ -20,6 +21,31 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 - **Stay on the open problem (Rey 2026-11-02):** when Rey brings a new idea while a problem is open (a failed check, a found bug, a suspected cause not yet tested), do not switch focus to the idea. First say what is still open and what fixing it takes; check whether the idea actually solves it; then ask: finish the open problem first, fold the idea into the fix, or park the problem (recorded under Open problems below). Never drop a found problem silently.
 - **Research (Rey 2026-11-02):** before proposing a fix for a failed check, an unexplained result, or a new mechanic, look for prior work (papers, ALife/neuroevolution/ecology/game precedents, e.g. Polyworld, Avida, NEAT, Lehman & Stanley) and say what it suggests or warns, with sources (link) or "no precedent found". Do it unasked; Rey values seeing problems from other fields. To save tokens, hand searches to a small subagent (model haiku) that returns a short cited summary; check key claims before relying on them.
 - Keep an "Open problems" list in this file (problem, evidence, next test); remove an item only when it is fixed or Rey parks it.
+
+## Live settings (Rey 2026-11-03; status as of 2026-11-03, deletions pending Rey's OK)
+| Settings | Default | Why it exists / status |
+|---|---|---|
+| pop, food, genTicks, elite, parents, mutation, layouts, hidden | 40, 60, 1500, 2, 8, 0.15, 3, 6 | generations mode core |
+| splitDistance, championStreak, splitProof, newcomers, newcomerMutation, protectGens | 0.6, 3, 3, 1, 0.4, 3 | families, champions, newcomer families (page + default evolution) |
+| senseFood2, senseCreature, hunterSense, walls | 0, 1, 1, 0 | old "nearest X" senses, walls |
+| eye, senseGenes, senseCost | 0, 0, 0 | raw eye and evolved senses (main sense question) |
+| poison, regrow, energyCost, foodSpread | 0.3, 0, 1, 0 | food rules |
+| mode, birth, birthEnergy, ageScale, ecoWarmup | 0, 0, 1.2, 3000, 20 | life (ecosystem) mode |
+| poisonDose, poisonHalfLife, poisonFrail | 1, 500, 0.25 | poison food chain |
+| hunters, hunterSpeed, hunterBrains, hunterPool, hunterFrom | 0, 2, 0, 12, 1 | hunters |
+| hunterHunger, hunterMeal, hunterBirth, hunterAge, hunterMature, hunterBirthChance | 0.0025, 0.5, 1.4, 6000, 1000, 0.03 | life-mode hunters |
+| **hunterLearn** | **0.02 (changes behaviour)** | hunter taste aversion; raw version halves hunters (m4, m1) |
+| learnRate, inheritLearned, forget, relativeReward | 0, 0.75, 0.002, 1 | prey learning (m20 crashed hunters: unexplained) |
+| hunterEye | 0 | helps hunters (m14 11/14) |
+| hunterDoseCap | 0 | helps hunters (m6, m16) |
+| hunterRelative, hunterForget | 0, 0 | hunter learning fix (screen); new, needs exception or merge into relativeReward/forget |
+| eyeMotion | 0 | ASK: no help for hunters; prey value not measured |
+| remains | 0 | ASK: hurts with poison, feeds everyone without |
+| hunterSeeSpeed | **1 (changes behaviour)** | ASK: old-senses speed cue; "changed nothing" (Oct 25), kept on |
+| swapKinds | 0 | ASK: swap world (the only place learning paid); parked color/memory branch |
+| hunterResistGene, hunterResistSlow, genPreyToxin | 0, 0, 0 | ASK: resistance breeding works (game mechanic) |
+| thinkCost, learnCost, energyGate | 0, 0, 0 | ASK: Oct 19 learning options, no gain recorded |
+| DELETE (failed, recorded): mutationRate, centreShare, plasticity, hunterSpit, resistTrain, resistHalfLife, resistInherit, resistUpkeep, hunterResistTrain, hunterResistCap, hunterResistInherit, hunterBite | | sparse mutation / centre brain no gain (Oct 19); plasticity no gain (Oct 19); spit, trained resistance no defence (Oct 26, Nov 2); bite no help (m13) |
 
 ## Open problems
 - Life mode: keep poison AND keep hunters alive. Evidence (2026-11-02): poison is the cause (poisonDose 0: die-outs ~20 -> 3-8 per 60k, 14 seeds); rare big doses, not build-up (seed 1 dose count: 1-4% of catches carry all hunter poison; one poisoned catch ~3.6 meals for an adult, up to 4x young/old); hunter eye + motion, trained resistance and remains did not fix it. Found (2026-11-03, seeds 1-6): hunter learning halves hunters even with harmless poison (27.8 vs 13.5 alive, 6/6 seeds); poison cuts them ~3x on top. Next: fix hunter learning (forgetting toward the inborn brain / weight bound) or turn it off. Tried and failed before: hunter eye + motion, remains, trained resistance, bite choice (stopped: sick prey in reach too rare to select on). Rule from all of them: a rare, acute toxin gives evolution too little signal for any defence. Next: tune the world (poisonDose / poison share) or park the food chain. Map of branches: IDEAS.md.
