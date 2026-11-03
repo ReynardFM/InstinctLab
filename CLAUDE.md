@@ -19,6 +19,7 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 - Every speed change must be checked bit-identical (golden tests, fingerprints). Experiments behind flags, off by default.
 - Follow the token rules (Rules section): results via tail/grep, compact summaries, no polling.
 - Record every result and every call Rey makes in this file.
+- **Checklist (Rey 2026-11-03):** before every commit and every result report, re-read CHECKLIST.md (10 lines) and check the last step against it; say any line it broke. Rey starts a fresh session every day or two or after a compaction.
 - **Think before testing (Rey 2026-11-03): how to handle a fix or an idea.** Never "try every possible fix". Steps, in order, written out before any run:
   1. Problem: what exactly is wrong, with the measured numbers (not a feeling).
   2. Existing evidence first: search CLAUDE.md, IDEAS.md and past results; the answer or a rule-out may already exist.
