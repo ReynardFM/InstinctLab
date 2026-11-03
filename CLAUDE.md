@@ -18,6 +18,15 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 - Every speed change must be checked bit-identical (golden tests, fingerprints). Experiments behind flags, off by default.
 - Follow the token rules (Rules section): results via tail/grep, compact summaries, no polling.
 - Record every result and every call Rey makes in this file.
+- **Think before testing (Rey 2026-11-03): how to handle a fix or an idea.** Never "try every possible fix". Steps, in order, written out before any run:
+  1. Problem: what exactly is wrong, with the measured numbers (not a feeling).
+  2. Existing evidence first: search CLAUDE.md, IDEAS.md and past results; the answer or a rule-out may already exist.
+  3. Mechanism: why does it happen? Trace it through the code and simple arithmetic (e.g. "one poisoned catch = 3.6 meals; a hunter eats ~X meals per Y ticks, so ..."). Name the cause, or say "cause unknown" plus 2-3 candidate causes.
+  4. Check each candidate fix on paper against the mechanism: does it touch the cause? What size of effect does the arithmetic allow? Drop fixes the numbers already rule out (e.g. forget 0.002 can't bound drift; measured 1.85 -> 1.45). Check prior work (research rule).
+  5. If the cause is unknown, the next run is a **diagnostic** (which cause is it?), not a fix. Design one run whose result tells the candidates apart.
+  6. Write the prediction before running: "if cause A, expect X; if B, expect Y". After the run, compare. A wrong prediction means the picture was wrong: update the mechanism, don't just try the next fix.
+  7. Keep at most 1-2 runs per step; no batches of untargeted variants.
+  Show Rey steps 1-6 briefly (a few lines) before running anything beyond a screen.
 - **Stay on the open problem (Rey 2026-11-02):** when Rey brings a new idea while a problem is open (a failed check, a found bug, a suspected cause not yet tested), do not switch focus to the idea. First say what is still open and what fixing it takes; check whether the idea actually solves it; then ask: finish the open problem first, fold the idea into the fix, or park the problem (recorded under Open problems below). Never drop a found problem silently.
 - **Research (Rey 2026-11-02):** before proposing a fix for a failed check, an unexplained result, or a new mechanic, look for prior work (papers, ALife/neuroevolution/ecology/game precedents, e.g. Polyworld, Avida, NEAT, Lehman & Stanley) and say what it suggests or warns, with sources (link) or "no precedent found". Do it unasked; Rey values seeing problems from other fields. To save tokens, hand searches to a small subagent (model haiku) that returns a short cited summary; check key claims before relying on them.
 - Keep an "Open problems" list in this file (problem, evidence, next test); remove an item only when it is fixed or Rey parks it.
