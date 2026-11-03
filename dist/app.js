@@ -1236,6 +1236,7 @@
       a: 0,
       resistGene,
       poisonCost: 0,
+      usual: 0,
       w: bite ? g.slice(0, bl) : w.rules.hunterLearn > 0 ? g.slice() : g,
       trace: w.rules.hunterLearn > 0 ? new Array(bl).fill(0) : [],
       inputs: new Array(hunterInputCount(w.rules)).fill(0),
@@ -1485,7 +1486,12 @@
       const spat = caughtNow && catchPrey(w, h, w.creatures[near.i1]);
       if (eco && r.hunterLearn > 0) {
         const reward = spat ? -1 : caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
-        learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
+        let felt = reward;
+        if (r.hunterRelative > 0) {
+          felt = reward - b.usual;
+          b.usual += USUAL_RATE * (reward - b.usual);
+        }
+        learn(b.w, b.trace, inputs, b.hidden, b.out, felt, r.hunterLearn, LEARN_DECAY);
         if (r.hunterForget > 0) {
           const wk = b.w, gk = b.g;
           for (let k2 = 0; k2 < wk.length; k2++) wk[k2] += r.hunterForget * (gk[k2] - wk[k2]);
@@ -1856,6 +1862,7 @@
     hunterResistTrain: 0,
     hunterResistCap: 1,
     hunterResistInherit: -1,
+    hunterRelative: 0,
     hunterForget: 0,
     hunterDoseCap: 0,
     hunterBite: 0,

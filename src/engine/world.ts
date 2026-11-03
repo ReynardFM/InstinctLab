@@ -53,6 +53,8 @@ export interface Rules {
   resistHalfLife: number; // ecosystem: ticks for resistance to halve without poison
   resistInherit: number; // ecosystem: share of a parent's resistance its baby is born with
   resistUpkeep: number; // ecosystem: energy per tick at full resistance
+  hunterRelative: number; // ecosystem, with hunterLearn: 1 = hunters learn from "better or worse than usual" (reward minus
+  // a running average, like prey relativeReward), so learned changes average out instead of piling up (Rey 2026-11-03: b)
   hunterForget: number; // ecosystem, with hunterLearn: each tick a hunter's working brain moves this share back toward its
   // inborn brain, like prey rules.forget (Rey 2026-11-03: hunter learning had no limit and halved hunters); 0 = off
   hunterDoseCap: number; // ecosystem: the most poison a hunter takes from one prey (after age frailty); 0 = no cap.
@@ -124,7 +126,7 @@ export const DEFAULT_RULES: Rules = {
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
   poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterSeeSpeed: 1, hunterLearn: 0.02,
-  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterForget: 0, hunterDoseCap: 0, hunterBite: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
+  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterRelative: 0, hunterForget: 0, hunterDoseCap: 0, hunterBite: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 

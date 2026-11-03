@@ -17,7 +17,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { genomeSize, learn, thinkInto, type Genome } from "./brain.ts";
-import { LEARN_DECAY } from "./life.ts";
+import { LEARN_DECAY, USUAL_RATE } from "./life.ts";
 import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
@@ -44,6 +44,7 @@ export interface HunterBrain {
   g: Genome; // weights only (a borrowed brain's evolved learning rates, if any, are left behind)
   w: Genome; // the brain it uses now: g, or its own copy that learns during life (rules.hunterLearn, ecosystem)
   trace: number[]; // learning: recent activity of each connection (empty when not learning)
+  usual: number; // rules.hunterRelative: running average reward per tick (its "usual")
   origin: Origin; // what its line started from
   from: number | null; // borrowed: the prey family whose main brain it started as
   caught: number; // prey caught this generation, all food maps it played
@@ -113,7 +114,7 @@ function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null
   const bl = brainLength(w);
   const bite = w.rules.hunterBite > 0;
   return {
-    id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0, resistGene, poisonCost: 0,
+    id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0, resistGene, poisonCost: 0, usual: 0,
     w: bite ? g.slice(0, bl) : w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(bl).fill(0) : [],
     inputs: new Array(hunterInputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
   };
@@ -388,7 +389,12 @@ function moveBrainHunters(w: World): void {
     // one counts down to -1 by the poison it took in, so what led it to that prey (including how fast it moved) fades
     if (eco && r.hunterLearn > 0) {
       const reward = spat ? -1 : caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0; // spat out: bad taste, no meal
-      learn(b.w, b.trace, inputs, b.hidden, b.out, reward, r.hunterLearn, LEARN_DECAY);
+      let felt = reward;
+      if (r.hunterRelative > 0) {
+        felt = reward - b.usual; // better or worse than usual: zero on average, so no steady drift (as prey relativeReward)
+        b.usual += USUAL_RATE * (reward - b.usual);
+      }
+      learn(b.w, b.trace, inputs, b.hidden, b.out, felt, r.hunterLearn, LEARN_DECAY);
       if (r.hunterForget > 0) { const wk = b.w, gk = b.g; for (let k = 0; k < wk.length; k++) wk[k] += r.hunterForget * (gk[k] - wk[k]); }
     }
   }

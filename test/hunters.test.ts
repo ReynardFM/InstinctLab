@@ -387,3 +387,19 @@ test("hunterForget: learned weights stay much closer to the inborn brain", () =>
   assert.ok(free > 0, "hunters learned something");
   assert.ok(held < free / 2, `drift with forgetting ${held} vs without ${free}`);
 });
+
+// Relative reward for hunters (Rey 2026-11-03, b): learning from "better or worse than usual" does not pile up.
+test("hunterRelative + slow forgetting (prey setup): learned weights drift far less than raw reward + same forgetting", () => {
+  // relative reward alone stops the steady push but not a random walk (screen: drift 1.87 vs 1.85, catches 285 vs 137);
+  // with prey's slow forgetting (0.002) as well, drift falls to 0.59 (forgetting 0.002 alone: 1.45)
+  const drift = (rel: number) => {
+    const w = createWorld(1, { ...BOTH_EYES, hunterRelative: rel, hunterForget: 0.002 });
+    runTicks(w, 8000);
+    let d = 0, n = 0;
+    for (const h of w.hunters) { const b = h.brain!; for (let k = 0; k < b.w.length; k++) { d += Math.abs(b.w[k] - b.g[k]); n++; } }
+    return d / Math.max(1, n);
+  };
+  const raw = drift(0), rel = drift(1);
+  assert.ok(rel > 0, "hunters still learn");
+  assert.ok(rel < raw / 2, `drift relative ${rel} vs raw ${raw}`);
+});
