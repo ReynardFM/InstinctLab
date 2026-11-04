@@ -26,12 +26,12 @@ test("split: maps on 3 threads = maps one after another (default rules)", async 
   await compare({ ...DEFAULT_RULES, genTicks: 600 }, 4, 3);
 });
 
-test("split: fewer threads than maps, extra senses, walls, newcomers, centre brain", async () => {
-  await compare({ ...DEFAULT_RULES, genTicks: 500, senseFood2: 1, walls: 1, centreShare: 0.5, layouts: 4 }, 3, 2);
+test("split: fewer threads than maps, extra senses, walls, newcomers", async () => {
+  await compare({ ...DEFAULT_RULES, genTicks: 500, senseFood2: 1, walls: 1, layouts: 4 }, 3, 2);
 });
 
 test("split: with learning on (each map starts from the inborn brain; children inherit the last map's learning)", async () => {
-  await compare({ ...DEFAULT_RULES, genTicks: 500, learnRate: 0.01, plasticity: 1, swapKinds: 1, poison: 0.5 }, 3, 3);
+  await compare({ ...DEFAULT_RULES, genTicks: 500, learnRate: 0.01, swapKinds: 1, poison: 0.5 }, 3, 3);
 });
 
 test("split: with hunters (caught prey are added up across maps too)", async () => {

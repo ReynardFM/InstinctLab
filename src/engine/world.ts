@@ -3,7 +3,7 @@
 import { createRng, type Rng } from "./rng.ts";
 import { think, type Genome } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { centre, inherited, mutate } from "./breed.ts";
+import { inherited, mutate } from "./breed.ts";
 import { stepEcosystem } from "./ecosystem.ts";
 import { live } from "./life.ts";
 import { breedHunters, huntersArrived, moveHunters, placeHunters, type BestBrain, type Hunter, type HunterBrain, type HunterStats } from "./hunters.ts";
@@ -41,8 +41,6 @@ export interface Rules {
   newcomers: number; // new families per generation, made by mutating a good parent very hard; 0 = none
   newcomerMutation: number; // how hard: the size of the random nudge per weight for a newcomer
   protectGens: number; // generations a newcomer family keeps 2 seats (its best + one child) whatever its rank
-  mutationRate: number; // share of weights nudged in each child; 1 = all of them (dense), 0.2 = sparse
-  centreShare: number; // share of children made from the centre brain (Evolution Strategies) instead of one parent
   hidden: number; // middle neurons in each brain (more = can learn more complex behaviour, more weights to evolve)
   poison: number; // share of food that is poison (costs POISON_HIT energy, worth nothing); 0 = none
   regrow: number; // ticks before eaten food reappears somewhere new; 0 = at once
@@ -53,16 +51,9 @@ export interface Rules {
   resistHalfLife: number; // ecosystem: ticks for resistance to halve without poison
   resistInherit: number; // ecosystem: share of a parent's resistance its baby is born with
   resistUpkeep: number; // ecosystem: energy per tick at full resistance
-  hunterRelative: number; // ecosystem, with hunterLearn: 1 = hunters learn from "better or worse than usual" (reward minus
-  // a running average, like prey relativeReward), so learned changes average out instead of piling up (Rey 2026-11-03: b)
-  hunterForget: number; // ecosystem, with hunterLearn: each tick a hunter's working brain moves this share back toward its
-  // inborn brain, like prey rules.forget (Rey 2026-11-03: hunter learning had no limit and halved hunters); 0 = off
   hunterDoseCap: number; // ecosystem: the most poison a hunter takes from one prey (after age frailty); 0 = no cap.
   // Rey 2026-11-02 (a): keep the food chain but make a poisoned catch painful, not deadly. Window: above 0.5 the
   // learning reward (1 - 2 x dose) is negative; below ~0.8 the extra hunger (0.0025 x dose x 721 ticks) stays under 1.5 energy
-  hunterBite: number; // brain hunters (Rey 2026-11-02): above 0 = a third output, bite; a prey in reach is caught only if it
-  // is above 0. Its weights ride at the end of the hunter genome (inherited and mutated, not learned); this value is
-  // added to the bite sum as a start bias toward biting (1: ~55-58% bite at first; 2-3: more)
   hunterResistGene: number; // generations mode, brain hunters (Rey 2026-11-02: breed resistance by hand): 1 = each hunter
   // brain carries an inborn resistance gene 0..1 (founders 0, children = parent + mutation); its score pays for poison
   hunterResistSlow: number; // with hunterResistGene: resistance costs speed, top speed x (1 - this x gene) (Rey 2026-11-02, b:
@@ -72,7 +63,7 @@ export interface Rules {
   hunterResistInherit: number; // ecosystem: share of a hunter parent's resistance its baby is born with; -1 = use resistInherit
   hunterResistTrain: number; // ecosystem: the same for hunters, per poisoned catch (scaled by the dose); 0 = none
   hunterSpit: number; // ecosystem: 1 = hunters may spit out a poisoned prey (it lives, wounded; the hunter gets a taste, no meal); 0 = off
-  hunterLearn: number; // ecosystem: hunters learn during life (taste aversion): clean catch +1, poisoned down to -1; 0 = off
+  hunterLearn: number; // ecosystem: hunters learn during life (taste aversion): clean catch +1, poisoned down to -1; 0 = off. Reward and forgetting follow rules.relativeReward and rules.forget, shared with prey (merged 2026-11-03)
   hunterSeeSpeed: number; // ecosystem: 1 = hunters see the nearest prey's speed (poison slows prey, so slow can mean sick); 0 = blind (a control)
   foodSpread: number; // ecosystem: food spreads like plants: chance per tick that a pellet sprouts a new one nearby; 0 = off (plants.ts). With hunters: 0.0005 and food 60 (or food 120 without it)
   energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
@@ -87,7 +78,6 @@ export interface Rules {
   learnCost: number; // energy per unit of weight change from learning; 0 = free
   forget: number; // learning: share of the learned change that fades back toward the inborn brain each tick (0.002 = about 350 ticks to halve); 0 = never
   relativeReward: number; // learning: 1 = a meal counts only as better or worse than the creature's usual intake; 0 = food +1, poison -1
-  plasticity: number; // learning: 1 = every connection has its own learning rate, evolved in the genome (genome doubles); 0 = one rate for all
   hunters: number; // dumb hunters that chase the nearest prey (generations mode); 0 = none
   hunterSense: number; // 1 = prey sense the nearest hunter (when there are hunters); 2 = blind: the same 3 inputs, always
   // reading "nothing there" (a fair control: same brain size, no information)
@@ -119,14 +109,14 @@ export const DEFAULT_RULES: Rules = {
   pop: 40, food: 60, genTicks: 1500, elite: 2, parents: 8, mutation: 0.15, splitDistance: 0.6, championStreak: 3, layouts: 3, splitProof: 3,
   senseFood2: 0, senseCreature: 1, walls: 0,
   newcomers: 1, newcomerMutation: 0.4, protectGens: 3,
-  mutationRate: 1, centreShare: 0, hidden: 6, senseGenes: 0, senseCost: 0, eye: 0, eyeMotion: 0, hunterEye: 0, remains: 0,
+  hidden: 6, senseGenes: 0, senseCost: 0, eye: 0, eyeMotion: 0, hunterEye: 0, remains: 0,
   poison: 0.3, regrow: 0, energyCost: 1, // poison on: creatures visibly learn to avoid it (5% of intake vs 30% blind)
   mode: 0, birth: 0, birthEnergy: 1.2, ageScale: 3000, ecoWarmup: 20,
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
-  forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0, plasticity: 0,
+  forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
   poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterSeeSpeed: 1, hunterLearn: 0.02,
-  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterRelative: 0, hunterForget: 0, hunterDoseCap: 0, hunterBite: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
+  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
@@ -211,9 +201,7 @@ export interface EcoStats {
   // (bins: 0, <=0.02, <=0.05, <=SICK 0.1, <=0.3, more); hunter deaths and their hunger factor (1 + harm) at death
   dose: { n: number[]; taken: number[]; deaths: number; deathHarm: number; deathsHarmed: number;
     // brain-hunter catches by where the prey was vs the hunter's heading: [ahead (< 45 deg), side, behind (> 90 deg)]
-    dirSick: number[]; dirClean: number[];
-    // rules.hunterBite: prey in reach, [bitten, refused], sick and clean; hunter energy summed over sick bitten / refused
-    biteSick: number[]; biteClean: number[]; eSickBit: number; eSickRefused: number };
+    dirSick: number[]; dirClean: number[] };
 }
 
 // start: a saved brain (hall of fame): every creature starts with a copy of it instead of a random one.
@@ -268,7 +256,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
       toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 },
-      dose: { n: [0, 0, 0, 0, 0, 0], taken: [0, 0, 0, 0, 0, 0], deaths: 0, deathHarm: 0, deathsHarmed: 0, dirSick: [0, 0, 0], dirClean: [0, 0, 0], biteSick: [0, 0], biteClean: [0, 0], eSickBit: 0, eSickRefused: 0 },
+      dose: { n: [0, 0, 0, 0, 0, 0], taken: [0, 0, 0, 0, 0, 0], deaths: 0, deathHarm: 0, deathsHarmed: 0, dirSick: [0, 0, 0], dirClean: [0, 0, 0] },
     },
     measure: false,
   };
@@ -400,12 +388,9 @@ export function nextGeneration(w: World): void {
   crownChampions(w, next);
   protectNewcomers(w, ranked, next, elite);
   for (let i = 0; i < rules.newcomers && next.length < rules.pop; i++) addNewcomer(w, ranked, next, parents);
-  const centreBrain = rules.centreShare > 0 ? centre(w, ranked, parents) : null;
   while (next.length < rules.pop) {
-    // a share of children come from the centre brain; the family, colour and branch of the best go with it
-    const fromCentre = centreBrain !== null && (rules.centreShare >= 1 || rng.next() < rules.centreShare);
-    const p = fromCentre ? ranked[0] : ranked[Math.floor(rng.next() * parents)];
-    const child = newCreature(w, mutate(w, fromCentre ? centreBrain : inherited(w, p), rules.mutation), p.family, false, p.hue);
+    const p = ranked[Math.floor(rng.next() * parents)];
+    const child = newCreature(w, mutate(w, inherited(w, p), rules.mutation), p.family, false, p.hue);
     child.branch = p.branch;
     maybeSplit(w, child);
     next.push(child);

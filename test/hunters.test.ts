@@ -340,26 +340,6 @@ test("hunterResistSlow: a fully resistant hunter moves at most (1 - slow) x top 
 });
 
 // Bite choice (Rey 2026-11-02): a prey in reach is caught only if the hunter's bite output is above 0.
-test("hunterBite: genome carries the bite weights; a hunter whose bite is always no never catches", () => {
-  const R = { ...BOTH_EYES, hunterBite: 1 };
-  const a = createWorld(3, R);
-  runTicks(a, 2000);
-  const len = genomeSize(hunterInputCount(R), R.hidden) + R.hidden + 1;
-  for (const h of a.hunters) assert.equal(h.brain!.g.length, len);
-  assert.ok(a.eco.dose.biteClean[0] > a.eco.dose.biteClean[1], "the start bias makes most hunters bite");
-  const b = createWorld(3, R);
-  runTicks(b, 2000);
-  assert.equal(JSON.stringify(a.hunters.map((h) => h.brain!.g)), JSON.stringify(b.hunters.map((h) => h.brain!.g)));
-  const n = createWorld(3, R);
-  runTicks(n, 1);
-  for (const h of n.hunters) h.brain!.g[h.brain!.g.length - 1] = -100; // bias: never bite
-  const caught = n.eco.caught, rounds = n.eco.rounds.length;
-  runTicks(n, 200); // shorter than a hunter can starve (energy 1 / hunger 0.0025 = 400 ticks), so no restart brings new brains
-  assert.equal(n.eco.rounds.length, rounds, "no restart in between");
-  assert.ok(n.eco.dose.biteSick[1] + n.eco.dose.biteClean[1] > 0, "prey came into reach and were refused");
-  assert.equal(n.eco.caught, caught, "nobody was caught");
-});
-
 // Dose cap (Rey 2026-11-02, a): a hunter takes at most hunterDoseCap poison from one prey.
 test("hunterDoseCap: no single catch adds more than the cap to a hunter's poison", () => {
   const w = createWorld(1, { ...BOTH_EYES, hunterDoseCap: 0.7 });
@@ -375,9 +355,9 @@ test("hunterDoseCap: no single catch adds more than the cap to a hunter's poison
 });
 
 // Hunter forgetting (Rey 2026-11-03): learned changes fade back toward the inborn brain.
-test("hunterForget: learned weights stay much closer to the inborn brain", () => {
+test("forget (shared with prey) also applies to hunters: learned weights stay much closer to the inborn brain", () => {
   const drift = (forget: number) => {
-    const w = createWorld(1, { ...BOTH_EYES, hunterForget: forget });
+    const w = createWorld(1, { ...BOTH_EYES, relativeReward: 0, forget });
     runTicks(w, 8000);
     let d = 0, n = 0;
     for (const h of w.hunters) { const b = h.brain!; for (let k = 0; k < b.w.length; k++) { d += Math.abs(b.w[k] - b.g[k]); n++; } }
@@ -389,11 +369,11 @@ test("hunterForget: learned weights stay much closer to the inborn brain", () =>
 });
 
 // Relative reward for hunters (Rey 2026-11-03, b): learning from "better or worse than usual" does not pile up.
-test("hunterRelative + slow forgetting (prey setup): learned weights drift far less than raw reward + same forgetting", () => {
+test("relativeReward + slow forget (shared with prey) apply to hunters: learned weights drift far less than raw reward + same forgetting", () => {
   // relative reward alone stops the steady push but not a random walk (screen: drift 1.87 vs 1.85, catches 285 vs 137);
   // with prey's slow forgetting (0.002) as well, drift falls to 0.59 (forgetting 0.002 alone: 1.45)
   const drift = (rel: number) => {
-    const w = createWorld(1, { ...BOTH_EYES, hunterRelative: rel, hunterForget: 0.002 });
+    const w = createWorld(1, { ...BOTH_EYES, relativeReward: rel, forget: 0.002 });
     runTicks(w, 8000);
     let d = 0, n = 0;
     for (const h of w.hunters) { const b = h.brain!; for (let k = 0; k < b.w.length; k++) { d += Math.abs(b.w[k] - b.g[k]); n++; } }

@@ -7,7 +7,7 @@ import { nearest } from "../src/engine/space.ts";
 import { inputCount, inputLabels, looksPoison, scanFood, wallAhead } from "../src/engine/senses.ts";
 import { createRng, seedFrom } from "../src/engine/rng.ts";
 import * as dmath from "../src/engine/dmath.ts";
-import { centre, inherited, mutate } from "../src/engine/breed.ts";
+import { inherited, mutate } from "../src/engine/breed.ts";
 import type { Creature } from "../src/engine/creature.ts";
 import { mergeFame, parseFame } from "../src/web/fame.ts";
 import { moveHunters, REST } from "../src/engine/hunters.ts";
@@ -333,32 +333,6 @@ test("deterministic math: close to Math.*, and pinned to the last bit", () => {
   assert.equal(dmath.log(1), 0);
 });
 
-test("sparse mutation nudges about the given share of weights; rate 1 nudges all", () => {
-  const zeros = new Array(2000).fill(0);
-  const w = createWorld(3, { ...ONE, mutationRate: 0.25 });
-  const changed = mutate(w, zeros, 0.15).filter((x) => x !== 0).length;
-  assert.ok(changed > 400 && changed < 600, `${changed} of 2000 changed`);
-  const dense = createWorld(3, ONE);
-  assert.equal(mutate(dense, zeros, 0.15).filter((x) => x !== 0).length, 2000);
-  const again = createWorld(3, { ...ONE, mutationRate: 0.25 });
-  assert.deepEqual(mutate(again, zeros, 0.15).filter((x) => x !== 0).length, changed, "deterministic");
-});
-
-test("centre brain: weighted average of the best family's top parents, better ranks count more", () => {
-  const fake = (family: number, g: number[]) => ({ family, g, w: g }) as unknown as Creature;
-  const anyWorld = createWorld(1, ONE);
-  const same = centre(anyWorld, [fake(1, [2, 4]), fake(1, [2, 4]), fake(1, [2, 4])], 3);
-  assert.ok(Math.abs(same[0] - 2) < 1e-12 && Math.abs(same[1] - 4) < 1e-12, "identical parents: the same brain");
-  const c = centre(anyWorld, [fake(1, [1]), fake(2, [100]), fake(1, [0])], 3);
-  assert.ok(c[0] > 0.5 && c[0] < 1, `other families left out, the best counts more: ${c[0]}`);
-  const rules = { ...ONE, centreShare: 1, genTicks: 400, elite: 0 };
-  const a = createWorld(5, rules);
-  const b = createWorld(5, rules);
-  runGenerations(a, 3);
-  runGenerations(b, 3);
-  assert.deepEqual(a.avgHist, b.avgHist, "same seed, same run with the centre brain");
-});
-
 test("poison: costs energy, scores nothing, and adds a poison sense", () => {
   const w = createWorld(4, { ...ONE, poison: 1, genTicks: 400 }); // every pellet is poison
   assert.equal(w.creatures[0].inputs.length, 7, "4 basic + 3 poison inputs");
@@ -494,27 +468,6 @@ test("swapKinds: on some food maps purple rings are the food, and creatures sens
   }
   assert.deepEqual([...seen].sort(), [false, true], "both ways happen");
   assert.equal(createWorld(1, DEFAULT_RULES).swapped, false, "off by default");
-});
-
-test("plasticity: each connection learns at its own evolved rate, stored after the weights", () => {
-  const rules = { ...ONE, learnRate: 0.1, plasticity: 1 };
-  const w = createWorld(9, rules);
-  const c = w.creatures[0];
-  const n = genomeSize(inputCount(rules), rules.hidden);
-  assert.equal(c.g.length, n * 2, "genome = weights + one learning rate per weight");
-  assert.equal(c.w.length, n, "the working brain is the weights only");
-  // a connection with rate 0 never changes; give every connection rate 0 except the last one
-  for (let k = n; k < 2 * n; k++) c.g[k] = 0;
-  c.g[2 * n - 1] = 1;
-  c.trace.fill(1);
-  const before = c.w.slice();
-  learn(c.w, c.trace, c.inputs.length ? c.inputs : new Array(inputCount(rules)).fill(0.5), new Array(rules.hidden).fill(0.5), [0.5, 0.5], 1, 0.1, 0.9, c.g, n);
-  for (let k = 0; k < n - 1; k++) assert.equal(c.w[k], before[k]);
-  assert.notEqual(c.w[n - 1], before[n - 1], "only the connection with a learning rate changed");
-  // children inherit the evolved rates unchanged, and a share of the learned weights
-  const kid = inherited(w, c);
-  assert.equal(kid.length, 2 * n);
-  assert.deepEqual(kid.slice(n), c.g.slice(n));
 });
 
 test("hall of fame: a world can start from a saved brain; a brain that doesn't fit the rules is refused", () => {

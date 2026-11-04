@@ -110,11 +110,6 @@ if (isMainThread) {
     const ds = [0, 1, 2].map((k) => R.reduce((a, r) => a + r.dose.dirSick[k], 0)), dc = [0, 1, 2].map((k) => R.reduce((a, r) => a + r.dose.dirClean[k], 0));
     const sh = (v: number[]) => { const t = v[0] + v[1] + v[2] || 1; return `ahead ${pct(v[0] / t)}, side ${pct(v[1] / t)}, behind ${pct(v[2] / t)} (n ${v[0] + v[1] + v[2]})`; };
     console.log(`  catch direction, sick prey: ${sh(ds)}; clean prey: ${sh(dc)}`);
-    if (WORLD.hunterBite) {
-      const bs = [0, 1].map((k) => R.reduce((a, r) => a + r.dose.biteSick[k], 0)), bc = [0, 1].map((k) => R.reduce((a, r) => a + r.dose.biteClean[k], 0));
-      const eb = R.reduce((a, r) => a + r.dose.eSickBit, 0) / (bs[0] || 1), er = R.reduce((a, r) => a + r.dose.eSickRefused, 0) / (bs[1] || 1);
-      console.log(`  bite: sick prey in reach refused ${pct(bs[1] / (bs[0] + bs[1] || 1))} (n ${bs[0] + bs[1]}), clean refused ${pct(bc[1] / (bc[0] + bc[1] || 1))} (n ${bc[0] + bc[1]}); hunter energy when biting sick ${eb.toFixed(2)} vs refusing ${er.toFixed(2)}`);
-    }
     if (WORLD.hunterResistTrain) console.log(`  hunter resistance at ${MARKS.map((t) => t / 1000 + "k").join("/")}: ${MARKS.map((_, mi) => avg(R.map((r) => r.marks[mi].hResist)).toFixed(2)).join(" / ")}`);
     console.log(`  hunter deaths ${dd}: hunger factor at death ${(R.reduce((a, r) => a + r.dose.deathHarm, 0) / dd).toFixed(2)}x, harm > 0.5 in ${pct(R.reduce((a, r) => a + r.dose.deathsHarmed, 0) / dd)}`);
     if (c) {

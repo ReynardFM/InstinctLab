@@ -791,7 +791,6 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["forget", "Forgetting", 0, 0.01, 0.0005, "Share of learned change fading back to the inborn brain each tick. 0 = never forget."],
   ["relativeReward", "Reward vs usual intake", 0, 1, 1, "1 = a meal counts only as better or worse than usual. 0 = food +1, poison -1."],
   ["energyGate", "Learn less when hungry", 0, 1, 1, "1 = learning scales with current energy."],
-  ["plasticity", "Evolve how each connection learns", 0, 1, 1, "1 = every connection gets its own learning rate, evolved in the genome (doubles it). Needs learning on."],
   ["hunters", "Hunters", 0, 20, 1, "Dark amoebae that hunt creatures (top speed 2; creatures up to 3). A caught creature is out for the rest of the food map."],
   ["hunterSense", "Creatures sense the nearest hunter", 0, 1, 1, "Adds 3 inputs to the brain when there are hunters."],
   ["hunterBrains", "Hunters evolve brains", 0, 1, 1, "Off = hunters chase the nearest creature. On = each hunter has a brain shaped like a creature's (its 'food' sense points at creatures) and the best catchers breed."],
@@ -804,8 +803,6 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["hunterBirthChance", "Hunter baby chance per tick", 0.001, 0.1, 0.001, "Ecosystem mode: for a full adult hunter just grown up; it falls to 0 at old age (older = harder)."],
   ["hunterFrom", "Hunters arrive in generation", 1, 50, 1, "With brains, half of the first hunters reuse the brains of families that died out, so give the creatures about 10 generations first."],
   ["swapKinds", "Food and poison swap looks", 0, 1, 1, "1 = on each food map a coin flip decides which look is poison. Born brains can't know; learning can. Try poison 0.5."],
-  ["mutationRate", "Share of weights each child changes", 0.05, 1, 0.05, "1 = every weight a little. Lower = only a few weights (sparse)."],
-  ["centreShare", "Children from the centre brain", 0, 1, 0.1, "Evolution Strategies: a weighted average of the best family's top parents."],
   ["newcomers", "Newcomer families per generation", 0, 5, 1, "A good brain mutated very hard, starting its own family."],
   ["newcomerMutation", "How hard newcomers are mutated", 0, 3, 0.05, "Mutation strength for newcomers only."],
   ["protectGens", "Newcomers protected for N generations", 0, 10, 1, "Its best keeps a seat and has a child, whatever its rank."],
@@ -831,10 +828,10 @@ const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Population and time", ["pop", "genTicks", "layouts"]],
   ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "hunterSeeSpeed", "hunterSpit", "hunterLearn", "resistTrain", "hunterResistTrain", "regrow", "foodSpread", "energyCost", "swapKinds"]],
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
-  ["Evolution", ["mutation", "mutationRate", "parents", "elite", "centreShare", "newcomers", "newcomerMutation", "protectGens"]],
+  ["Evolution", ["mutation", "parents", "elite", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],
   ["Hunters", ["hunters", "hunterSense", "hunterBrains", "hunterPool", "hunterFrom", "hunterHunger", "hunterMeal", "hunterBirth", "hunterAge", "hunterMature", "hunterBirthChance"]],
-  ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate", "plasticity"]],
+  ["Learning during life", ["learnRate", "inheritLearned", "thinkCost", "learnCost", "forget", "relativeReward", "energyGate"]],
   ["Ecosystem mode", ["mode", "birth", "birthEnergy", "ageScale", "ecoWarmup"]],
 ];
 
@@ -885,7 +882,7 @@ function ruleRow([key, label, min, max, stepV, help]: (typeof RULE_SPECS)[number
     const input = div.querySelector("input")!;
     const out = div.querySelector("output")!;
     const show = () =>
-      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "mutationRate", "centreShare", "poison", "energyCost", "birthEnergy", "inheritLearned"].includes(key) ? Number(input.value).toFixed(2)
+      (out.textContent = ["mutation", "splitDistance", "newcomerMutation", "poison", "energyCost", "birthEnergy", "inheritLearned"].includes(key) ? Number(input.value).toFixed(2)
         : ["learnRate", "learnCost", "thinkCost", "forget"].includes(key) ? Number(input.value).toFixed(4) : input.value);
     input.oninput = () => {
       pendingRules[key] = Number(input.value);

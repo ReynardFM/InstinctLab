@@ -14,9 +14,9 @@ const S14 = "--seeds=1-14";
 const E = ["--hunterEye=4", "--eyeMotion=1"];
 const T60 = [S14, "--ticks=60000"], T200 = [S14, "--ticks=200000"];
 const TESTS: [string, string, string[]][] = [
-  ["m1-forget05", "fix learning: hunterForget 0.05, poison on, eyes (vs n2)", [...T60, ...E, "--hunterForget=0.05"]],
-  ["m2-forget05-harmless", "hunterForget 0.05, harmless poison, eyes", [...T60, ...E, "--hunterForget=0.05", "--poisonDose=0"]],
-  ["m3-forget2", "hunterForget 0.2 (strong), poison on, eyes", [...T60, ...E, "--hunterForget=0.2"]],
+  ["m1-forget05", "fix learning: forget 0.05, poison on, eyes (vs n2)", [...T60, ...E, "--forget=0.05"]],
+  ["m2-forget05-harmless", "forget 0.05, harmless poison, eyes", [...T60, ...E, "--forget=0.05", "--poisonDose=0"]],
+  ["m3-forget2", "forget 0.2 (strong), poison on, eyes", [...T60, ...E, "--forget=0.2"]],
   ["m4-nolearn-eyes", "learning off, poison on, eyes (vs n2)", [...T60, ...E, "--hunterLearn=0"]],
   ["m4b-nolearn-harmless", "control for m7 and m20: learning off, harmless poison, eyes", [...T60, ...E, "--hunterLearn=0", "--poisonDose=0"]],
   ["m5-nolearn-old", "learning off, poison on, old hunter senses (vs n1; hunter eye re-test with m4)", [...T60, "--hunterLearn=0"]],
@@ -25,17 +25,16 @@ const TESTS: [string, string, string[]][] = [
   ["m8-nolearn-remains", "learning off + remains 500, poison on (vs m4; q2 re-test)", [...T60, ...E, "--hunterLearn=0", "--remains=500"]],
   ["m9-genes-strong", "sense genes with strong hunters: harmless poison, learning off, eyes, 200k", [...T200, ...E, "--hunterLearn=0", "--poisonDose=0"]],
   ["m10-genes-poison-nolearn", "sense genes, poison on, learning off, eyes, 200k (both threats)", [...T200, ...E, "--hunterLearn=0"]],
-  ["m11-genes-forget", "sense genes, poison on, learning fixed (forget 0.05), eyes, 200k", [...T200, ...E, "--hunterForget=0.05"]],
+  ["m11-genes-forget", "sense genes, poison on, learning fixed (forget 0.05), eyes, 200k", [...T200, ...E, "--forget=0.05"]],
   ["m12-genes-strong-s15", "m9 on fresh seeds 15-28 (solidify)", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterLearn=0", "--poisonDose=0"]],
-  ["m13-nolearn-bite", "learning off + bite choice (bias 1.5), poison on, eyes (vs m4)", [...T60, ...E, "--hunterLearn=0", "--hunterBite=1.5"]],
   ["m14-nolearn-heye", "learning off, hunter eye only (n3 re-test; vs m5)", [...T60, "--hunterEye=4", "--hunterLearn=0"]],
   ["m15-nolearn-motion", "learning off, prey motion only (n4 re-test; vs m5)", [...T60, "--eyeMotion=1", "--hunterLearn=0"]],
-  ["m16-forget-cap", "forget 0.05 + dose cap 0.7, poison on, eyes (vs m1, m6)", [...T60, ...E, "--hunterForget=0.05", "--hunterDoseCap=0.7"]],
-  ["m17-forget-old", "forget 0.05, old hunter senses (vs n1, m1)", [...T60, "--hunterForget=0.05"]],
+  ["m16-forget-cap", "forget 0.05 + dose cap 0.7, poison on, eyes (vs m1, m6)", [...T60, ...E, "--forget=0.05", "--hunterDoseCap=0.7"]],
+  ["m17-forget-old", "forget 0.05, old hunter senses (vs n1, m1)", [...T60, "--forget=0.05"]],
   ["m18-learn005", "hunter learning rate 0.005, no forgetting, poison on, eyes (vs n2, m1)", [...T60, ...E, "--hunterLearn=0.005"]],
   ["m19-nolearn-poison01", "learning off, poison plants 10% (vs m4)", [...T60, ...E, "--hunterLearn=0", "--poison=0.1"]],
   ["m20-preylearn-strong", "prey learn in life (learnRate 0.02, forget 0.002), strong hunters (vs m4b)", [...T60, ...E, "--hunterLearn=0", "--poisonDose=0", "--learnRate=0.02"]],
-  ["m21-forget05-s15", "m1 on seeds 15-28 (solidify)", ["--seeds=15-28", "--ticks=60000", ...E, "--hunterForget=0.05"]],
+  ["m21-forget05-s15", "m1 on seeds 15-28 (solidify)", ["--seeds=15-28", "--ticks=60000", ...E, "--forget=0.05"]],
   ["m22-genes-eye8-strong", "sense genes with 8-slice eye, strong hunters, 200k (vs m9)", [...T200, ...E, "--hunterLearn=0", "--poisonDose=0", "--eye=8"]],
 ];
 

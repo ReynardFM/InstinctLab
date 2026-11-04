@@ -3,7 +3,7 @@
 //
 // "42", "7", "hello", "custom": the basic rules (no layouts, extra senses or newcomers).
 // "defaults": the current default rules.
-// "learning": everything off by default switched on: swap world, learning with evolved per-connection rates,
+// "learning": everything off by default switched on: swap world, learning,
 //   energy gate, thinking and learning costs (added 2026-10-20 to lock that code; nothing else changed).
 // Re-record (npm run record-golden) only when a change is MEANT to alter behaviour, and say so in the
 // commit. History: the basic cases matched the original single-file version until 2026-10-18, when
@@ -37,7 +37,7 @@ export const CASES: GoldenCase[] = [
   { name: "defaults", seed: seedFrom("42"), rules: DEFAULT_RULES, gens: 3, checkBest: true },
   {
     name: "learning", seed: seedFrom("42"), gens: 3, checkBest: true,
-    rules: { ...DEFAULT_RULES, poison: 0.5, swapKinds: 1, learnRate: 0.005, plasticity: 1, energyGate: 1, thinkCost: 0.0005, learnCost: 0.005 },
+    rules: { ...DEFAULT_RULES, poison: 0.5, swapKinds: 1, learnRate: 0.005, energyGate: 1, thinkCost: 0.0005, learnCost: 0.005 },
   },
   // ecosystem: avg = population every 100 ticks, best = [births, deaths]
   // (2 warm-up generations, 3 layouts x 1500 ticks each = 9000 ticks, then 4000 ticks of ecosystem)
