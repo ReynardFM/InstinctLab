@@ -41,7 +41,13 @@ const TESTS: Test[] = [
   ["zb1-blind-check", "zero-point control: blind hunters (no speed cue), poison on, 6 seeds, 30k [check]", [...CHECK, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
+  // Controls for the Q2 merge (Rey 2026-11-04): paired seeds 1-14 with w3 (new default: relative + forget). NOT tuning, NOT counted as wins.
+  // Prediction (before running): hunters in w3 ~ w6 (learning off), both well above w5 (raw learning; before: 27.8 -> 13.5 with harmless poison, 6/6).
+  // Kill-if: w3 hunters < 0.75 x w6 hunters in >= 10 of 14 paired seeds -> the new default still harms; record as an open problem, do not tune.
+  ["w5-works-raw-learning", "control: raw hunter learning (relativeReward 0, forget 0), harmless poison, 14 x 200k [proof]; pairs with w3", [...PROOF, ...E, "--poisonDose=0", "--relativeReward=0", "--forget=0"]],
+  ["w6-works-learning-off", "control: hunter learning off, harmless poison, 14 x 200k [proof]; pairs with w3", [...PROOF, ...E, "--poisonDose=0", "--hunterLearn=0"]],
   ["w4-works-seeds15-28", "works replication on fresh seeds 15-28, harmless poison, 200k [proof]: guards against the seed range", ["--seeds=15-28", "--ticks=200000", ...E, "--poisonDose=0"]],
+  ["z4-zero-seeds15-28", "zero point replication on fresh seeds 15-28, poison on, 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E]],
 ];
 
 mkdirSync(DIR, { recursive: true });
