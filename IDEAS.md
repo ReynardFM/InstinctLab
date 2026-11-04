@@ -16,6 +16,7 @@ Tonight's tests and what each answers: IDEAS-night.md
 
 ## [main] Poison as an adaptation challenge (Rey 2026-11-03 a)
 Re-solve by adapting, not tuning. Old finish line met only by tuning (m6 cap + learning off; m19 poison 10% + learning off) = not a win. Cause of no defence: UNKNOWN — rarity is a hypothesis, not measured; forgetting already falsified (forget 0 did not lower pick). Next, in order: (1) random-baseline pick = the zero point; (2) knock-out control (blind the sickness cue); (3) fix the challenge settings once, write them down — setting is allowed, tuning to pass is not; (4) learning setup = hunterRelative + forget 0.002.
+Bar (Rey 2026-11-03 a): adapted = defence beats the no-cue control in >= 10/14 seeds + knock-out proves it; works = both sides present (no die-out last 10k) and each side cycled >= once.
 Measured 2026-11-02 [screen, weak] (seed 1, 60k): rare big doses, not build-up. 1-4% of catches are poisoned prey (level > 0.3,
 usually >= 1) and give all hunter poison. One poisoned catch costs an adult hunter ~3.6 meals of extra hunger
 (young/old up to 4x). Hunters already avoid sick prey strongly (pick 0.21-0.48); the few they still eat are enough.

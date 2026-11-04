@@ -5,6 +5,7 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 ## How to work with Rey (read first, every new session; Rey 2026-11-02)
 - **End product (Rey 2026-11-03):** a world to watch first (a) — from zero, no judge, surprise is the payoff — then portfolio (c), then game (b). The game and resume are wrappers over (a), not the aim.
 - **The driving loop (Rey 2026-11-03):** add a challenge every time the ecosystem works. Progress = the ecosystem re-solves each new challenge by adapting, not by hand-tuning; a challenge that can only be passed by tuning the world is not a win.
+- **The bar (Rey 2026-11-03, a):** two parts. **Adapted (a win)** = the defence trait moves toward adaptive vs the no-cue control in >= 10/14 seeds, AND a knock-out (blind the cue) removes the survival gain — a relative measure (Cliff & Miller 1995 red-queen: compare against control/past, never an absolute threshold). **Works (add the next challenge)** = both sides present (no die-out in the last 10k ticks) AND each side cycled at least once (a rise and a fall, off its cap and floor) — ecological persistence + bounded cycling.
 - Decisions: lettered options (a/b/c), **no pick or "my pick"** unless Rey asks ("your pick", "what do you suggest"). Give the facts each option turns on, then stop.
 - Order: things to notice or change first (risks, failure points ranked by severity), then verdict (sound / sound with fixes / unsound), then details.
 - Treat Rey's premises, maths and logic as unverified: recompute, check from first principles. If he's right, say so plainly; don't invent objections or agree to be polite.
@@ -37,7 +38,7 @@ Paths are relative to this folder (the git repository; `evolution-lab/` on Rey's
 
 ## Next session (start here, 2026-11-03)
 - End product: watch (a) -> portfolio (c) -> game (b). Core = from zero, no judge, surprise is the payoff.
-- The loop: add a challenge each time the ecosystem works; a win = re-solved by adapting, not hand-tuning. "Works" (before a challenge) = the hunters-ecosystem brief test: >= 10/14 seeds hold a 20k-tick round with both sides alive and cycling. "Re-solved by adapting" = a defence emerges from the random baseline AND a knock-out test shows it is what keeps hunters alive.
+- The loop: add a challenge each time the ecosystem works; a win = re-solved by adapting, not hand-tuning. Bar (see "The bar" above): adapted = defence beats the no-cue control in >= 10/14 seeds + knock-out proves it; works = both sides present (no die-out last 10k) and each side cycled >= once.
 - Setting the challenge is allowed; tuning to pass is not. Fix the poison settings once and write them down before the run. A failure is a result, not a cue to adjust.
 - Tonight's call (Rey: a): poison is an adaptation challenge. The old finish line (die-outs <= 5, >= 10 hunters in 4/6) was met only by tuning (m6 dose cap 0.7 + learning off; m19 poison 10% + learning off) — NOT wins. Drop that finish line.
 - Cause of no defence so far: UNKNOWN. Rarity is a hypothesis, not measured. The forgetting-timescale claim is already dead (diagnostic: forget 0 did not lower pick; pick 0.24-0.52 with learning on or off, so learning adds almost nothing). Hunter learning is a separate harm (halves hunters with harmless poison, 27.8 -> 13.5, 6/6; unexplained).
