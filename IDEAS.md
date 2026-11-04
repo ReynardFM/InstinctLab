@@ -15,7 +15,7 @@ Tonight's tests and what each answers: IDEAS-night.md
 5. [main, now] Keep poison AND keep hunters alive.
 
 ## [main] Poison as an adaptation challenge (Rey 2026-11-03 a)
-Re-solve by adapting, not tuning. Old finish line met only by tuning (m6 cap + learning off; m19 poison 10% + learning off) = not a win. Next: make the cue common + consequential, learning + eyes ON, measure a defence that emerges and causally keeps hunters alive. Signal problem: poison 1-4% of catches, one poisoned catch per hunter per ~3,000 ticks, lesson halves ~350 ticks.
+Re-solve by adapting, not tuning. Old finish line met only by tuning (m6 cap + learning off; m19 poison 10% + learning off) = not a win. Cause of no defence: UNKNOWN — rarity is a hypothesis, not measured; forgetting already falsified (forget 0 did not lower pick). Next, in order: (1) random-baseline pick = the zero point; (2) knock-out control (blind the sickness cue); (3) fix the challenge settings once, write them down — setting is allowed, tuning to pass is not; (4) learning setup = hunterRelative + forget 0.002.
 Measured 2026-11-02 [screen, weak] (seed 1, 60k): rare big doses, not build-up. 1-4% of catches are poisoned prey (level > 0.3,
 usually >= 1) and give all hunter poison. One poisoned catch costs an adult hunter ~3.6 meals of extra hunger
 (young/old up to 4x). Hunters already avoid sick prey strongly (pick 0.21-0.48); the few they still eat are enough.
