@@ -1,9 +1,11 @@
 // The numbers npm run eco-lab reports for one ecosystem run with hunters, as plain functions of the run's result
 // (so they can be tested and used by other scripts). Pure: no world, no randomness.
 import type { EcoResult } from "./job.ts";
+import { ECO_SAMPLE } from "../engine/ecosystem.ts";
 
 export const DONE_ROUND = 20000; // Rey's brief: done = a round of this many ticks with both sides alive
 export const KILL_ROUND = 5000; // kill if a seed never gets a round past this
+export const WORKS_QUIET = 10000; // "works" (Rey 2026-11-03): no die-out in the last this many ticks
 
 // Rise-and-fall cycles in a population series (one sample every 100 ticks): smoothed over 10 samples, a cycle
 // is the count going from below its own average to 15% above it (and back below 85% before the next one counts).
@@ -48,6 +50,12 @@ export interface EcoMetrics {
   preyCycles: number;
   hunterCycles: number;
   bothCycle: boolean; // both sides 2+ cycles
+  // "works" (Rey 2026-11-03, strict): the round still running at the end is at least WORKS_QUIET ticks old (no die-out since) AND,
+  // counting only inside that round (a die-out + regrowth is never a rise), each side has cycled at least once
+  works: boolean;
+  quiet: number; // ticks since the last die-out
+  preyCyclesNow: number; // cycles inside the running round
+  hunterCyclesNow: number;
   hunterDieOuts: number;
   preyDieOuts: number;
   prey: number; // average alive
@@ -74,7 +82,14 @@ export function ecoMetrics(e: EcoResult): EcoMetrics {
   const d = e.defence;
   const preyCycles = cycles(e.popHist);
   const hunterCycles = cycles(hp);
+  const end = e.ticks ?? 0, from = e.roundStart ?? 0;
+  const inRound = (xs: number[]) => xs.slice(Math.floor(from / ECO_SAMPLE), Math.floor(end / ECO_SAMPLE));
+  const preyNow = cycles(inRound(e.popHist)), huntersNow = cycles(inRound(hp));
   return {
+    works: end - from >= WORKS_QUIET && preyNow >= 1 && huntersNow >= 1,
+    quiet: end - from,
+    preyCyclesNow: preyNow,
+    hunterCyclesNow: huntersNow,
     pass: longest >= DONE_ROUND,
     killed: longest < KILL_ROUND,
     preyCycles,

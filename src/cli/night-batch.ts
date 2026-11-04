@@ -9,40 +9,41 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 const DIR = "proto/out/life-genes";
 const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // half the threads (Rey 2026-11-02: reverted from max)
 const S14 = "--seeds=1-14";
-// Night 2026-11-03 (Rey: "any closed branch also worth testing"). Learning-on results to compare against: n1 (old hunter
-// senses), n2 (both eyes), q1 (remains), q2 (remains + eyes): all poison on, 14 seeds x 60k. E = both eyes.
+// Night 2026-11-04 (Rey: "prep for overnight batch"). Older nights (m1-m22, n/q tests) are in git at 9942908: they used RAW hunter
+// learning, and hunters now learn relative + forget by default, so re-running them would answer a different question.
+// DEFAULTS THAT CHANGE BEHAVIOUR (all runs below): hunterLearn 0.02, hunterSeeSpeed 1, relativeReward 1 + forget 0.002 (now also for hunters).
+// World, fixed up front (no tuning after seeing a result): life mode, prey eye 4, hunterEye 4, eyeMotion 1, food/regrow from ECO_BASE.
+// Both conditions of life-genes run (senses handed out / sense genes evolved); the numbers below are read per condition.
+//   z* = step 1, ZERO POINT (poison ON, dose 1): what a random-picking hunter would score on the pick scale. Counting only.
+//   w* = step 4, WORKS in the base world (HARMLESS poison, --poisonDose=0): no die-out in the last 10k ticks AND each side cycled >= 1
+//        inside the running round. Pass = >= 10 of 14 seeds in a condition (read it in the proof run w3).
+// Gates (evidence ladder): z2 (check) runs only if z1's zero point (within 200px) is >= 0.2 away from 1 in either condition.
+// w2/w3 are NOT gated on "works": a 30k screen can be too short to see a cycle (risk noted 2026-11-03), so a gate on it could kill the proof.
 const E = ["--hunterEye=4", "--eyeMotion=1"];
-const T60 = [S14, "--ticks=60000"], T200 = [S14, "--ticks=200000"];
-const TESTS: [string, string, string[]][] = [
-  ["m1-forget05", "fix learning: forget 0.05, poison on, eyes (vs n2)", [...T60, ...E, "--forget=0.05"]],
-  ["m2-forget05-harmless", "forget 0.05, harmless poison, eyes", [...T60, ...E, "--forget=0.05", "--poisonDose=0"]],
-  ["m3-forget2", "forget 0.2 (strong), poison on, eyes", [...T60, ...E, "--forget=0.2"]],
-  ["m4-nolearn-eyes", "learning off, poison on, eyes (vs n2)", [...T60, ...E, "--hunterLearn=0"]],
-  ["m4b-nolearn-harmless", "control for m7 and m20: learning off, harmless poison, eyes", [...T60, ...E, "--hunterLearn=0", "--poisonDose=0"]],
-  ["m5-nolearn-old", "learning off, poison on, old hunter senses (vs n1; hunter eye re-test with m4)", [...T60, "--hunterLearn=0"]],
-  ["m6-nolearn-cap", "learning off + dose cap 0.7, poison on, eyes (vs m4)", [...T60, ...E, "--hunterLearn=0", "--hunterDoseCap=0.7"]],
-  ["m7-nolearn-remains-harmless", "learning off + remains 500, harmless poison (remains without poison; vs m4b)", [...T60, ...E, "--hunterLearn=0", "--remains=500", "--poisonDose=0"]],
-  ["m8-nolearn-remains", "learning off + remains 500, poison on (vs m4; q2 re-test)", [...T60, ...E, "--hunterLearn=0", "--remains=500"]],
-  ["m9-genes-strong", "sense genes with strong hunters: harmless poison, learning off, eyes, 200k", [...T200, ...E, "--hunterLearn=0", "--poisonDose=0"]],
-  ["m10-genes-poison-nolearn", "sense genes, poison on, learning off, eyes, 200k (both threats)", [...T200, ...E, "--hunterLearn=0"]],
-  ["m11-genes-forget", "sense genes, poison on, learning fixed (forget 0.05), eyes, 200k", [...T200, ...E, "--forget=0.05"]],
-  ["m12-genes-strong-s15", "m9 on fresh seeds 15-28 (solidify)", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterLearn=0", "--poisonDose=0"]],
-  ["m14-nolearn-heye", "learning off, hunter eye only (n3 re-test; vs m5)", [...T60, "--hunterEye=4", "--hunterLearn=0"]],
-  ["m15-nolearn-motion", "learning off, prey motion only (n4 re-test; vs m5)", [...T60, "--eyeMotion=1", "--hunterLearn=0"]],
-  ["m16-forget-cap", "forget 0.05 + dose cap 0.7, poison on, eyes (vs m1, m6)", [...T60, ...E, "--forget=0.05", "--hunterDoseCap=0.7"]],
-  ["m17-forget-old", "forget 0.05, old hunter senses (vs n1, m1)", [...T60, "--forget=0.05"]],
-  ["m18-learn005", "hunter learning rate 0.005, no forgetting, poison on, eyes (vs n2, m1)", [...T60, ...E, "--hunterLearn=0.005"]],
-  ["m19-nolearn-poison01", "learning off, poison plants 10% (vs m4)", [...T60, ...E, "--hunterLearn=0", "--poison=0.1"]],
-  ["m20-preylearn-strong", "prey learn in life (learnRate 0.02, forget 0.002), strong hunters (vs m4b)", [...T60, ...E, "--hunterLearn=0", "--poisonDose=0", "--learnRate=0.02"]],
-  ["m21-forget05-s15", "m1 on seeds 15-28 (solidify)", ["--seeds=15-28", "--ticks=60000", ...E, "--forget=0.05"]],
-  ["m22-genes-eye8-strong", "sense genes with 8-slice eye, strong hunters, 200k (vs m9)", [...T200, ...E, "--hunterLearn=0", "--poisonDose=0", "--eye=8"]],
+const SCREEN = ["--seeds=1", "--ticks=30000"], CHECK = ["--seeds=1-6", "--ticks=30000"], PROOF = [S14, "--ticks=200000"];
+type Test = [name: string, what: string, args: string[], skipIf?: () => string | null];
+const zeroFarFromOne = (): string | null => {
+  const f = `${DIR}/z1-zero-screen.txt`;
+  if (!existsSync(f)) return null;
+  const zs = [...readFileSync(f, "utf8").matchAll(/within 200px (\d+\.\d+)/g)].map((m) => Number(m[1]));
+  if (!zs.length) return null;
+  return zs.some((z) => Math.abs(z - 1) >= 0.2) ? null : `z1 zero point within 200px ${zs.join(" / ")}: within 0.2 of 1, check not needed`;
+};
+const TESTS: Test[] = [
+  ["z1-zero-screen", "step 1 screen: zero point, poison on, seed 1, 30k [screen]", [...SCREEN, ...E]],
+  ["z2-zero-check", "step 1 check: zero point, poison on, 6 seeds, 30k [check]; only if z1 is far from 1", [...CHECK, ...E], zeroFarFromOne],
+  ["w1-works-screen", "step 4 screen: works in the base world, harmless poison, seed 1, 30k [screen]", [...SCREEN, ...E, "--poisonDose=0"]],
+  ["w2-works-check", "step 4 check: works in the base world, harmless poison, 6 seeds, 30k [check]", [...CHECK, ...E, "--poisonDose=0"]],
+  ["w3-works-proof", "step 4 proof: works in the base world, harmless poison, 14 seeds x 200k [proof]", [...PROOF, ...E, "--poisonDose=0"]],
 ];
 
 mkdirSync(DIR, { recursive: true });
 const t0 = performance.now();
-for (const [name, what, args] of TESTS) {
+for (const [name, what, args, skipIf] of TESTS) {
   const file = `${DIR}/${name}.txt`;
   if (existsSync(file)) { console.log(`skip ${name} (done)`); continue; }
+  const why = skipIf?.();
+  if (why) { console.log(`skip ${name}: ${why}`); writeFileSync(file, `== ${name}: ${what}\nSKIPPED by gate: ${why}\n`); continue; }
   console.log(`run ${name}: ${what} (${((performance.now() - t0) / 60000).toFixed(0)} min in)`);
   const r = spawnSync(process.execPath, ["src/cli/life-genes.ts", W, `--out=${name}`, ...args], { encoding: "utf8", maxBuffer: 1 << 24 });
   const out = `== ${name}: ${what}\n${r.stdout}${r.status ? `\nFAILED (exit ${r.status}):\n${r.stderr.slice(-2000)}` : ""}`;

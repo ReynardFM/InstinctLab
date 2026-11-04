@@ -64,3 +64,21 @@ test("eco-lab report: rows, the brief verdict and the paired line", () => {
   assert.match(text, /paired by seed, minus the first row/);
   assert.match(text, /hunterSpit=1/);
 });
+
+test("works (strict): needs a quiet last 10k ticks and a cycle in each side inside the running round; a die-out + regrowth is not a rise", () => {
+  const wave = (n: number, mid: number, amp: number) => Array.from({ length: n }, (_, i) => mid + amp * Math.sin((2 * Math.PI * i) / 100 - Math.PI / 2));
+  const mk = (pop: number[], hunters: number[], ticks: number, roundStart: number) =>
+    ({ popHist: pop, hunterPopHist: hunters, ageHist: [], births: 0, deaths: 0, oldAge: 0, rescues: 0, ticks, roundStart,
+      rounds: roundStart ? [{ start: 0, end: roundStart, died: "prey" as const }] : [] });
+  // 30k ticks = 300 samples; waves in both sides, no die-out: works
+  assert.equal(ecoMetrics(mk(wave(300, 50, 30), wave(300, 8, 5), 30000, 0)).works, true);
+  // flat lines: alive but no cycle
+  assert.equal(ecoMetrics(mk(new Array(300).fill(50), new Array(300).fill(8), 30000, 0)).works, false);
+  // a die-out 5k ticks before the end: quiet period too short, whatever the waves
+  const short = ecoMetrics(mk(wave(300, 50, 30), wave(300, 8, 5), 30000, 25000));
+  assert.equal(short.works, false);
+  assert.equal(short.quiet, 5000);
+  // low, flat population that crashed to near zero and regrew BEFORE the running round started must not count as a rise
+  const crash = [...new Array(100).fill(60), ...new Array(5).fill(0), ...new Array(195).fill(60)];
+  assert.equal(ecoMetrics(mk(crash, wave(300, 8, 5), 30000, 10500)).preyCyclesNow, 0);
+});

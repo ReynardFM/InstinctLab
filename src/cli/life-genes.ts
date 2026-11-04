@@ -9,7 +9,7 @@ import { createWorld, runTicks, DEFAULT_RULES, type Rules, type World } from "..
 import { SENSE_GENES } from "../engine/genes.ts";
 import { ECO_BASE } from "./eco-lab.ts";
 import { ecoResultOf } from "./job.ts";
-import { ecoMetrics, type EcoMetrics } from "./eco-metrics.ts";
+import { ecoMetrics, WORKS_QUIET, type EcoMetrics } from "./eco-metrics.ts";
 import { margin } from "./stats.ts";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { availableParallelism, setPriority, constants } from "node:os";
@@ -110,6 +110,13 @@ if (isMainThread) {
     const ds = [0, 1, 2].map((k) => R.reduce((a, r) => a + r.dose.dirSick[k], 0)), dc = [0, 1, 2].map((k) => R.reduce((a, r) => a + r.dose.dirClean[k], 0));
     const sh = (v: number[]) => { const t = v[0] + v[1] + v[2] || 1; return `ahead ${pct(v[0] / t)}, side ${pct(v[1] / t)}, behind ${pct(v[2] / t)} (n ${v[0] + v[1] + v[2]})`; };
     console.log(`  catch direction, sick prey: ${sh(ds)}; clean prey: ${sh(dc)}`);
+    // zero point (Rey 2026-11-04): what a hunter that picked at random would score, on the same scale as pick
+    const fin = (xs: number[]) => xs.filter(Number.isFinite), f2 = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : "n/a");
+    const zk = (k: number) => R.map((r) => (r.dose.zero[2 * k] && r.m.sick > 0 ? r.dose.zero[2 * k + 1] / r.dose.zero[2 * k] / r.m.sick : NaN));
+    const [zW, z200, z50] = [0, 2, 1].map(zk), pk = R.map((r) => r.m.pick);
+    const below = R.filter((_, i) => Number.isFinite(pk[i]) && Number.isFinite(z200[i]) && pk[i] < z200[i]).length, both = R.filter((_, i) => Number.isFinite(pk[i]) && Number.isFinite(z200[i])).length;
+    console.log(`  zero point (random hunter; same scale as pick): whole world ${f2(avg(fin(zW)))}, within 200px ${f2(avg(fin(z200)))} (catches ${R.reduce((a, r) => a + r.dose.zero[4], 0)}), within 50px ${f2(avg(fin(z50)))} (catches ${R.reduce((a, r) => a + r.dose.zero[2], 0)}); pick ${f2(avg(fin(pk)))}; seeds with pick below own 200px zero: ${below} of ${both}`);
+    console.log(`  works (no die-out in last ${WORKS_QUIET / 1000}k, each side cycled >= 1 inside the running round): ${R.filter((r) => r.m.works).length} of ${R.length} seeds; prey cycles ${f1(avg(R.map((r) => r.m.preyCyclesNow)))}, hunter cycles ${f1(avg(R.map((r) => r.m.hunterCyclesNow)))}, ticks since last die-out ${Math.round(avg(R.map((r) => r.m.quiet)))}`);
     if (WORLD.hunterResistTrain) console.log(`  hunter resistance at ${MARKS.map((t) => t / 1000 + "k").join("/")}: ${MARKS.map((_, mi) => avg(R.map((r) => r.marks[mi].hResist)).toFixed(2)).join(" / ")}`);
     console.log(`  hunter deaths ${dd}: hunger factor at death ${(R.reduce((a, r) => a + r.dose.deathHarm, 0) / dd).toFixed(2)}x, harm > 0.5 in ${pct(R.reduce((a, r) => a + r.dose.deathsHarmed, 0) / dd)}`);
     if (c) {

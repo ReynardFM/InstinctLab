@@ -383,3 +383,17 @@ test("relativeReward + slow forget (shared with prey) apply to hunters: learned 
   assert.ok(rel > 0, "hunters still learn");
   assert.ok(rel < raw / 2, `drift relative ${rel} vs raw ${raw}`);
 });
+
+test("zero point (counting only): every catch with other prey around adds a sick share between 0 and 1, near shares counted in nested circles", () => {
+  const w = createWorld(1, { ...BOTH_EYES, poison: 0.3 });
+  runTicks(w, 6000);
+  const z = w.eco.dose.zero;
+  assert.equal(z.length, 6);
+  assert.ok(z[0] > 20, `catches counted: ${z[0]}`);
+  assert.ok(z[0] <= w.eco.caught, "never more than all catches");
+  for (const [n, sum] of [[z[0], z[1]], [z[2], z[3]], [z[4], z[5]]]) assert.ok(sum >= 0 && sum <= n, `share sum ${sum} within 0..${n}`);
+  assert.ok(z[2] <= z[4] && z[4] <= z[0], "fewer catches have others within 50 px than within 200 px than anywhere");
+  const again = createWorld(1, { ...BOTH_EYES, poison: 0.3 });
+  runTicks(again, 6000);
+  assert.deepEqual(again.eco.dose.zero, z, "same seed, same counts");
+});
