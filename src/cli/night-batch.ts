@@ -7,7 +7,7 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // half the threads (Rey 2026-11-02: reverted from max)
+const W = `--workers=${availableParallelism()}`; // ALL threads, this night only (Rey 2026-11-04 "use all possible threads"); the standing rule is half (laptop froze once). Runs stay at low priority. Set back to / 2 after.
 const S14 = "--seeds=1-14";
 // Night 2026-11-04 (Rey: "prep for overnight batch"). Older nights (m1-m22, n/q tests) are in git at 9942908: they used RAW hunter
 // learning, and hunters now learn relative + forget by default, so re-running them would answer a different question.
