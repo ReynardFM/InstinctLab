@@ -64,7 +64,9 @@ export interface Rules {
   hunterResistTrain: number; // ecosystem: the same for hunters, per poisoned catch (scaled by the dose); 0 = none
   hunterSpit: number; // ecosystem: 1 = hunters may spit out a poisoned prey (it lives, wounded; the hunter gets a taste, no meal); 0 = off
   hunterLearn: number; // ecosystem: hunters learn during life (taste aversion): clean catch +1, poisoned down to -1; 0 = off. Reward and forgetting follow rules.relativeReward and rules.forget, shared with prey (merged 2026-11-03)
-  hunterSeeSpeed: number; // ecosystem: 1 = hunters see the nearest prey's speed (poison slows prey, so slow can mean sick); 0 = blind (a control)
+  hunterCue: number; // ecosystem (Rey 2026-11-06; replaces hunterSeeSpeed): what hunters see of a prey's sickness. 0 blind; 1 speed (poison slows
+  // prey, but healthy prey also choose to go slow, so the cue drifts and can flip); 2 glow = min(poison, 1), a mark prey can't hide; 4 scent
+  // field that sick prey leave and that fades (memory in the world); 3 and 5 = shuffled controls of 2 and 4 (hunters.ts)
   foodSpread: number; // ecosystem: food spreads like plants: chance per tick that a pellet sprouts a new one nearby; 0 = off (plants.ts). With hunters: 0.0005 and food 60 (or food 120 without it)
   energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
   mode: number; // 0 = generations (everyone replaced together); 1 = ecosystem (continuous births and deaths)
@@ -115,7 +117,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterSeeSpeed: 1, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, hunterLearn: 0.02,
   hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
@@ -175,6 +177,7 @@ export interface EcoStats {
   popHist: number[]; // population, sampled every ECO_SAMPLE ticks
   ageHist: number[]; // average age, same samples
   recentDeaths: { x: number; y: number; tick: number }[]; // for the page's death marks (last 200)
+  scent: number[]; // rules.hunterCue 4/5: the scent grid (hunters.ts, SCENT_CELL px cells); empty when off
   // hunters (rules.hunters > 0)
   huntersStarted: boolean;
   hunterPopHist: number[]; // hunters alive, same samples as popHist
@@ -251,7 +254,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     failedBranches: 0,
     newcomerCount: 0,
     eco: {
-      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [],
+      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [], scent: [],
       huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,

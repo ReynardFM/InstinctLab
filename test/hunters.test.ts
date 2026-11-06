@@ -398,3 +398,68 @@ test("zero point (counting only): every catch with other prey around adds a sick
   runTicks(again, 6000);
   assert.deepEqual(again.eco.dose.zero, z, "same seed, same counts");
 });
+
+// rules.hunterCue (Rey 2026-11-06): what a hunter sees of sickness. Glow, its shuffled control, and the scent field.
+import { glowShown, scentAt, updateScent, SHUFFLE_OFFSET, SCENT_HALF } from "../src/engine/hunters.ts";
+
+test("hunterCue 2 (glow): the hunter eye's 2nd channel reads closeness x min(poison, 1), whatever the prey's speed; 1 still reads speed", () => {
+  const read = (cue: number, toxin: number, speed: number) => {
+    const R = { ...BOTH_EYES, hunterCue: cue };
+    const w = createWorld(3, R);
+    runTicks(w, 1);
+    const h = w.hunters[0], c = w.creatures[0];
+    w.creatures = [c]; w.hunters = [h];
+    c.x = h.x + 50; c.y = h.y; c.alive = true; c.toxin = toxin; c.speed = speed;
+    const inputs = new Array(13).fill(0);
+    hunterEyeInto(w, h, inputs, 1, 0, 4, R.walls > 0, true);
+    return inputs;
+  };
+  const v = 1 - (50 * 50) / (200 * 200);
+  const sick = read(2, 0.5, 3), clean = read(2, 0, 0), heavy = read(2, 4, 3);
+  const sl = sick.slice(0, 4).findIndex((x) => x > 0);
+  assert.ok(Math.abs(sick[4 + sl] - v * 0.5) < 1e-12, `glow of a fast half-poisoned prey: ${sick[4 + sl]}`);
+  assert.equal(clean[4 + sl], 0, "a slow clean prey does not glow");
+  assert.ok(Math.abs(heavy[4 + sl] - v) < 1e-12, "glow tops out at 1");
+  const speed = read(1, 0.5, 1.5);
+  assert.ok(Math.abs(speed[4 + sl] - v * 0.5) < 1e-12, "hunterCue 1 still reads speed / 3");
+  const blind = read(0, 0.5, 1.5);
+  assert.equal(blind.slice(4, 8).reduce((a, b) => a + b, 0), 0, "hunterCue 0: the cue channel is empty");
+});
+
+test("hunterCue 3 (shuffled glow): each prey shows the glow of the prey SHUFFLE_OFFSET places on, not its own", () => {
+  const w = createWorld(3, { ...BOTH_EYES, hunterCue: 3 });
+  runTicks(w, 1);
+  const cs = w.creatures.slice(0, 12);
+  w.creatures = cs;
+  for (const c of cs) { c.toxin = 0; c.alive = true; }
+  cs[SHUFFLE_OFFSET].toxin = 0.8;
+  assert.ok(Math.abs(glowShown(w, 0) - 0.8) < 1e-12, "prey 0 shows prey 7's poison");
+  assert.equal(glowShown(w, SHUFFLE_OFFSET), 0, "the sick prey itself shows a clean partner");
+  w.rules.hunterCue = 2;
+  assert.equal(glowShown(w, 0), 0, "with the real glow prey 0 shows its own (none)");
+});
+
+test("hunterCue 4 (scent): a sick prey resting in place builds scent toward its glow; it halves SCENT_HALF ticks after it leaves", () => {
+  const w = createWorld(3, { ...BOTH_EYES, hunterCue: 4 });
+  runTicks(w, 1);
+  const c = w.creatures[0];
+  w.creatures = [c];
+  c.alive = true; c.toxin = 1; c.x = 405; c.y = 305;
+  for (let t = 0; t < 1000; t++) updateScent(w);
+  const full = scentAt(w, 405, 305, false);
+  assert.ok(full > 0.99 && full <= 1, `resting sick prey: ${full}`);
+  assert.equal(scentAt(w, 100, 100, false), 0, "nothing far away");
+  c.toxin = 0;
+  for (let t = 0; t < SCENT_HALF; t++) updateScent(w);
+  const half = scentAt(w, 405, 305, false);
+  assert.ok(Math.abs(half - full / 2) < 0.01, `after ${SCENT_HALF} ticks: ${half} vs ${full / 2}`);
+});
+
+test("hunterCue 2 and 4: same seed, same run; the scent grid stays empty unless the cue is scent", () => {
+  for (const cue of [2, 4, 5]) {
+    const a = createWorld(5, { ...BOTH_EYES, hunterCue: cue }), b = createWorld(5, { ...BOTH_EYES, hunterCue: cue });
+    runTicks(a, 3000); runTicks(b, 3000);
+    assert.deepEqual(a.eco.popHist, b.eco.popHist, `cue ${cue}`);
+    assert.equal(a.eco.scent.length > 0, cue >= 4, `cue ${cue}: scent grid ${a.eco.scent.length}`);
+  }
+});

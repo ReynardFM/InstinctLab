@@ -11,7 +11,7 @@ const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; //
 const S14 = "--seeds=1-14";
 // Night 2026-11-04 (Rey: "prep for overnight batch"). Older nights (m1-m22, n/q tests) are in git at 9942908: they used RAW hunter
 // learning, and hunters now learn relative + forget by default, so re-running them would answer a different question.
-// DEFAULTS THAT CHANGE BEHAVIOUR (all runs below): hunterLearn 0.02, hunterSeeSpeed 1, relativeReward 1 + forget 0.002 (now also for hunters).
+// DEFAULTS THAT CHANGE BEHAVIOUR (all runs below): hunterLearn 0.02, hunterCue 1 (speed), relativeReward 1 + forget 0.002 (now also for hunters).
 // World, fixed up front (no tuning after seeing a result): life mode, prey eye 4, hunterEye 4, eyeMotion 1, food/regrow from ECO_BASE.
 // Both conditions of life-genes run (senses handed out / sense genes evolved); the numbers below are read per condition.
 //   z* = step 1, ZERO POINT (poison ON, dose 1): what a random-picking hunter would score on the pick scale. Counting only.
@@ -34,19 +34,42 @@ const TESTS: Test[] = [
   ["z2-zero-check", "step 1 check: zero point, poison on, 6 seeds, 30k [check]; only if z1 is far from 1", [...CHECK, ...E], zeroFarFromOne],
   ["w1-works-screen", "step 4 screen: works in the base world, harmless poison, seed 1, 30k [screen]", [...SCREEN, ...E, "--poisonDose=0"]],
   ["w2-works-check", "step 4 check: works in the base world, harmless poison, 6 seeds, 30k [check]", [...CHECK, ...E, "--poisonDose=0"]],
-  // Control for the zero point (Rey 2026-11-04 "add to the batch"): hunters cannot see the sick cue (old senses, hunterSeeSpeed 0; prey keep eyeMotion 1).
+  // Control for the zero point (Rey 2026-11-04 "add to the batch"): hunters cannot see the sick cue (old senses, hunterCue 0; prey keep eyeMotion 1).
   // Prediction (written before running): blind pick lands near its own 200px zero (within ~0.1), or above it because sick prey are slow and stay in reach.
   // If blind pick is far BELOW its zero, the zero point is not a valid floor (something besides sensing lowers pick).
-  ["zb1-blind-check", "zero-point control: blind hunters (no speed cue), poison on, 6 seeds, 30k [check]", [...CHECK, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
+  ["zb1-blind-check", "zero-point control: blind hunters (no speed cue), poison on, 6 seeds, 30k [check]", [...CHECK, "--eyeMotion=1", "--hunterCue=0"]],
   ["w3-works-proof", "step 4 proof: works in the base world, harmless poison, 14 seeds x 200k [proof]", [...PROOF, ...E, "--poisonDose=0"]],
   // Zero-point repair (Rey 2026-11-05: a). Same seeds/ticks as z2 and zb1 (counting only, so same runs) plus circles of 25 px and 12 px (catch reach is 6).
   // Prediction (before running): zero falls as the circle shrinks, about 0.5-0.7 at 12 px; blind pick within ~0.15 of its own 12px zero.
   // Kill-if: blind 12px zero stays > 0.3 above blind pick in >= 4 of 6 seeds -> place is not the cause.
   ["z5-zero-circles", "zero point with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as z2", [...CHECK, ...E]],
-  ["zb5-blind-circles", "blind-hunter control with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as zb1", [...CHECK, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
+  ["zb5-blind-circles", "blind-hunter control with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as zb1", [...CHECK, "--eyeMotion=1", "--hunterCue=0"]],
+  // ---- Night 2026-11-06 (Rey: "test glow and then gradient, make it long night batch"). Poison on (dose 1), both eyes, defaults above.
+  // rules.hunterCue: 2 glow, 3 glow shuffled (control), 4 scent, 5 scent shuffled (control). Read pairs with: node scripts/pair.mjs <real> <control>
+  // Bar (Rey): pick lower AND hunters alive higher in the real run in >= 10 of 14 paired seeds, per condition.
+  // Cue check before running (scripts/cue-check.mjs, seed 1-2, 8k): glow AUC 1.00, shuffled 0.52; scent 0.89 / 0.97, shuffled 0.37 / 0.46
+  // (shuffled scent still maps prey density, so it is not a clean no-cue control).
+  // Prediction (before running; unverified): glow pick lower than shuffled in >= 10 of 14; survival gain unsure (one poisoned catch kills,
+  // so only selection can build avoidance; prior work: rare toxic prey kill naive predators before avoidance spreads, Sword 1999).
+  // Scent weaker than glow. Kill-if: glow pick lower in < 8 of 14 -> a clean cue is not enough; the bottleneck is selection, not sensing.
+  ["g1-glow-screen", "glow cue, seed 1, 30k [screen]", [...SCREEN, ...E, "--hunterCue=2"]],
+  ["g2-glow-check", "glow cue, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2"]],
+  ["gs2-glowshuf-check", "shuffled glow (control), 6 seeds, 30k [check]; pairs with g2", [...CHECK, ...E, "--hunterCue=3"]],
+  ["g3-glow-proof", "glow cue, 14 seeds x 200k [proof]", [...PROOF, ...E, "--hunterCue=2"]],
+  ["gs3-glowshuf-proof", "shuffled glow (control), 14 seeds x 200k [proof]; pairs with g3", [...PROOF, ...E, "--hunterCue=3"]],
+  ["s1-scent-screen", "scent cue, seed 1, 30k [screen]", [...SCREEN, ...E, "--hunterCue=4"]],
+  ["s2-scent-check", "scent cue, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=4"]],
+  ["ss2-scentshuf-check", "shuffled scent (control), 6 seeds, 30k [check]; pairs with s2", [...CHECK, ...E, "--hunterCue=5"]],
+  ["s3-scent-proof", "scent cue, 14 seeds x 200k [proof]", [...PROOF, ...E, "--hunterCue=4"]],
+  ["ss3-scentshuf-proof", "shuffled scent (control), 14 seeds x 200k [proof]; pairs with s3", [...PROOF, ...E, "--hunterCue=5"]],
+  // replication on fresh seeds 15-28 (guards against the seed range), glow then scent
+  ["g4-glow-s15", "glow cue, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=2"]],
+  ["gs4-glowshuf-s15", "shuffled glow, seeds 15-28 x 200k [proof]; pairs with g4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=3"]],
+  ["s4-scent-s15", "scent cue, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=4"]],
+  ["ss4-scentshuf-s15", "shuffled scent, seeds 15-28 x 200k [proof]; pairs with s4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=5"]],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
-  //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
+  //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],
   //   // Controls for the Q2 merge (Rey 2026-11-04): paired seeds 1-14 with w3 (new default: relative + forget). NOT tuning, NOT counted as wins.
   //   // Prediction (before running): hunters in w3 ~ w6 (learning off), both well above w5 (raw learning; before: 27.8 -> 13.5 with harmless poison, 6/6).
   //   // Kill-if: w3 hunters < 0.75 x w6 hunters in >= 10 of 14 paired seeds -> the new default still harms; record as an open problem, do not tune.

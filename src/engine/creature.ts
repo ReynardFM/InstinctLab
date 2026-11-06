@@ -48,7 +48,7 @@ export interface Creature {
   inputs: number[];
   hidden: number[];
   out: number[];
-  speed: number; // how fast it moved last tick (0..3); hunters can see it (ecosystem, rules.hunterSeeSpeed)
+  speed: number; // how fast it moved last tick (0..3); hunters can see it (ecosystem, rules.hunterCue 1)
 }
 
 

@@ -79,7 +79,7 @@ test("poison slows prey: top speed / (1 + poison level)", () => {
 
 test("hunters see the nearest prey's speed in their 'poison' inputs (ecosystem); blind hunters see nothing", () => {
   for (const see of [1, 0]) {
-    const w = toEco(7, { hunterSeeSpeed: see });
+    const w = toEco(7, { hunterCue: see });
     runTicks(w, 1);
     const h = w.hunters[0];
     const prey = w.creatures.find((c) => c.alive)!;

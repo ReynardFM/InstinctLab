@@ -11,7 +11,7 @@ import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { spreadFood, spreading } from "./plants.ts";
 import { SICK, notePreyDeath, preyLife } from "./toxin.ts";
-import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters } from "./hunters.ts";
+import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters, updateScent } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
 export const RESCUE = 40; // fresh random founders put in when everyone has died (same as the starting population)
@@ -35,6 +35,7 @@ export function stepEcosystem(w: World): void {
     c.age++;
   }
   w.grids = null; // births and deaths below change the creature list
+  if (hunting && rules.hunterCue >= 4) updateScent(w); // rules.hunterCue 4/5: the scent field, before the hunters smell it
   if (hunting) moveHunters(w); // caught prey are marked dead and leave with the starved below
 
   // births: children are added after everyone has moved, and act from the next tick
