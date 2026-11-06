@@ -39,6 +39,11 @@ const TESTS: Test[] = [
   // If blind pick is far BELOW its zero, the zero point is not a valid floor (something besides sensing lowers pick).
   ["zb1-blind-check", "zero-point control: blind hunters (no speed cue), poison on, 6 seeds, 30k [check]", [...CHECK, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
   ["w3-works-proof", "step 4 proof: works in the base world, harmless poison, 14 seeds x 200k [proof]", [...PROOF, ...E, "--poisonDose=0"]],
+  // Zero-point repair (Rey 2026-11-05: a). Same seeds/ticks as z2 and zb1 (counting only, so same runs) plus circles of 25 px and 12 px (catch reach is 6).
+  // Prediction (before running): zero falls as the circle shrinks, about 0.5-0.7 at 12 px; blind pick within ~0.15 of its own 12px zero.
+  // Kill-if: blind 12px zero stays > 0.3 above blind pick in >= 4 of 6 seeds -> place is not the cause.
+  ["z5-zero-circles", "zero point with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as z2", [...CHECK, ...E]],
+  ["zb5-blind-circles", "blind-hunter control with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as zb1", [...CHECK, "--eyeMotion=1", "--hunterSeeSpeed=0"]],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterSeeSpeed=0"]],

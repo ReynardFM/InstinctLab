@@ -371,7 +371,7 @@ function moveBrainHunters(w: World): void {
       (w.creatures[near.i1].toxin > SICK ? w.eco.dose.dirSick : w.eco.dose.dirClean)[dir]++;
       // zero point (counting only, Rey 2026-11-04): how sick the OTHER prey are, in the whole world and near this hunter
       const z = w.eco.dose.zero, cs = w.creatures;
-      let n = 0, s = 0, n50 = 0, s50 = 0, n200 = 0, s200 = 0;
+      let n = 0, s = 0, n50 = 0, s50 = 0, n200 = 0, s200 = 0, n25 = 0, s25 = 0, n12 = 0, s12 = 0;
       for (let i = 0; i < cs.length; i++) {
         const o = cs[i];
         if (!o.alive || i === near.i1) continue;
@@ -379,10 +379,14 @@ function moveBrainHunters(w: World): void {
         n++; s += sk;
         if (d2 < 2500) { n50++; s50 += sk; }
         if (d2 < 40000) { n200++; s200 += sk; }
+        if (d2 < 625) { n25++; s25 += sk; }
+        if (d2 < 144) { n12++; s12 += sk; }
       }
       if (n) { z[0]++; z[1] += s / n; }
       if (n50) { z[2]++; z[3] += s50 / n50; }
       if (n200) { z[4]++; z[5] += s200 / n200; }
+      if (n25) { z[6]++; z[7] += s25 / n25; }
+      if (n12) { z[8]++; z[9] += s12 / n12; }
     }
     const spat = caughtNow && catchPrey(w, h, w.creatures[near.i1]);
     // taste aversion (Rey 2026-10-25): a hunter learns during its life, like prey do. A clean catch is +1; a poisoned

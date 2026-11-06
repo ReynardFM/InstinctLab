@@ -388,11 +388,12 @@ test("zero point (counting only): every catch with other prey around adds a sick
   const w = createWorld(1, { ...BOTH_EYES, poison: 0.3 });
   runTicks(w, 6000);
   const z = w.eco.dose.zero;
-  assert.equal(z.length, 6);
+  assert.equal(z.length, 10);
   assert.ok(z[0] > 20, `catches counted: ${z[0]}`);
   assert.ok(z[0] <= w.eco.caught, "never more than all catches");
-  for (const [n, sum] of [[z[0], z[1]], [z[2], z[3]], [z[4], z[5]]]) assert.ok(sum >= 0 && sum <= n, `share sum ${sum} within 0..${n}`);
-  assert.ok(z[2] <= z[4] && z[4] <= z[0], "fewer catches have others within 50 px than within 200 px than anywhere");
+  for (const [n, sum] of [[z[0], z[1]], [z[2], z[3]], [z[4], z[5]], [z[6], z[7]], [z[8], z[9]]]) assert.ok(sum >= 0 && sum <= n, `share sum ${sum} within 0..${n}`);
+  assert.ok(z[8] <= z[6] && z[6] <= z[2] && z[2] <= z[4] && z[4] <= z[0], "fewer catches have others within 12 px than 25 px than 50 px than 200 px than anywhere");
+  assert.ok(z[8] > 0, `catches with another prey within 12 px: ${z[8]}`);
   const again = createWorld(1, { ...BOTH_EYES, poison: 0.3 });
   runTicks(again, 6000);
   assert.deepEqual(again.eco.dose.zero, z, "same seed, same counts");

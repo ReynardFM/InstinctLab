@@ -203,7 +203,7 @@ export interface EcoStats {
     // brain-hunter catches by where the prey was vs the hunter's heading: [ahead (< 45 deg), side, behind (> 90 deg)]
     dirSick: number[]; dirClean: number[];
     // zero point (counting only, Rey 2026-11-04): per brain-hunter catch, the sick share among the OTHER prey, as a random hunter would meet it.
-    // [catches, sum of share (whole world), catches, sum (within 50 px of the hunter), catches, sum (within 200 px)]; a catch with no other prey in range is left out
+    // [catches, sum of share] pairs: whole world, within 50 px of the hunter, within 200 px, within 25 px, within 12 px (catch reach is 6); a catch with no other prey in range is left out of that pair
     zero: number[] };
 }
 
@@ -259,7 +259,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },
       toxin: { band: [0, 0, 0], bandN: [0, 0, 0], hunter: 0, hunterN: 0, hunterSick: 0 },
-      dose: { n: [0, 0, 0, 0, 0, 0], taken: [0, 0, 0, 0, 0, 0], deaths: 0, deathHarm: 0, deathsHarmed: 0, dirSick: [0, 0, 0], dirClean: [0, 0, 0], zero: [0, 0, 0, 0, 0, 0] },
+      dose: { n: [0, 0, 0, 0, 0, 0], taken: [0, 0, 0, 0, 0, 0], deaths: 0, deathHarm: 0, deathsHarmed: 0, dirSick: [0, 0, 0], dirClean: [0, 0, 0], zero: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
     },
     measure: false,
   };
