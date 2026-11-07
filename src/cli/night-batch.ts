@@ -29,6 +29,15 @@ const zeroFarFromOne = (): string | null => {
   if (!zs.length) return null;
   return zs.some((z) => Math.abs(z - 1) >= 0.2) ? null : `z1 zero point within 200px ${zs.join(" / ")}: within 0.2 of 1, check not needed`;
 };
+// c3 / cs3 gate: run the proof only if c1's pick is below cs1's in >= 5 of 6 paired seeds, in either condition
+const capGate = (): string | null => {
+  const a = `${DIR}/c1-glowcap-check.json`, b = `${DIR}/cs1-glowshufcap-check.json`;
+  if (!existsSync(a) || !existsSync(b)) return "c1 / cs1 missing";
+  const A = JSON.parse(readFileSync(a, "utf8")), B = JSON.parse(readFileSync(b, "utf8"));
+  const best = Math.max(...[0, 1].map((c) => A.filter((r: { cond: number; seed: number; m: { pick: number } }) => r.cond === c &&
+    B.some((q: { cond: number; seed: number; m: { pick: number } }) => q.cond === c && q.seed === r.seed && r.m.pick < q.m.pick)).length));
+  return best >= 5 ? null : `c1 pick below cs1 in only ${best} of 6 seeds (need 5): proof not run`;
+};
 const TESTS: Test[] = [
   ["z1-zero-screen", "step 1 screen: zero point, poison on, seed 1, 30k [screen]", [...SCREEN, ...E]],
   ["z2-zero-check", "step 1 check: zero point, poison on, 6 seeds, 30k [check]; only if z1 is far from 1", [...CHECK, ...E], zeroFarFromOne],
@@ -67,6 +76,15 @@ const TESTS: Test[] = [
   ["gs4-glowshuf-s15", "shuffled glow, seeds 15-28 x 200k [proof]; pairs with g4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=3"]],
   ["s4-scent-s15", "scent cue, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=4"]],
   ["ss4-scentshuf-s15", "shuffled scent, seeds 15-28 x 200k [proof]; pairs with s4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=5"]],
+  // ---- 2026-11-06 (Rey: b, "cap the hunter dose at 1"). Poison hurts hunters like a pellet hurts prey, not as a death sentence.
+  // Why the cap: a caught prey passes its WHOLE level through the hunter's age frailty: median sick prey 2.83 x hunter multiplier 3.72
+  // = about 10 units (dose-check.mjs, seed 1). Cap fixed up front at 1 (an adult prey's pellet), not tuned after.
+  // Prediction (before running): glow pick lower than shuffled in >= 5 of 6, and below its own 12px zero. Kill-if: lower in <= 3 of 6.
+  // Risk: at 1 the extra hunger is about 0.0025 x 1 x 721 = 1.8 energy over the poison's life, so a hunter may still starve.
+  ["c1-glowcap-check", "glow + hunterDoseCap 1, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", "--hunterDoseCap=1"]],
+  ["cs1-glowshufcap-check", "shuffled glow + hunterDoseCap 1, 6 seeds, 30k [check]; pairs with c1", [...CHECK, ...E, "--hunterCue=3", "--hunterDoseCap=1"]],
+  ["c3-glowcap-proof", "glow + cap 1, 14 x 200k [proof]; only if c1 beats cs1 on pick in >= 5 of 6", [...PROOF, ...E, "--hunterCue=2", "--hunterDoseCap=1"], capGate],
+  ["cs3-glowshufcap-proof", "shuffled glow + cap 1, 14 x 200k [proof]; pairs with c3", [...PROOF, ...E, "--hunterCue=3", "--hunterDoseCap=1"], capGate],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],
