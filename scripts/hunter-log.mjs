@@ -74,4 +74,6 @@ const parents = H.filter((r) => r.babies > 0);
 console.log(`who breeds: ${parents.length} of ${H.length} hunters had babies (${pct(parents.length, H.length)}); babies per parent (median) ${med(parents.map((r) => r.babies))}; parents' catches (median) ${med(parents.map((r) => r.catches))}, sick catches (median) ${med(parents.map((r) => r.sickCatches))}`);
 const bands = [[0, 500], [500, 1000], [1000, 2000], [2000, 6001]];
 console.log(`catches by hunter age: ${bands.map(([a, b]) => `${a}-${b} ${C.filter((c) => c.age >= a && c.age < b).length} (sick ${pct(C.filter((c) => c.age >= a && c.age < b && c.sick).length, C.filter((c) => c.age >= a && c.age < b).length)})`).join(", ")}`);
+const avgOf = (xs) => (xs.length ? xs.reduce((x, y) => x + y, 0) / xs.length : NaN);
+console.log(`populations: prey ${avgOf(w.eco.popHist).toFixed(1)} avg (min ${Math.min(...w.eco.popHist)}), hunters ${avgOf(w.eco.hunterPopHist).toFixed(1)} avg (max ${Math.max(...w.eco.hunterPopHist)}) | prey restarts ${w.eco.rescues} | rounds ended by: ${["prey", "hunters", "both"].map((d) => d + " " + w.eco.rounds.filter((r) => r.died === d).length).join(", ")}`);
 console.log(`files: ${dir}/hunters.csv, ${dir}/catches.csv`);
