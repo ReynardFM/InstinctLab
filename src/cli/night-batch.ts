@@ -38,6 +38,16 @@ const capGate = (): string | null => {
     B.some((q: { cond: number; seed: number; m: { pick: number } }) => q.cond === c && q.seed === r.seed && r.m.pick < q.m.pick)).length));
   return best >= 5 ? null : `c1 pick below cs1 in only ${best} of 6 seeds (need 5): proof not run`;
 };
+// Same-stats night (Rey 2026-11-08: a). Hunters breed like prey: any age, energy 1.2, whenever full (fertility still falls to 0 at 6000).
+const SAME = ["--hunterMature=0", "--hunterBirth=1.2", "--hunterBirthChance=1"];
+// gate for the poison runs: the base world must still work under the new stats (>= 10 of 14 in either condition)
+const sameWorks = (): string | null => {
+  const f = `${DIR}/wS3-works-same.json`;
+  if (!existsSync(f)) return "wS3 missing";
+  const A = JSON.parse(readFileSync(f, "utf8")) as { cond: number; m: { works: boolean } }[];
+  const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
+  return best >= 10 ? null : `base world under same stats works in only ${best} of 14: poison runs not run`;
+};
 const TESTS: Test[] = [
   ["z1-zero-screen", "step 1 screen: zero point, poison on, seed 1, 30k [screen]", [...SCREEN, ...E]],
   ["z2-zero-check", "step 1 check: zero point, poison on, 6 seeds, 30k [check]; only if z1 is far from 1", [...CHECK, ...E], zeroFarFromOne],
@@ -85,6 +95,18 @@ const TESTS: Test[] = [
   ["cs1-glowshufcap-check", "shuffled glow + hunterDoseCap 1, 6 seeds, 30k [check]; pairs with c1", [...CHECK, ...E, "--hunterCue=3", "--hunterDoseCap=1"]],
   ["c3-glowcap-proof", "glow + cap 1, 14 x 200k [proof]; only if c1 beats cs1 on pick in >= 5 of 6", [...PROOF, ...E, "--hunterCue=2", "--hunterDoseCap=1"], capGate],
   ["cs3-glowshufcap-proof", "shuffled glow + cap 1, 14 x 200k [proof]; pairs with c3", [...PROOF, ...E, "--hunterCue=3", "--hunterDoseCap=1"], capGate],
+  // ---- Night 2026-11-08 (Rey: a). Same breeding stats as prey, passed as flags (defaults unchanged tonight; golden untouched).
+  // Control is BLIND (hunterCue 0), not the shuffled glow, which hurt hunters ~30% (6 seeds, 2026-11-06).
+  // Prediction (before running; unverified): wS3 works in >= 12 of 14. Glow pick below blind in >= 10 of 14 in at least one condition:
+  // a coin-flip guess. Kill-if: glow pick below blind in < 8 of 14 in both conditions -> more hunter generations are not enough.
+  // Read: node scripts/pair.mjs gS3-glow-same bS3-blind-same (and gS2/bS2, gS4/bS4); also the zero-point lines (pick vs 12px zero).
+  ["wS3-works-same", "works, harmless poison, same breeding stats, 14 x 200k [proof]", [...PROOF, ...E, "--poisonDose=0", ...SAME]],
+  ["gS2-glow-same", "glow, poison on, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME], sameWorks],
+  ["bS2-blind-same", "blind (control), poison on, same stats, 6 seeds, 30k [check]; pairs with gS2", [...CHECK, ...E, "--hunterCue=0", ...SAME], sameWorks],
+  ["gS3-glow-same", "glow, poison on, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME], sameWorks],
+  ["bS3-blind-same", "blind (control), poison on, same stats, 14 x 200k [proof]; pairs with gS3", [...PROOF, ...E, "--hunterCue=0", ...SAME], sameWorks],
+  ["gS4-glow-same-s15", "glow, same stats, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=2", ...SAME], sameWorks],
+  ["bS4-blind-same-s15", "blind, same stats, seeds 15-28 x 200k [proof]; pairs with gS4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=0", ...SAME], sameWorks],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],
