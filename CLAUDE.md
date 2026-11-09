@@ -69,6 +69,7 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
 | eyeMotion | 0 | ASK: no help for hunters; prey value not measured |
 | remains | 0 | ASK: hurts with poison, feeds everyone without |
 | season (NEW 2026-11-09, Rey asked for it: budget exception, nothing replaced yet) | 0 | ticks in a year; plants turn each half-year: clean season (no poison plants), poison season (x 2): EXTREME swing, Rey's call 2026-11-09 (was 1/3 and 5/3). [screen] the poison season collapses prey and hunters (seed 1). |
+| hunterBite (RESTORED 2026-11-09, Rey: "choice"; was deleted 2026-11-03) | 0 | third hunter output: refuse a prey in reach. Budget: second new setting this week on Rey's request (with season); nothing replaced yet. [screen] with glow: sick refused 63% vs clean 42%. |
 | hunterCue (replaced hunterSeeSpeed 2026-11-06) | **1 (changes behaviour)** | what hunters see of sickness: 0 blind, 1 speed (drifts, can flip: cue-quality.mjs), 2 glow, 3 glow shuffled, 4 scent field, 5 scent shuffled. Same setting count. |
 | swapKinds | 0 | ASK: swap world (the only place learning paid); parked color/memory branch |
 | hunterResistGene, hunterResistSlow, genPreyToxin | 0, 0, 0 | ASK: resistance breeding works (game mechanic) |

@@ -141,6 +141,16 @@ const TESTS: Test[] = [
   ["bE2-blind-season", "blind control, season 20k, 6 seeds, 30k [check]; pairs with gE2", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--season=20000"]],
   ["gE3-glow-season", "glow, season 20k, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--season=20000"]],
   ["bE3-blind-season", "blind control, season 20k, 14 x 200k [proof]; pairs with gE3", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--season=20000"]],
+  // ---- Choice (Rey 2026-11-09: "then a"): the bite output is back (rules.hunterBite 1): a hunter may refuse a prey it touches.
+  // Why: catching was automatic on contact; 53% of sick catches were not chased. Tested before only with the drifting speed cue.
+  // Screen (seed 1, 30k, glow + bite, same stats): sick prey in reach refused 63% vs clean 42% (handed out), 50% vs 38% (evolved).
+  // Control: bite + BLIND hunters (the bite cannot tell sick from clean). Also compare with glow without bite (gS3).
+  // Prediction (before running): glow + bite refuses sick prey at least 20 points more than clean prey; pick lower than blind + bite in
+  // >= 10 of 14. Survival unsure: refusing clean prey costs meals. Kill-if: refusal gap < 5 points, or pick lower in < 8 of 14 in both conditions.
+  ["gH2-glow-bite", "glow + bite, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", "--hunterBite=1", ...SAME]],
+  ["bH2-blind-bite", "blind + bite (control), 6 seeds, 30k [check]; pairs with gH2", [...CHECK, ...E, "--hunterCue=0", "--hunterBite=1", ...SAME]],
+  ["gH3-glow-bite", "glow + bite, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", "--hunterBite=1", ...SAME]],
+  ["bH3-blind-bite", "blind + bite (control), 14 x 200k [proof]; pairs with gH3", [...PROOF, ...E, "--hunterCue=0", "--hunterBite=1", ...SAME]],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],

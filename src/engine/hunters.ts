@@ -144,12 +144,16 @@ export function placeHunters(w: World): void {
 }
 
 const brainLength = (w: World) => genomeSize(hunterInputCount(w.rules), w.rules.hidden);
+// rules.hunterBite (restored 2026-11-09, Rey: "choice"): the bite output's weights (one per middle neuron + a bias) ride at the end of the genome
+const biteLength = (w: World) => (w.rules.hunterBite > 0 ? w.rules.hidden + 1 : 0);
+const hunterGenomeLength = (w: World) => brainLength(w) + biteLength(w);
 
 function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null, resistGene = 0): HunterBrain {
   const bl = brainLength(w);
+  const bite = w.rules.hunterBite > 0;
   return {
     id: w.nextHunterId++, g, origin, from, caught: 0, maps: 0, a: 0, resistGene, poisonCost: 0, usual: 0,
-    w: w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(bl).fill(0) : [],
+    w: bite ? g.slice(0, bl) : w.rules.hunterLearn > 0 ? g.slice() : g, trace: w.rules.hunterLearn > 0 ? new Array(bl).fill(0) : [],
     inputs: new Array(hunterInputCount(w.rules)).fill(0), hidden: new Array(w.rules.hidden).fill(0), out: [0, 0],
   };
 }
@@ -160,9 +164,9 @@ function newHunterBrain(w: World, g: Genome, origin: Origin, from: number | null
 export const poolSize = (w: World) => Math.max(w.rules.hunters, w.rules.hunterPool);
 
 export function firstHunterBrains(w: World, n = poolSize(w)): HunterBrain[] {
-  const len = brainLength(w);
+  const len = hunterGenomeLength(w);
   // with the eye on, prey brains have another shape, so nothing can be borrowed: every first hunter is random
-  const dead = eyeSlices(w.rules) > 0 || hunterEyeSlices(w.rules) > 0 ? [] : w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
+  const dead = eyeSlices(w.rules) > 0 || hunterEyeSlices(w.rules) > 0 || w.rules.hunterBite > 0 ? [] : w.legacy.filter((f) => f.ref.length >= len).reverse(); // newest first
   const out: HunterBrain[] = [];
   let used = 0;
   for (let i = 0; i < n; i++) {
@@ -414,7 +418,16 @@ function moveBrainHunters(w: World): void {
     nearestPrey(w, h.x, h.y, walls);
     const toxinBefore = h.toxin;
     const inReach = near.i1 >= 0 && near.d21 < CATCH * CATCH;
-    const caughtNow = inReach;
+    let caughtNow = inReach;
+    if (inReach && r.hunterBite > 0) {
+      // the bite output: weights after the brain in the genome, read from the middle neurons of this tick's thought
+      const hid = b.hidden, g = b.g, k0 = g.length - hid.length - 1;
+      let s = g[g.length - 1] + r.hunterBite; // rules.hunterBite is also the start bias toward biting (don't starve at start)
+      for (let i = 0; i < hid.length; i++) s += hid[i] * g[k0 + i];
+      caughtNow = tanh(s) > 0;
+      const sick = w.creatures[near.i1].toxin > SICK, d = w.eco.dose;
+      (sick ? d.biteSick : d.biteClean)[caughtNow ? 0 : 1]++;
+    }
     if (caughtNow && eco) {
       // counting only (Rey 2026-11-02): was the prey ahead of the hunter (chased) or to the side / behind (bumped into)?
       const d = Math.sqrt(near.d21);
@@ -585,7 +598,7 @@ export function restartHunters(w: World): void {
     const src = best.length ? best[i % best.length] : null;
     const brain = src
       ? newHunterBrain(w, i < best.length ? src.g.slice() : src.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), src.origin, src.from)
-      : newHunterBrain(w, Array.from({ length: brainLength(w) }, () => w.hrng.gauss() * 0.5), "random", null);
+      : newHunterBrain(w, Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5), "random", null);
     w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
   }
 }
@@ -611,7 +624,7 @@ export function thinHunters(w: World): void {
     remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
   }
   if (n >= 2) {
-    const g = Array.from({ length: brainLength(w) }, () => w.hrng.gauss() * 0.5);
+    const g = Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5);
     keep.push(newEcoHunter(w, newHunterBrain(w, g, "random", null), w.hrng.next() * W, w.hrng.next() * H, 1));
   }
   w.hunters = keep;

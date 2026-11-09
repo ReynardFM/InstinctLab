@@ -490,3 +490,27 @@ test("season: a clean half-year then a poison half-year; plants change kind at t
   const off = createWorld(4, EYE_ECO);
   assert.equal(seasonFactor(off), 1, "off: no season");
 });
+
+// rules.hunterBite (restored 2026-11-09, Rey: "choice"): a third hunter output; a prey in reach is caught only if the bite says yes.
+test("hunterBite: genome carries the bite weights; a hunter whose bite is always no never catches; off = no extra weights", () => {
+  const R = { ...BOTH_EYES, hunterBite: 1, hunterCue: 2 };
+  const a = createWorld(3, R);
+  runTicks(a, 2000);
+  const len = genomeSize(hunterInputCount(R), R.hidden) + R.hidden + 1;
+  for (const h of a.hunters) assert.equal(h.brain!.g.length, len);
+  assert.ok(a.eco.dose.biteClean[0] > a.eco.dose.biteClean[1], "the start bias makes most hunters bite");
+  const b = createWorld(3, R);
+  runTicks(b, 2000);
+  assert.equal(JSON.stringify(a.hunters.map((h) => h.brain!.g)), JSON.stringify(b.hunters.map((h) => h.brain!.g)), "same seed, same run");
+  const n = createWorld(3, R);
+  runTicks(n, 1);
+  for (const h of n.hunters) h.brain!.g[h.brain!.g.length - 1] = -100; // bias: never bite
+  const caught = n.eco.caught, rounds = n.eco.rounds.length;
+  runTicks(n, 200); // shorter than a hunter can starve (energy 1 / hunger 0.0025 = 400 ticks), so no restart brings new brains
+  assert.equal(n.eco.rounds.length, rounds, "no restart in between");
+  assert.ok(n.eco.dose.biteSick[1] + n.eco.dose.biteClean[1] > 0, "prey came into reach and were refused");
+  assert.equal(n.eco.caught, caught, "nobody was caught");
+  const off = createWorld(3, { ...BOTH_EYES, hunterCue: 2 });
+  runTicks(off, 50);
+  for (const h of off.hunters) assert.equal(h.brain!.g.length, len - R.hidden - 1, "bite off: the plain brain");
+});

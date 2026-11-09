@@ -118,6 +118,10 @@ if (isMainThread) {
     const [zW, z200, z50, z25, z12] = [0, 2, 1, 3, 4].map(zk), pk = R.map((r) => r.m.pick);
     const below = R.filter((_, i) => Number.isFinite(pk[i]) && Number.isFinite(z200[i]) && pk[i] < z200[i]).length, both = R.filter((_, i) => Number.isFinite(pk[i]) && Number.isFinite(z200[i])).length;
     console.log(`  zero point (random hunter; same scale as pick): whole world ${f2(avg(fin(zW)))}, within 200px ${f2(avg(fin(z200)))} (catches ${R.reduce((a, r) => a + r.dose.zero[4], 0)}), within 50px ${f2(avg(fin(z50)))} (catches ${R.reduce((a, r) => a + r.dose.zero[2], 0)}), within 25px ${f2(avg(fin(z25)))} (catches ${R.reduce((a, r) => a + r.dose.zero[6], 0)}), within 12px ${f2(avg(fin(z12)))} (catches ${R.reduce((a, r) => a + r.dose.zero[8], 0)}); pick ${f2(avg(fin(pk)))}; seeds with pick below own 200px zero: ${below} of ${both}`);
+    if (WORLD.hunterBite) {
+      const bs = [0, 1].map((k) => R.reduce((x, r) => x + r.dose.biteSick[k], 0)), bc = [0, 1].map((k) => R.reduce((x, r) => x + r.dose.biteClean[k], 0));
+      console.log(`  bite: sick prey in reach refused ${pct(bs[1] / (bs[0] + bs[1] || 1))} (n ${bs[0] + bs[1]}), clean refused ${pct(bc[1] / (bc[0] + bc[1] || 1))} (n ${bc[0] + bc[1]})`);
+    }
     // pick per time window (Rey 2026-11-09: is pick still falling?): from the running totals at each mark
     const winPick = (r: Result, mi: number) => { const a = r.marks[mi].sick, b = mi ? r.marks[mi - 1].sick : [0, 0, 0, 0]; const c = a[0] - b[0], n = a[3] - b[3], sh = a[2] - b[2]; return c > 0 && n > 0 && sh > 0 ? (a[1] - b[1]) / c / (sh / n) : NaN; };
     console.log(`  pick by window (ending ${MARKS.map((t) => t / 1000 + "k").join(" / ")}): ${MARKS.map((_, mi) => f2(avg(fin(R.map((r) => winPick(r, mi)))))).join(" / ")}`);
