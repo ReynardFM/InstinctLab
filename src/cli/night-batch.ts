@@ -130,6 +130,17 @@ const TESTS: Test[] = [
   ["bB2-blind-food120", "(b) blind control, food 120, 6 seeds, 30k [check]; pairs with gB2", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
   ["gB3-glow-food120", "(b) glow, food 120, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
   ["bB3-blind-food120", "(b) blind control, food 120, 14 x 200k [proof]; pairs with gB3", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
+  // ---- Seasons, extreme swing (Rey 2026-11-09: "make extreme swings"): a 20,000-tick year: 10k with NO poison plants, then 10k with
+  // twice the usual. Year length fixed up front: a half-year is about 15-20 hunter or prey lifetimes (prior work: goals that switch
+  // about every 20 generations sped up evolution, Kashtan & Alon 2005). Screen (seed 1, 30k): clean season sick prey 1%, hunters 42;
+  // poison season sick prey 22%, hunters 16; die-outs 17 (no season: 6). Same breeding stats, poison dose 1, both eyes.
+  // Question: is the glow-vs-blind pick gap bigger with seasons than without (gS3 / bS3: 0.52 vs 0.64, 11 of 14)?
+  // Prediction (before running; low confidence): the gap is bigger (pick lower in >= 11 of 14, handed out) because exposure doubles in the
+  // poison season. Kill-if: pick lower in < 8 of 14 in both conditions, or the world collapses (works < 5 of 14).
+  ["gE2-glow-season", "glow, season 20k, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--season=20000"]],
+  ["bE2-blind-season", "blind control, season 20k, 6 seeds, 30k [check]; pairs with gE2", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--season=20000"]],
+  ["gE3-glow-season", "glow, season 20k, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--season=20000"]],
+  ["bE3-blind-season", "blind control, season 20k, 14 x 200k [proof]; pairs with gE3", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--season=20000"]],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],

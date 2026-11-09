@@ -18,9 +18,9 @@ export const spreading = (w: World) => w.rules.foodSpread > 0 && inEcosystem(w);
 
 // Seasons (rules.season = ticks in a year, Rey 2026-11-09: "rotate more poison or more normal food"). The year has two halves: a clean
 // season, then a poison season. seasonFactor is what the poison plants are multiplied by: 1 - SEASON_SWING (clean), 1 + SEASON_SWING
-// (poison), so the year's average is the usual amount. At each turn of the season, plants picked at random change kind where they
+// (poison), so the year's average is the usual amount. With SEASON_SWING 1: none, then double. At each turn of the season, plants picked at random change kind where they
 // stand until the poison share fits the new season; the number of plants stays the same. Off (0): factor 1, nothing is drawn.
-export const SEASON_SWING = 2 / 3;
+export const SEASON_SWING = 1; // extreme (Rey 2026-11-09): no poison plants in the clean season, double in the poison season (was 2/3)
 export const seasonFactor = (w: World): number => {
   const year = w.rules.season;
   if (!(year > 0)) return 1;
