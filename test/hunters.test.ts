@@ -463,3 +463,30 @@ test("hunterCue 2 and 4: same seed, same run; the scent grid stays empty unless 
     assert.equal(a.eco.scent.length > 0, cue >= 4, `cue ${cue}: scent grid ${a.eco.scent.length}`);
   }
 });
+
+// rules.season (Rey 2026-11-09): the plants turn with the season; the number of plants does not change at the turn.
+import { seasonFactor, SEASON_SWING } from "../src/engine/plants.ts";
+
+test("season: a clean half-year then a poison half-year; plants change kind at the turn, their number does not", () => {
+  const R = { ...EYE_ECO, season: 2000 };
+  const w = createWorld(4, R);
+  const share = () => { const p = w.food.filter((f) => !f.remains); return p.filter((f) => f.poison).length / p.length; };
+  const base = R.poison; // the poison share of all plants on a fresh map
+  runTicks(w, 2);
+  assert.equal(seasonFactor(w), 1 - SEASON_SWING, "the year starts with the clean season");
+  assert.ok(Math.abs(share() - base * (1 - SEASON_SWING)) < 0.03, `clean season poison share ${share()} vs ${base * (1 - SEASON_SWING)}`);
+  runTicks(w, 997 - w.tick);
+  const before = w.food.filter((f) => !f.remains).length, low = share();
+  runTicks(w, 5);
+  const after = w.food.filter((f) => !f.remains).length, high = share();
+  assert.equal(seasonFactor(w), 1 + SEASON_SWING, "second half: the poison season");
+  assert.ok(Math.abs(after - before) <= 3, `plants at the turn: ${before} -> ${after} (only a few sprouts)`);
+  assert.ok(high > 3 * low && Math.abs(high - base * (1 + SEASON_SWING)) < 0.05, `poison share ${low} -> ${high}`);
+  runTicks(w, 2003 - w.tick);
+  assert.ok(share() < high / 2, "next year starts clean again");
+  const a = createWorld(4, R), b = createWorld(4, R);
+  runTicks(a, 3000); runTicks(b, 3000);
+  assert.deepEqual(a.eco.popHist, b.eco.popHist, "same seed, same run");
+  const off = createWorld(4, EYE_ECO);
+  assert.equal(seasonFactor(off), 1, "off: no season");
+});

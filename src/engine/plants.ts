@@ -16,12 +16,39 @@ export const PLANT_CAP = 3; // at most this many times rules.food good pellets (
 
 export const spreading = (w: World) => w.rules.foodSpread > 0 && inEcosystem(w);
 
+// Seasons (rules.season = ticks in a year, Rey 2026-11-09: "rotate more poison or more normal food"). The year has two halves: a clean
+// season, then a poison season. seasonFactor is what the poison plants are multiplied by: 1 - SEASON_SWING (clean), 1 + SEASON_SWING
+// (poison), so the year's average is the usual amount. At each turn of the season, plants picked at random change kind where they
+// stand until the poison share fits the new season; the number of plants stays the same. Off (0): factor 1, nothing is drawn.
+export const SEASON_SWING = 2 / 3;
+export const seasonFactor = (w: World): number => {
+  const year = w.rules.season;
+  if (!(year > 0)) return 1;
+  return Math.floor((2 * w.tick) / year) % 2 === 0 ? 1 - SEASON_SWING : 1 + SEASON_SWING;
+};
+function turnSeason(w: World): void {
+  const r = w.rules;
+  const plants = w.food.filter((f) => !f.remains);
+  // rules.poison is the poison share of all plants on a fresh map (creature.ts newFoodLayout); the season scales it
+  const want = Math.min(plants.length, Math.round(plants.length * r.poison * seasonFactor(w))); // poison plants this season
+  const have = plants.filter((f) => f.poison).length;
+  const toPoison = have < want; // too few poison plants: good ones turn; too many: poison ones turn back
+  const from = plants.filter((f) => f.poison !== toPoison);
+  let n = Math.min(Math.abs(want - have), from.length);
+  for (let i = 0; n > 0; i++, n--) {
+    const j = i + Math.floor(w.env.next() * (from.length - i)); // pick without repeats
+    [from[i], from[j]] = [from[j], from[i]];
+    from[i].poison = toPoison;
+  }
+}
+
 export function spreadFood(w: World): void {
   const r = w.rules;
   const food = w.food;
   const tick = w.tick;
   const walls = r.walls > 0;
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
+  if (r.season > 0 && tick % Math.max(1, Math.floor(r.season / 2)) === 0) turnSeason(w); // rules.season: the plants turn with the season
   // per kind (0 = good, 1 = poison): free slots (eaten for good), pellets, pellets standing now
   const free: number[][] = [[], []];
   const count = [0, 0];
@@ -34,7 +61,9 @@ export function spreadFood(w: World): void {
     if (f.readyAt === Infinity) free[k].push(i);
     else if (f.readyAt <= tick) active[k]++;
   }
-  const cap = [Math.round(r.food * PLANT_CAP), Math.round(Math.round(r.poison * r.food) * PLANT_CAP)];
+  // rules.season: the poison cap follows the season and the good cap gives way, so the total cap is unchanged (factor 1 = as before)
+  const poisonCap = Math.round(Math.round(r.poison * r.food) * PLANT_CAP * seasonFactor(w));
+  const cap = [Math.round(r.food * PLANT_CAP) - (poisonCap - Math.round(Math.round(r.poison * r.food) * PLANT_CAP)), poisonCap];
   const n = food.length; // sprouts from this tick don't sprout again this tick (they appear next tick)
   for (let i = 0; i < n; i++) {
     const f = food[i];

@@ -816,6 +816,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
   ["hunterLearn", "Hunters learn during life", 0, 0.05, 0.001, "Ecosystem mode: taste aversion. A clean catch strengthens what led to it; a poisoned one weakens it, so a hunter can learn to leave slow (maybe sick) prey alone. 0 = off."],
   ["hunterCue", "What hunters see of sickness", 0, 5, 1, "Ecosystem mode: 0 blind; 1 speed (poison slows prey, but healthy prey also go slow); 2 glow (a mark a sick prey can't hide); 3 glow shuffled (control); 4 scent trail that fades; 5 scent shuffled (control)."],
   ["foodSpread", "Food spreads like plants", 0, 0.01, 0.0005, "Ecosystem mode: each pellet sprouts new ones nearby, so food left alone multiplies (up to 3x; poison too, up to 3x its start); an eaten one regrows in place. 0 = off."],
+  ["season", "Seasons (ticks in a year)", 0, 60000, 1000, "Ecosystem mode with spreading food: each half-year the plants turn. A clean season (a third of the usual poison plants), then a poison season (five thirds). The number of plants stays the same. 0 = no seasons."],
   ["regrow", "Food regrows after N ticks", 0, 600, 20, "0 = an eaten pellet reappears somewhere else at once."],
   ["energyCost", "Energy cost of living and moving", 0.5, 3, 0.1, "x normal. Higher = harsher."],
   ["senseFood2", "Sense the second-nearest food", 0, 1, 1, "Adds 3 inputs to the brain."],
@@ -826,7 +827,7 @@ const RULE_SPECS: [keyof Rules, string, number, number, number, string][] = [
 // The rules drawer, in groups. A rule left out of every group still shows, under "Other" (so a new rule is never hidden).
 const RULE_GROUPS: [string, (keyof Rules)[]][] = [
   ["Population and time", ["pop", "genTicks", "layouts"]],
-  ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "hunterCue", "hunterSpit", "hunterLearn", "resistTrain", "hunterResistTrain", "regrow", "foodSpread", "energyCost", "swapKinds"]],
+  ["Food", ["food", "poison", "poisonDose", "poisonHalfLife", "poisonFrail", "hunterCue", "hunterSpit", "hunterLearn", "resistTrain", "hunterResistTrain", "regrow", "foodSpread", "season", "energyCost", "swapKinds"]],
   ["Senses and brain", ["senseFood2", "senseCreature", "walls", "hidden"]],
   ["Evolution", ["mutation", "parents", "elite", "newcomers", "newcomerMutation", "protectGens"]],
   ["Families", ["splitDistance", "splitProof", "championStreak"]],
