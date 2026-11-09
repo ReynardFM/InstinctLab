@@ -13,7 +13,7 @@ for (let t = 0; t < 15000; t++) {
   const now = new Map(w.creatures.filter((c) => c.alive).map((c) => [c, c.energy]));
   for (const [c, e] of prev) {
     if (!now.has(c)) { if (t > 3000) { deathAges.push(c.age); kidCounts.push(kids.get(c) ?? 0); } continue; }
-    if (now.get(c) < e * 0.6) { kids.set(c, (kids.get(c) ?? 0) + 1); if (!first.has(c)) { first.set(c, c.age); if (t > 3000) firstAges.push(c.age); } }
+    if (e >= 0.85 && now.get(c) < e * 0.65) { kids.set(c, (kids.get(c) ?? 0) + 1); if (!first.has(c)) { first.set(c, c.age); if (t > 3000) firstAges.push(c.age); } }
   }
   prev = now;
 }
