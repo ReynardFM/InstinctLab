@@ -48,6 +48,15 @@ const sameWorks = (): string | null => {
   const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
   return best >= 10 ? null : `base world under same stats works in only ${best} of 14: poison runs not run`;
 };
+// gate: the base world must work (>= 10 of 14 in either condition) in the named works run before its poison runs start
+const worksGate = (name: string) => (): string | null => {
+  const f = `${DIR}/${name}.json`;
+  if (!existsSync(f)) return `${name} missing`;
+  const A = JSON.parse(readFileSync(f, "utf8")) as { cond: number; m: { works: boolean } }[];
+  const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
+  return best >= 10 ? null : `${name}: base world works in only ${best} of 14: poison runs not run`;
+};
+const FOOD2 = ["--food=120"]; // "bigger world" (Rey 2026-11-09: b): twice the food on the same 800 x 600 map (the map size is not a setting)
 const TESTS: Test[] = [
   ["z1-zero-screen", "step 1 screen: zero point, poison on, seed 1, 30k [screen]", [...SCREEN, ...E]],
   ["z2-zero-check", "step 1 check: zero point, poison on, 6 seeds, 30k [check]; only if z1 is far from 1", [...CHECK, ...E], zeroFarFromOne],
@@ -107,6 +116,20 @@ const TESTS: Test[] = [
   ["bS3-blind-same", "blind (control), poison on, same stats, 14 x 200k [proof]; pairs with gS3", [...PROOF, ...E, "--hunterCue=0", ...SAME], sameWorks],
   ["gS4-glow-same-s15", "glow, same stats, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=2", ...SAME], sameWorks],
   ["bS4-blind-same-s15", "blind, same stats, seeds 15-28 x 200k [proof]; pairs with gS4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=0", ...SAME], sameWorks],
+  // ---- Night 2026-11-09 (Rey: "A and b"). Why: prey and hunters pay about the same per mistake (87% vs 82-97% dead within 300 ticks),
+  // but prey get ~3,150 lives per 20k ticks and hunters 527 (prey-like breeding): hunters adapt slower because they are fewer.
+  // (a) TIME: glow vs blind for 600k ticks, 6 seeds, same breeding stats. Read: node scripts/pick-time.mjs gL-glow-600k bL-blind-600k
+  //     Prediction (before running; low confidence): glow pick keeps falling across windows and is below blind in >= 5 of 6 in the last
+  //     window (handed out). Kill-if: the glow-blind gap in the last window is no bigger than in the 100-200k window -> time alone is not enough.
+  // (b) NUMBERS: twice the food. Screen (seed 1, 12k): prey 137 vs 77, hunters 33 vs 17, about 2x the hunter lives per tick.
+  //     wB3 re-measures "works"; glow vs blind run only if it passes. Prediction: works >= 10 of 14; glow pick below blind in >= 11 of 14 (handed out).
+  ["gL-glow-600k", "(a) glow, same stats, 6 seeds x 600k [check, long]", ["--seeds=1-6", "--ticks=600000", ...E, "--hunterCue=2", ...SAME]],
+  ["bL-blind-600k", "(a) blind control, same stats, 6 seeds x 600k [check, long]; pairs with gL", ["--seeds=1-6", "--ticks=600000", ...E, "--hunterCue=0", ...SAME]],
+  ["wB3-works-food120", "(b) works, harmless poison, same stats, food 120, 14 x 200k [proof]", [...PROOF, ...E, "--poisonDose=0", ...SAME, ...FOOD2]],
+  ["gB2-glow-food120", "(b) glow, food 120, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
+  ["bB2-blind-food120", "(b) blind control, food 120, 6 seeds, 30k [check]; pairs with gB2", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
+  ["gB3-glow-food120", "(b) glow, food 120, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
+  ["bB3-blind-food120", "(b) blind control, food 120, 14 x 200k [proof]; pairs with gB3", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],

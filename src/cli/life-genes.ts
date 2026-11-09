@@ -39,7 +39,8 @@ const CONDS: [string, Partial<Rules>][] = [
 ];
 const MARKS = [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS].filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
 interface Job { cond: number; seed: number }
-interface Mark { prey: number; hunters: number; hResist: number; hDrift: number; depth: number; maxDepth: number; adopt: number[] }
+interface Mark { prey: number; hunters: number; hResist: number; hDrift: number; depth: number; maxDepth: number; adopt: number[];
+  sick: number[] } // running totals for pick per time window: [catches, sick catches, sum of sampled sick share, samples]
 interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number; restarts: number; remainsPer1k: number; dose: World["eco"]["dose"] }
 
 const mark = (w: World, genes: boolean): Mark => {
@@ -50,6 +51,7 @@ const mark = (w: World, genes: boolean): Mark => {
     hDrift: w.hunters.length ? w.hunters.reduce((a, h) => { const b = h.brain!; let d = 0; for (let k = 0; k < b.w.length; k++) d += Math.abs(b.w[k] - b.g[k]); return a + d / b.w.length; }, 0) / w.hunters.length : 0,
     depth: cs.reduce((a, c) => a + c.depth, 0) / n, maxDepth: cs.reduce((a, c) => Math.max(a, c.depth), 0),
     adopt: Array.from({ length: SENSE_GENES }, (_, s) => genes ? cs.filter((c) => c.g[c.g.length - SENSE_GENES + s] > 0).length / n : 1),
+    sick: [w.eco.sick.caught, w.eco.sick.caughtSick, w.eco.sick.sickShare, w.eco.sick.samples],
   };
 };
 
@@ -116,6 +118,9 @@ if (isMainThread) {
     const [zW, z200, z50, z25, z12] = [0, 2, 1, 3, 4].map(zk), pk = R.map((r) => r.m.pick);
     const below = R.filter((_, i) => Number.isFinite(pk[i]) && Number.isFinite(z200[i]) && pk[i] < z200[i]).length, both = R.filter((_, i) => Number.isFinite(pk[i]) && Number.isFinite(z200[i])).length;
     console.log(`  zero point (random hunter; same scale as pick): whole world ${f2(avg(fin(zW)))}, within 200px ${f2(avg(fin(z200)))} (catches ${R.reduce((a, r) => a + r.dose.zero[4], 0)}), within 50px ${f2(avg(fin(z50)))} (catches ${R.reduce((a, r) => a + r.dose.zero[2], 0)}), within 25px ${f2(avg(fin(z25)))} (catches ${R.reduce((a, r) => a + r.dose.zero[6], 0)}), within 12px ${f2(avg(fin(z12)))} (catches ${R.reduce((a, r) => a + r.dose.zero[8], 0)}); pick ${f2(avg(fin(pk)))}; seeds with pick below own 200px zero: ${below} of ${both}`);
+    // pick per time window (Rey 2026-11-09: is pick still falling?): from the running totals at each mark
+    const winPick = (r: Result, mi: number) => { const a = r.marks[mi].sick, b = mi ? r.marks[mi - 1].sick : [0, 0, 0, 0]; const c = a[0] - b[0], n = a[3] - b[3], sh = a[2] - b[2]; return c > 0 && n > 0 && sh > 0 ? (a[1] - b[1]) / c / (sh / n) : NaN; };
+    console.log(`  pick by window (ending ${MARKS.map((t) => t / 1000 + "k").join(" / ")}): ${MARKS.map((_, mi) => f2(avg(fin(R.map((r) => winPick(r, mi)))))).join(" / ")}`);
     console.log(`  works (no die-out in last ${WORKS_QUIET / 1000}k, each side cycled >= 1 inside the running round): ${R.filter((r) => r.m.works).length} of ${R.length} seeds; prey cycles ${f1(avg(R.map((r) => r.m.preyCyclesNow)))}, hunter cycles ${f1(avg(R.map((r) => r.m.hunterCyclesNow)))}, ticks since last die-out ${Math.round(avg(R.map((r) => r.m.quiet)))}`);
     if (WORLD.hunterResistTrain) console.log(`  hunter resistance at ${MARKS.map((t) => t / 1000 + "k").join("/")}: ${MARKS.map((_, mi) => avg(R.map((r) => r.marks[mi].hResist)).toFixed(2)).join(" / ")}`);
     console.log(`  hunter deaths ${dd}: hunger factor at death ${(R.reduce((a, r) => a + r.dose.deathHarm, 0) / dd).toFixed(2)}x, harm > 0.5 in ${pct(R.reduce((a, r) => a + r.dose.deathsHarmed, 0) / dd)}`);
