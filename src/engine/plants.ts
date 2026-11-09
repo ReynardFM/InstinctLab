@@ -16,16 +16,25 @@ export const PLANT_CAP = 3; // at most this many times rules.food good pellets (
 
 export const spreading = (w: World) => w.rules.foodSpread > 0 && inEcosystem(w);
 
-// Seasons (rules.season = ticks in a year, Rey 2026-11-09: "rotate more poison or more normal food"). The year has two halves: a clean
-// season, then a poison season. seasonFactor is what the poison plants are multiplied by: 1 - SEASON_SWING (clean), 1 + SEASON_SWING
-// (poison), so the year's average is the usual amount. With SEASON_SWING 1: none, then double. At each turn of the season, plants picked at random change kind where they
-// stand until the poison share fits the new season; the number of plants stays the same. Off (0): factor 1, nothing is drawn.
-export const SEASON_SWING = 1; // extreme (Rey 2026-11-09): no poison plants in the clean season, double in the poison season (was 2/3)
+// Seasons (rules.season = ticks in a year; Rey 2026-11-09). The year has four quarters:
+//   0 foraging        plants all over the map, no poison plants
+//   1 poison foraging plants all over the map, twice the usual poison plants
+//   2 farm            plants packed into the farm zones, no poison plants
+//   3 poison farm     plants packed into the farm zones, twice the usual poison plants
+// seasonFactor is what the poison plants are multiplied by (1 - SEASON_SWING clean, 1 + SEASON_SWING poison), so the year's average is
+// the usual amount. At each turn, plants picked at random change kind where they stand until the poison share fits; when the layout
+// changes (foraging <-> farm) every plant moves to a random spot of the new layout. The number of plants stays the same.
+// Farms: FARMS discs of radius FARM_R, placed by the world's own random numbers the first time they are needed (w.eco.farms).
+// Off (0): factor 1, nothing moves, nothing is drawn.
+export const SEASON_SWING = 1; // extreme (Rey 2026-11-09): no poison plants in the clean seasons, double in the poison seasons
+export const FARMS = 2, FARM_R = 110;
+export const SEASON_NAMES = ["foraging", "poison foraging", "farm", "poison farm"];
+export const seasonQuarter = (w: World): number => (w.rules.season > 0 ? Math.floor((4 * w.tick) / w.rules.season) % 4 : -1);
 export const seasonFactor = (w: World): number => {
-  const year = w.rules.season;
-  if (!(year > 0)) return 1;
-  return Math.floor((2 * w.tick) / year) % 2 === 0 ? 1 - SEASON_SWING : 1 + SEASON_SWING;
+  const q = seasonQuarter(w);
+  return q < 0 ? 1 : q % 2 === 0 ? 1 - SEASON_SWING : 1 + SEASON_SWING;
 };
+export const farmSeason = (w: World): boolean => seasonQuarter(w) >= 2;
 function turnSeason(w: World): void {
   const r = w.rules;
   const plants = w.food.filter((f) => !f.remains);
@@ -40,6 +49,20 @@ function turnSeason(w: World): void {
     [from[i], from[j]] = [from[j], from[i]];
     from[i].poison = toPoison;
   }
+  // the layout: quarter 2 packs every plant into the farms, quarter 0 spreads them over the map again (not at the very start: the fresh map is spread already)
+  const q = seasonQuarter(w);
+  if (q === 2 || (q === 0 && w.tick > 0)) {
+    const walls = r.walls > 0;
+    const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
+    const farms = w.eco.farms;
+    if (q === 2 && !farms.length) for (let k = 0; k < FARMS; k++) farms.push(w.env.next() * W, w.env.next() * H);
+    for (const f of plants) {
+      if (q === 0) { f.x = w.env.next() * W; f.y = w.env.next() * H; continue; }
+      const k = Math.floor(w.env.next() * FARMS), a = w.env.next() * Math.PI * 2, d = FARM_R * Math.sqrt(w.env.next()); // even over the disc
+      f.x = place(farms[2 * k] + cos(a) * d, W);
+      f.y = place(farms[2 * k + 1] + sin(a) * d, H);
+    }
+  }
 }
 
 export function spreadFood(w: World): void {
@@ -48,7 +71,7 @@ export function spreadFood(w: World): void {
   const tick = w.tick;
   const walls = r.walls > 0;
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
-  if (r.season > 0 && tick % Math.max(1, Math.floor(r.season / 2)) === 0) turnSeason(w); // rules.season: the plants turn with the season
+  if (r.season > 0 && tick % Math.max(1, Math.floor(r.season / 4)) === 0) turnSeason(w); // rules.season: the plants turn with the season
   // per kind (0 = good, 1 = poison): free slots (eaten for good), pellets, pellets standing now
   const free: number[][] = [[], []];
   const count = [0, 0];

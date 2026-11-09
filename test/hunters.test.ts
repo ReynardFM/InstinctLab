@@ -464,31 +464,44 @@ test("hunterCue 2 and 4: same seed, same run; the scent grid stays empty unless 
   }
 });
 
-// rules.season (Rey 2026-11-09): the plants turn with the season; the number of plants does not change at the turn.
-import { seasonFactor, SEASON_SWING } from "../src/engine/plants.ts";
+// rules.season (Rey 2026-11-09): four seasons: foraging, poison foraging, farm, poison farm. The number of plants does not change at a turn.
+import { seasonFactor, seasonQuarter, farmSeason, SEASON_SWING, FARM_R, FARMS } from "../src/engine/plants.ts";
 
-test("season: a clean half-year then a poison half-year; plants change kind at the turn, their number does not", () => {
-  const R = { ...EYE_ECO, season: 2000 };
+test("season: foraging, poison foraging, farm, poison farm; plants change kind and place at the turns, their number does not", () => {
+  const R = { ...EYE_ECO, season: 2000 }; // quarters of 500 ticks
   const w = createWorld(4, R);
-  const share = () => { const p = w.food.filter((f) => !f.remains); return p.filter((f) => f.poison).length / p.length; };
-  const base = R.poison; // the poison share of all plants on a fresh map
+  const plants = () => w.food.filter((f) => !f.remains);
+  const share = () => plants().filter((f) => f.poison).length / plants().length;
+  const off = (v: number, size: number) => { const d = Math.abs(v) % size; return R.walls > 0 ? Math.abs(v) : Math.min(d, size - d); };
+  const inFarm = (f: { x: number; y: number }) => { for (let k = 0; k < FARMS; k++) if (Math.hypot(off(f.x - w.eco.farms[2 * k], 800), off(f.y - w.eco.farms[2 * k + 1], 600)) <= FARM_R + 26) return true; return false; };
   runTicks(w, 2);
-  assert.equal(seasonFactor(w), 1 - SEASON_SWING, "the year starts with the clean season");
-  assert.ok(Math.abs(share() - base * (1 - SEASON_SWING)) < 0.03, `clean season poison share ${share()} vs ${base * (1 - SEASON_SWING)}`);
-  runTicks(w, 997 - w.tick);
-  const before = w.food.filter((f) => !f.remains).length, low = share();
+  assert.equal(seasonQuarter(w), 0);
+  assert.equal(seasonFactor(w), 1 - SEASON_SWING, "the year starts clean");
+  assert.ok(share() < 0.03, `foraging: poison share ${share()}`);
+  assert.equal(w.eco.farms.length, 0, "no farms drawn before the first farm season");
+  runTicks(w, 497 - w.tick);
+  const before = plants().length;
   runTicks(w, 5);
-  const after = w.food.filter((f) => !f.remains).length, high = share();
-  assert.equal(seasonFactor(w), 1 + SEASON_SWING, "second half: the poison season");
-  assert.ok(Math.abs(after - before) <= 3, `plants at the turn: ${before} -> ${after} (only a few sprouts)`);
-  assert.ok(high > 3 * low && Math.abs(high - base * (1 + SEASON_SWING)) < 0.05, `poison share ${low} -> ${high}`);
+  assert.equal(seasonQuarter(w), 1);
+  assert.ok(Math.abs(plants().length - before) <= 3, `plants at the turn: ${before} -> ${plants().length}`);
+  assert.ok(Math.abs(share() - R.poison * (1 + SEASON_SWING)) < 0.06, `poison foraging: poison share ${share()}`);
+  runTicks(w, 1003 - w.tick);
+  assert.ok(farmSeason(w) && seasonQuarter(w) === 2);
+  assert.equal(w.eco.farms.length, 2 * FARMS);
+  assert.ok(share() < 0.03, "farm: clean again");
+  assert.equal(plants().filter((f) => !inFarm(f)).length, 0, "farm: every plant stands in a farm (sprouts land within 25 px)");
+  runTicks(w, 1503 - w.tick);
+  assert.equal(seasonQuarter(w), 3);
+  assert.ok(share() > 0.4, `poison farm: poison share ${share()}`);
+  assert.ok(plants().filter(inFarm).length / plants().length > 0.9, "poison farm: plants still in the farms");
   runTicks(w, 2003 - w.tick);
-  assert.ok(share() < high / 2, "next year starts clean again");
+  assert.equal(seasonQuarter(w), 0);
+  assert.ok(plants().filter(inFarm).length / plants().length < 0.6, "next year: the plants are spread over the map again");
   const a = createWorld(4, R), b = createWorld(4, R);
   runTicks(a, 3000); runTicks(b, 3000);
   assert.deepEqual(a.eco.popHist, b.eco.popHist, "same seed, same run");
-  const off = createWorld(4, EYE_ECO);
-  assert.equal(seasonFactor(off), 1, "off: no season");
+  const none = createWorld(4, EYE_ECO);
+  assert.equal(seasonFactor(none), 1, "off: no season");
 });
 
 // rules.hunterBite (restored 2026-11-09, Rey: "choice"): a third hunter output; a prey in reach is caught only if the bite says yes.

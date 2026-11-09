@@ -67,8 +67,8 @@ export interface Rules {
   hunterBite: number; // brain hunters (restored 2026-11-09, Rey: "choice"; first built 2026-11-02): above 0 = a third output, bite: a prey in reach
   // is caught only if it is above 0. Its weights ride at the end of the hunter genome (inherited and mutated, not learned); this value is
   // added to the bite sum as a start bias toward biting (1: most bite at first)
-  season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Each half-year the plants turn: a clean
-  // season (no poison plants) then a poison season (twice the usual poison plants); the number of plants does not change (plants.ts)
+  season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
+  // no poison plants), poison foraging (twice the poison), farm (plants packed into farm zones, no poison), poison farm (plants.ts)
   hunterCue: number; // ecosystem (Rey 2026-11-06; replaces hunterSeeSpeed): what hunters see of a prey's sickness. 0 blind; 1 speed (poison slows
   // prey, but healthy prey also choose to go slow, so the cue drifts and can flip); 2 glow = min(poison, 1), a mark prey can't hide; 4 scent
   // field that sick prey leave and that fades (memory in the world); 3 and 5 = shuffled controls of 2 and 4 (hunters.ts)
@@ -182,6 +182,7 @@ export interface EcoStats {
   popHist: number[]; // population, sampled every ECO_SAMPLE ticks
   ageHist: number[]; // average age, same samples
   recentDeaths: { x: number; y: number; tick: number }[]; // for the page's death marks (last 200)
+  farms: number[]; // rules.season: the farm zones' centres [x1, y1, x2, y2], drawn once when the first farm season starts; empty before
   scent: number[]; // rules.hunterCue 4/5: the scent grid (hunters.ts, SCENT_CELL px cells); empty when off
   // hunters (rules.hunters > 0)
   huntersStarted: boolean;
@@ -261,7 +262,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     failedBranches: 0,
     newcomerCount: 0,
     eco: {
-      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [], scent: [],
+      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [], scent: [], farms: [],
       huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,

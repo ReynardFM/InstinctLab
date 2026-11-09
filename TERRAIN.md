@@ -43,3 +43,8 @@ So every terrain type needs: something to sense, something to do about it, a pay
 Two settings were added this week on Rey's request with nothing replaced: season, hunterBite. Terrain adds 1-2 more.
 Eight settings are still on the pending-delete list (hunterSpit, resistTrain, resistHalfLife, resistInherit, resistUpkeep,
 hunterResistTrain, hunterResistCap, hunterResistInherit). Deleting them would pay for all of it.
+
+## Update 2026-11-09 (Rey: "put farm paired with season, make it into 4")
+Farm is now built as part of the seasons (rules.season): foraging, poison foraging, farm, poison farm. No separate terrain setting.
+Screen (seed 1, one 40k-tick year): in the farm season 49% of prey and 78% of hunters stand in the farm zones (16% of the map), and
+catches rise (2,749 vs 1,652 in the foraging season). This appears at once, so it is behaviour they already had, not yet adaptation.

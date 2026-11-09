@@ -130,17 +130,19 @@ const TESTS: Test[] = [
   ["bB2-blind-food120", "(b) blind control, food 120, 6 seeds, 30k [check]; pairs with gB2", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
   ["gB3-glow-food120", "(b) glow, food 120, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
   ["bB3-blind-food120", "(b) blind control, food 120, 14 x 200k [proof]; pairs with gB3", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
-  // ---- Seasons, extreme swing (Rey 2026-11-09: "make extreme swings"): a 20,000-tick year: 10k with NO poison plants, then 10k with
-  // twice the usual. Year length fixed up front: a half-year is about 15-20 hunter or prey lifetimes (prior work: goals that switch
-  // about every 20 generations sped up evolution, Kashtan & Alon 2005). Screen (seed 1, 30k): clean season sick prey 1%, hunters 42;
-  // poison season sick prey 22%, hunters 16; die-outs 17 (no season: 6). Same breeding stats, poison dose 1, both eyes.
-  // Question: is the glow-vs-blind pick gap bigger with seasons than without (gS3 / bS3: 0.52 vs 0.64, 11 of 14)?
-  // Prediction (before running; low confidence): the gap is bigger (pick lower in >= 11 of 14, handed out) because exposure doubles in the
-  // poison season. Kill-if: pick lower in < 8 of 14 in both conditions, or the world collapses (works < 5 of 14).
-  ["gE2-glow-season", "glow, season 20k, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--season=20000"]],
-  ["bE2-blind-season", "blind control, season 20k, 6 seeds, 30k [check]; pairs with gE2", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--season=20000"]],
-  ["gE3-glow-season", "glow, season 20k, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--season=20000"]],
-  ["bE3-blind-season", "blind control, season 20k, 14 x 200k [proof]; pairs with gE3", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--season=20000"]],
+  // ---- Four seasons (Rey 2026-11-09: "put farm paired with season, make it into 4: foraging, poison foraging, farm, poison farm").
+  // A 40,000-tick year, 10k per season; extreme swing: clean seasons have NO poison plants, poison seasons twice the usual; in the farm
+  // seasons every plant stands in one of 2 farm zones (radius 110 px, 16% of the map). Season length fixed up front: about 15-20
+  // hunter or prey lifetimes (prior work: goals switching about every 20 generations sped up evolution, Kashtan & Alon 2005).
+  // Screen (seed 1, one year, glow, same stats): foraging prey 67 / hunters 33; poison foraging 23 / 6 (16 die-outs, sick prey 25%);
+  // farm 64 / 56 (prey in the farms 49%, hunters 78%); poison farm 24 / 6 (12 die-outs). Same breeding stats, poison dose 1, both eyes.
+  // Questions: (1) does the world last 5 years (works)? (2) is the glow-vs-blind pick gap bigger than without seasons (gS3 / bS3: 0.52 vs
+  // 0.64, 11 of 14)? Prediction (before running; low confidence): the world keeps collapsing in the poison seasons (works < 10 of 14);
+  // the pick gap is not bigger, because die-outs reset the hunters. Kill-if for seasons as a help to hunters: pick lower in < 8 of 14.
+  ["gE2-glow-season", "glow, 4 seasons (year 40k), same stats, 6 seeds, 80k = 2 years [check]", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=2", ...SAME, "--season=40000"]],
+  ["bE2-blind-season", "blind control, 4 seasons, 6 seeds, 80k [check]; pairs with gE2", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=0", ...SAME, "--season=40000"]],
+  ["gE3-glow-season", "glow, 4 seasons (year 40k), same stats, 14 x 200k = 5 years [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--season=40000"]],
+  ["bE3-blind-season", "blind control, 4 seasons, 14 x 200k [proof]; pairs with gE3", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--season=40000"]],
   // ---- Choice (Rey 2026-11-09: "then a"): the bite output is back (rules.hunterBite 1): a hunter may refuse a prey it touches.
   // Why: catching was automatic on contact; 53% of sick catches were not chased. Tested before only with the drifting speed cue.
   // Screen (seed 1, 30k, glow + bite, same stats): sick prey in reach refused 63% vs clean 42% (handed out), 50% vs 38% (evolved).
