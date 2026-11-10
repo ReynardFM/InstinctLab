@@ -49,6 +49,12 @@ export function dose(amount: number, age: number, life: number, w: World): numbe
 export function fade(level: number, w: World): number {
   return level > 0 ? level - (level * LN2) / Math.max(1, w.rules.poisonHalfLife) : 0;
 }
+// Hunters' fading (rules.hunterPoisonHalfLife, Rey 2026-11-10: "bigger metabolism, faster poison degrade"): their own half-life, or
+// the prey's (poisonHalfLife) when 0. Same first-order sum, so 0 gives exactly the old numbers.
+export function fadeHunter(level: number, w: World): number {
+  const half = w.rules.hunterPoisonHalfLife > 0 ? w.rules.hunterPoisonHalfLife : w.rules.poisonHalfLife;
+  return level > 0 ? level - (level * LN2) / Math.max(1, half) : 0;
+}
 
 // Resistance (Rey 2026-10-25: "slowly become the butterfly"): eating poison trains it, a little per pellet
 // (rules.resistTrain of the way to full); it fades without poison (halves every rules.resistHalfLife ticks);

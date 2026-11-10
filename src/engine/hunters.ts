@@ -22,7 +22,7 @@ import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { PREY_LIFE_RATE, SICK, dose, fade, fadeResist, harm, train } from "./toxin.ts";
+import { PREY_LIFE_RATE, SICK, dose, fadeHunter, fadeResist, harm, train } from "./toxin.ts";
 // The lifespan a hunter's age resistance is measured against: the fixed hunterAge, or (rules.hunterRealLife) how old hunters really die
 const hunterLifeFor = (w: World): number => (w.rules.hunterRealLife > 0 ? w.eco.hunterLife : w.rules.hunterAge);
 
@@ -556,7 +556,7 @@ export function liveEcoHunters(w: World): void {
   const born: Hunter[] = [];
   for (const h of w.hunters) {
     h.energy -= r.hunterHunger * (1 + harm(h.toxin, h.resist)) + r.resistUpkeep * h.resist; // poison: hunger costs more; resistance has upkeep
-    h.toxin = fade(h.toxin, w);
+    h.toxin = fadeHunter(h.toxin, w); // rules.hunterPoisonHalfLife: hunters may clear poison faster than prey
     h.resist = fadeResist(h.resist, w);
     h.age++;
     const adult = h.age >= r.hunterMature;

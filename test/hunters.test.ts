@@ -545,3 +545,21 @@ test("hunterRealLife: hunters' average lifespan is tracked from real deaths, and
   runTicks(a, 3000); runTicks(b, 3000);
   assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
 });
+
+// rules.hunterPoisonHalfLife (Rey 2026-11-10: "bigger metabolism, faster poison degrade"): poison fades faster in hunters than in prey.
+import { fadeHunter, fade } from "../src/engine/toxin.ts";
+
+test("hunterPoisonHalfLife: a hunter's poison halves in its own half-life; 0 = the prey's", () => {
+  const w = createWorld(2, { ...BOTH_EYES, hunterPoisonHalfLife: 50 });
+  let lv = 8;
+  for (let t = 0; t < 50; t++) lv = fadeHunter(lv, w);
+  assert.ok(Math.abs(lv - 4) < 0.05, `after 50 ticks: ${lv}`);
+  let prey = 8;
+  for (let t = 0; t < 50; t++) prey = fade(prey, w);
+  assert.ok(prey > 7, `prey keep their 500-tick half-life: ${prey}`);
+  const off = createWorld(2, BOTH_EYES);
+  assert.equal(fadeHunter(3, off), fade(3, off), "off: the same as prey");
+  const a = createWorld(2, { ...BOTH_EYES, hunterPoisonHalfLife: 50 }), b = createWorld(2, { ...BOTH_EYES, hunterPoisonHalfLife: 50 });
+  runTicks(a, 3000); runTicks(b, 3000);
+  assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
+});

@@ -67,6 +67,8 @@ export interface Rules {
   hunterBite: number; // brain hunters (restored 2026-11-09, Rey: "choice"; first built 2026-11-02): above 0 = a third output, bite: a prey in reach
   // is caught only if it is above 0. Its weights ride at the end of the hunter genome (inherited and mutated, not learned); this value is
   // added to the bite sum as a start bias toward biting (1: most bite at first)
+  hunterPoisonHalfLife: number; // ecosystem (Rey 2026-11-10: "bigger metabolism, faster poison degrade"): ticks for poison to halve in a
+  // hunter; 0 = the same as prey (poisonHalfLife). One dose D costs a hunter about hunterHunger x D x half-life / ln 2 extra energy
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
   season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
@@ -124,7 +126,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterLearn: 0.02,
   hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
