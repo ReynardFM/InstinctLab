@@ -210,6 +210,11 @@ export interface Grids {
 const gridCache = new WeakMap<World, Grids>(); // reused tick after tick (no new arrays every tick)
 
 export function prepareGrids(w: World): void {
+  // with the raw eye nobody asks the grids anything (the eye looks at everything in range; hunters search for themselves): skip the work
+  if (eyeSlices(w.rules) > 0) {
+    w.grids = null;
+    return;
+  }
   const foodOn = SPATIAL.on && w.food.length >= SPATIAL.foodFrom;
   const creaturesOn = SPATIAL.on && w.rules.senseCreature > 0 && w.creatures.length >= SPATIAL.creaturesFrom;
   if (!foodOn && !creaturesOn) {
@@ -337,22 +342,88 @@ export function sense(w: World, c: Creature): Perception {
 // Reused by senseInto (one creature at a time, never two at once).
 const foodHits = newFoodHits();
 const creatureHit: Hit<Creature> = { item: null, dx: 0, dy: 0, d2: 0 };
-const perceived: { food: Food | null; foodDist: number } = { food: null, foodDist: Infinity };
+const perceived: { food: Food | null; foodDist: number; idx: number } = { food: null, foodDist: Infinity, idx: -1 }; // idx: the pellet's place in w.food (raw eye only; else -1)
+
+// The food as flat arrays for the raw eye (2026-11-09 speed-up; same results): built the first time a creature looks in a tick, and kept
+// in step when a pellet is eaten (life.ts calls eyeFoodChanged). state: 0 = not there now, 1 = looks good, 2 = looks like poison.
+interface EyeFood { x: Float64Array; y: Float64Array; state: Uint8Array; n: number; tick: number }
+const eyeFoodCache = new WeakMap<World, EyeFood>();
+function eyeFood(w: World): EyeFood {
+  const food = w.food, n = food.length, tick = w.tick;
+  let v = eyeFoodCache.get(w);
+  if (v !== undefined && v.tick === tick && v.n === n) return v;
+  if (v === undefined || v.x.length < n) {
+    const cap = Math.max(64, n * 2);
+    v = { x: new Float64Array(cap), y: new Float64Array(cap), state: new Uint8Array(cap), n: 0, tick: -1 };
+    eyeFoodCache.set(w, v);
+  }
+  v.n = n;
+  v.tick = tick;
+  const swapped = w.swapped;
+  for (let i = 0; i < n; i++) {
+    const f = food[i];
+    v.x[i] = f.x;
+    v.y[i] = f.y;
+    v.state[i] = f.readyAt > tick ? 0 : f.poison !== swapped ? 2 : 1;
+  }
+  return v;
+}
+// The creatures as flat arrays for the raw eye, the same way: built the first time a creature looks in a tick (which also numbers the
+// creatures: c.slot), and kept in step as each one moves or dies (life.ts calls eyeCreatureChanged at the end of its turn).
+interface EyeCreatures { x: Float64Array; y: Float64Array; alive: Uint8Array; n: number; tick: number }
+const eyeCreatureCache = new WeakMap<World, EyeCreatures>();
+function eyeCreatures(w: World): EyeCreatures {
+  const cs = w.creatures, n = cs.length, tick = w.tick;
+  let v = eyeCreatureCache.get(w);
+  if (v !== undefined && v.tick === tick && v.n === n) return v;
+  if (v === undefined || v.x.length < n) {
+    const cap = Math.max(64, n * 2);
+    v = { x: new Float64Array(cap), y: new Float64Array(cap), alive: new Uint8Array(cap), n: 0, tick: -1 };
+    eyeCreatureCache.set(w, v);
+  }
+  v.n = n;
+  v.tick = tick;
+  for (let i = 0; i < n; i++) {
+    const o = cs[i];
+    o.slot = i;
+    v.x[i] = o.x;
+    v.y[i] = o.y;
+    v.alive[i] = o.alive ? 1 : 0;
+  }
+  return v;
+}
+export function eyeCreatureChanged(w: World, c: Creature): void {
+  const v = eyeCreatureCache.get(w), i = c.slot;
+  if (v === undefined || v.tick !== w.tick || i === undefined || i >= v.n || w.creatures[i] !== c) return;
+  v.x[i] = c.x;
+  v.y[i] = c.y;
+  v.alive[i] = c.alive ? 1 : 0;
+}
+// A pellet was eaten (it is gone until it regrows, or it came back somewhere else): bring its entry up to date for the creatures still to look this tick.
+export function eyeFoodChanged(w: World, i: number): void {
+  const v = eyeFoodCache.get(w);
+  if (v === undefined || i < 0 || i >= v.n || v.tick !== w.tick) return;
+  const f = w.food[i];
+  v.x[i] = f.x;
+  v.y[i] = f.y;
+  v.state[i] = f.readyAt > w.tick ? 0 : f.poison !== w.swapped ? 2 : 1;
+}
 
 // sense() for the every-tick path: writes the inputs into c.inputs and returns what it would eat in a
 // reused object (read it before the next creature senses). Identical numbers, no garbage.
-export function senseInto(w: World, c: Creature): { food: Food | null; foodDist: number } {
+export function senseInto(w: World, c: Creature): { food: Food | null; foodDist: number; idx: number } {
   const r = w.rules;
   const walls = r.walls > 0;
   const g = w.grids;
   const h = foodHits;
+  const cosH = cos(c.a);
+  const sinH = sin(c.a);
+  // the raw eye finds what it would eat inside its own loop over the food (2026-11-09 speed-up: no separate food scan; same results)
+  if (eyeSlices(r) > 0) return eyeInto(w, c, cosH, sinH);
   if (g !== null && g.foodOn) scanFoodGridInto(h, w, g, c.x, c.y, r.senseFood2 ? 2 : 1);
   else scanFoodInto(h, w, c.x, c.y, r.senseFood2 ? 2 : 1);
   const inputs = c.inputs;
-  const cosH = cos(c.a);
-  const sinH = sin(c.a);
   const f = h.goodN > 0 ? h.good[0] : null;
-  if (eyeSlices(r) > 0) return eyeInto(w, c, h, f, cosH, sinH);
   // no food at all: the distance reads as far (same numbers as always)
   let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
   inputs[k++] = c.energy;
@@ -391,6 +462,7 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   if (inputs.length !== k) inputs.length = k;
   // what it would eat: the nearest pellet of either kind (good wins a tie)
   const eat = p && (!f || p.d2 < f.d2) ? p : f;
+  perceived.idx = -1;
   perceived.food = eat ? eat.item : null;
   perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
   return perceived;
@@ -404,7 +476,9 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
 // (a control). Green is always on. Slices: rotate the target into the creature's frame (ahead, side), turn it
 // by half a slice so the slice edges fall on the axes and the diagonals, then read signs and sizes: no angle,
 // no atan2. Eating is unchanged: the nearest pellet of either kind (h, f from the food scan).
-export const EYE_R2 = 200 * 200;
+export const EYE_R = 200;
+const EAT_NEAR2 = 37; // squared; eating needs a pellet within 6 (36 squared): keep a little more than that
+export const EYE_R2 = EYE_R * EYE_R;
 const C8 = 0.9238795325112867; // cos(pi/8)
 const S8 = 0.3826834323650898; // sin(pi/8)
 
@@ -421,36 +495,64 @@ export function eyeSlice(dx: number, dy: number, cosH: number, sinH: number, K: 
   return 2 * q + ((q & 1) === 0 ? (absS > absA ? 1 : 0) : (absA > absS ? 1 : 0));
 }
 
-function eyeInto(w: World, c: Creature, h: FoodHits, f: (Hit<Food> & { idx: number }) | null, cosH: number, sinH: number): { food: Food | null; foodDist: number } {
+const eyeAcc = new Float64Array(8 * 5); // scratch for eyeInto: up to 8 slices x 5 channels
+function eyeInto(w: World, c: Creature, cosH: number, sinH: number): { food: Food | null; foodDist: number; idx: number } {
   const r = w.rules;
   const K = eyeSlices(r);
   const walls = r.walls > 0;
   const inputs = c.inputs;
   const n = K * eyeChannels(r);
-  for (let i = 0; i < n; i++) inputs[i] = 0;
+  const acc = eyeAcc; // the sums are made in a typed scratch array (faster than the creature's own list) and copied over at the end
+  for (let i = 0; i < n; i++) acc[i] = 0;
   const motion = (r.eyeMotion ?? 0) > 0;
   const purple = senseOn(r, c.g, 2);
-  const tick = w.tick;
-  const swapped = w.swapped;
-  for (const fd of w.food) {
-    if (fd.readyAt > tick) continue;
-    const dx = offset(fd.x - c.x, W, walls);
-    const dy = offset(fd.y - c.y, H, walls);
+  // Speed (2026-11-09, results unchanged). The loops below have no "is it in range?" branch: every plant and every creature goes
+  // through the same sums, and one that is out of range, missing, or the looker itself is multiplied by 0, so it adds exactly zero and
+  // leaves every total as it was (a branch the processor cannot guess cost more than the sums). Offsets are worked out in place (the
+  // same sums as space.offset; with walls the "half" is infinite, so nothing wraps). For 4 slices the slice is worked out without
+  // branches too (the same answer as eyeSlice).
+  const cx = c.x, cy = c.y, halfW = walls ? Infinity : W / 2, halfH = walls ? Infinity : H / 2;
+  const four = K === 4, pur = purple ? 1 : 0;
+  // what it would eat: the nearest pellet that looks good and the nearest that looks like poison, earlier pellets winning ties (as the
+  // food scan did). Only pellets within EAT_NEAR are kept: eating needs one within 6, so a nearest pellet further off never mattered.
+  let good = -1, goodD2 = Infinity, bad = -1, badD2 = Infinity;
+  const fv = eyeFood(w), X = fv.x, Y = fv.y, ST = fv.state, fn = fv.n;
+  for (let i = 0; i < fn; i++) {
+    const st = ST[i];
+    let dx = X[i] - cx;
+    dx = dx > halfW ? dx - W : dx < -halfW ? dx + W : dx;
+    let dy = Y[i] - cy;
+    dy = dy > halfH ? dy - H : dy < -halfH ? dy + H : dy;
     const d2 = dx * dx + dy * dy;
-    if (d2 >= EYE_R2) continue;
-    const v = 1 - d2 / EYE_R2;
-    const sl = eyeSlice(dx, dy, cosH, sinH, K);
-    inputs[sl] += v;
-    if (purple && fd.poison !== swapped) inputs[K + sl] += v; // looksPoison, inlined
+    if (d2 < EAT_NEAR2 && st !== 0) { // rare: a pellet close enough to matter for eating
+      if (st === 2) { if (d2 < badD2) { badD2 = d2; bad = i; } } else if (d2 < goodD2) { goodD2 = d2; good = i; }
+    }
+    const v = (1 - d2 / EYE_R2) * (+(d2 < EYE_R2) * +(st !== 0));
+    let sl: number;
+    if (four) {
+      const a = dx * cosH + dy * sinH, sd = dy * cosH - dx * sinH, ar = a + sd, sr = sd - a;
+      const A = +(ar >= 0), B = +(sr >= 0);
+      sl = (A * (3 - 3 * B) + (1 - A) * (2 - B)) | 0;
+    } else sl = eyeSlice(dx, dy, cosH, sinH, K);
+    acc[sl] += v;
+    acc[K + sl] += v * (pur * +(st === 2));
   }
   if (senseOn(r, c.g, 1)) {
-    for (const o of w.creatures) {
-      if (o === c || !o.alive) continue;
-      const dx = offset(o.x - c.x, W, walls);
-      const dy = offset(o.y - c.y, H, walls);
+    const cv = eyeCreatures(w), CX = cv.x, CY = cv.y, CA = cv.alive, cn = cv.n, me = c.slot!;
+    for (let i = 0; i < cn; i++) {
+      let dx = CX[i] - cx;
+      dx = dx > halfW ? dx - W : dx < -halfW ? dx + W : dx;
+      let dy = CY[i] - cy;
+      dy = dy > halfH ? dy - H : dy < -halfH ? dy + H : dy;
       const d2 = dx * dx + dy * dy;
-      if (d2 >= EYE_R2) continue;
-      inputs[2 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
+      const v = (1 - d2 / EYE_R2) * (+(d2 < EYE_R2) * CA[i] * +(i !== me));
+      let sl: number;
+      if (four) {
+        const a = dx * cosH + dy * sinH, sd = dy * cosH - dx * sinH, ar = a + sd, sr = sd - a;
+        const A = +(ar >= 0), B = +(sr >= 0);
+        sl = (A * (3 - 3 * B) + (1 - A) * (2 - B)) | 0;
+      } else sl = eyeSlice(dx, dy, cosH, sinH, K);
+      acc[2 * K + sl] += v;
     }
   }
   if (sensesHunter(r) && r.hunterSense !== 2 && senseOn(r, c.g, 3)) {
@@ -461,17 +563,20 @@ function eyeInto(w: World, c: Creature, h: FoodHits, f: (Hit<Food> & { idx: numb
       if (d2 >= EYE_R2) continue;
       const v = 1 - d2 / EYE_R2;
       const sl = eyeSlice(dx, dy, cosH, sinH, K);
-      inputs[3 * K + sl] += v;
-      if (motion) inputs[4 * K + sl] += v * Math.min(hu.speed / r.hunterSpeed, 1); // a charging hunter reads stronger
+      acc[3 * K + sl] += v;
+      if (motion) acc[4 * K + sl] += v * Math.min(hu.speed / r.hunterSpeed, 1); // a charging hunter reads stronger
     }
   }
+  for (let i = 0; i < n; i++) inputs[i] = acc[i];
   let k = n;
   inputs[k++] = c.energy;
   if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
   if (inputs.length !== k) inputs.length = k;
-  const p = h.hasPoison ? h.poison : null;
-  const eat = p && (!f || p.d2 < f.d2) ? p : f;
-  perceived.food = eat ? eat.item : null;
-  perceived.foodDist = eat ? Math.sqrt(eat.d2) : Infinity;
+  // the nearest pellet of either look; the good-looking one wins a tie
+  const eatBad = bad >= 0 && (good < 0 || badD2 < goodD2);
+  const at = eatBad ? bad : good;
+  perceived.idx = at;
+  perceived.food = at >= 0 ? w.food[at] : null;
+  perceived.foodDist = at >= 0 ? Math.sqrt(eatBad ? badD2 : goodD2) : Infinity;
   return perceived;
 }

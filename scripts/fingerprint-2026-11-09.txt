@@ -1,0 +1,26 @@
+glow-same s1 eda68903661cb5e6 prey 31 hunters 21
+glow-same s2 92a70fc1052fdbd3 prey 138 hunters 2
+food120 s1 12b8c500b9f1412b prey 12 hunters 4
+food120 s2 2f8d2b33ea91f6c1 prey 48 hunters 4
+season s1 f4e59c4ed006e65a prey 20 hunters 2
+season s2 6deba5b64046ee6c prey 97 hunters 4
+bite s1 a819eb13f14c85bc prey 51 hunters 3
+bite s2 cce4e5914d5fe707 prey 68 hunters 4
+genes s1 228c57de708300c3 prey 1 hunters 4
+genes s2 72bb02da96a91907 prey 16 hunters 4
+remains s1 5a6bfe41d17f4b36 prey 47 hunters 6
+remains s2 9d8c2546fd99980a prey 61 hunters 4
+walls s1 b5f6da4159dcb17d prey 20 hunters 4
+walls s2 f1c10a241255a216 prey 41 hunters 3
+eye8 s1 9c3de9dfc0c6d00b prey 7 hunters 4
+eye8 s2 418eccdaeb07c288 prey 15 hunters 7
+oldhunters-speed s1 71c54616f18e75a6 prey 66 hunters 1
+oldhunters-speed s2 b378187399e5694f prey 48 hunters 5
+scent s1 ccbf780b7d122448 prey 42 hunters 5
+scent s2 e537650559724df6 prey 15 hunters 4
+harmless-default-stats s1 b9d9e484e09a53c3 prey 103 hunters 4
+harmless-default-stats s2 b52a3888b96d5ce4 prey 50 hunters 1
+gens-eye 48bd8349b19f64dd
+gens-eye-swap-learn b3282d0bbdfe69db
+gens-eye-hunters 5138d3ddc6f4871c
+gens-eye-regrow0-walls aa20924964b5bdad

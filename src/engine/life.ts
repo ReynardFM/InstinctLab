@@ -5,7 +5,7 @@ import type { Creature } from "./creature.ts";
 import { newFood } from "./creature.ts";
 import { learn, thinkInto } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
-import { senseInto } from "./senses.ts";
+import { eyeCreatureChanged, eyeFoodChanged, senseInto } from "./senses.ts";
 import { SENSE_GENES, senseOn } from "./genes.ts";
 import { H, W } from "./space.ts";
 import { spreading } from "./plants.ts";
@@ -59,6 +59,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
     if (t > 0 && newPoison(w)) c.toxin += t;
     w.eco.remainsEaten++;
     seen.food.readyAt = Infinity;
+    eyeFoodChanged(w, seen.idx);
   } else if (seen.food && seen.foodDist < 6) {
     reward = seen.food.poison ? -1 : 1;
     if (seen.food.poison) {
@@ -81,6 +82,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
       if (w.grids?.foodOn) w.grids.food.move(seen.food.slot!, seen.food.x, seen.food.y);
       if (w.rules.regrow > 0) seen.food.readyAt = w.tick + w.rules.regrow;
     }
+    eyeFoodChanged(w, seen.idx); // the raw eye keeps its own copy of the food for the tick (senses.ts)
   }
   const r = w.rules;
   if (r.thinkCost > 0) {
@@ -104,6 +106,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
     c.alive = false;
     c.diedAt = w.tick;
   }
+  eyeCreatureChanged(w, c); // the raw eye keeps its own copy of where creatures are for the tick (senses.ts): this one moved, or died
 }
 
 
