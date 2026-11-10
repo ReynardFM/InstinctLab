@@ -153,6 +153,14 @@ const TESTS: Test[] = [
   ["bH2-blind-bite", "blind + bite (control), 6 seeds, 30k [check]; pairs with gH2", [...CHECK, ...E, "--hunterCue=0", "--hunterBite=1", ...SAME]],
   ["gH3-glow-bite", "glow + bite, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", "--hunterBite=1", ...SAME]],
   ["bH3-blind-bite", "blind + bite (control), 14 x 200k [proof]; pairs with gH3", [...PROOF, ...E, "--hunterCue=0", "--hunterBite=1", ...SAME]],
+  // ---- Night 2026-11-10 (Rey: a): combine what helped. Twice the food (more hunters) + 600k ticks (more time), glow vs BLIND, 14 seeds.
+  // Why: glow pick is below blind in ~11 of 14 in every proof, and the gap grows with time (600k check: 0.14 -> 0.23) and with more hunters
+  // (food 120: 13 of 14 in the last window). Survival never reached 10 of 14 (best 9 of 14, food 120 evolved).
+  // Prediction (before running; low confidence): hunters more with glow in >= 10 of 14 in at least one condition by the end.
+  // Kill-if: hunters more in < 8 of 14 in both conditions -> avoiding sick prey does not turn into survival; find out why (open problem).
+  // Read: node scripts/pair.mjs gX-glow-food120-600k bX-blind-food120-600k ; node scripts/pick-time.mjs gX-glow-food120-600k bX-blind-food120-600k
+  ["gX-glow-food120-600k", "glow, food 120, same stats, 14 seeds x 600k [proof, long]", [S14, "--ticks=600000", ...E, "--hunterCue=2", ...SAME, ...FOOD2]],
+  ["bX-blind-food120-600k", "blind control, food 120, same stats, 14 seeds x 600k [proof, long]; pairs with gX", [S14, "--ticks=600000", ...E, "--hunterCue=0", ...SAME, ...FOOD2]],
   // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
   //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
   //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],
