@@ -67,6 +67,8 @@ export interface Rules {
   hunterBite: number; // brain hunters (restored 2026-11-09, Rey: "choice"; first built 2026-11-02): above 0 = a third output, bite: a prey in reach
   // is caught only if it is above 0. Its weights ride at the end of the hunter genome (inherited and mutated, not learned); this value is
   // added to the bite sum as a start bias toward biting (1: most bite at first)
+  hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
+  // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
   season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
   // no poison plants), poison foraging (twice the poison), farm (plants packed into farm zones, no poison), poison farm (plants.ts)
   hunterCue: number; // ecosystem (Rey 2026-11-06; replaces hunterSeeSpeed): what hunters see of a prey's sickness. 0 blind; 1 speed (poison slows
@@ -122,7 +124,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterLearn: 0.02,
   hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
@@ -205,6 +207,7 @@ export interface EcoStats {
   // MEASURE_WINDOW ticks; and per family (to see whether poison-eating families grow)
   m: { win: { nearEat: number; farEat: number; nearTicks: number; farTicks: number }[]; fam: Map<number, { eat: number; ticks: number; nearEat: number; nearTicks: number }> };
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
+  hunterLife: number; // rules.hunterRealLife: average age hunters die at (same running average); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
   // counting only (Rey 2026-11-02, "do small doses add up?"): catches and poison taken, by the caught prey's level
   // (bins: 0, <=0.02, <=0.05, <=SICK 0.1, <=0.3, more); hunter deaths and their hunger factor (1 + harm) at death
@@ -266,6 +269,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
+      hunterLife: 0,
       m: { win: [], fam: new Map() },
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },

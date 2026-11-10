@@ -527,3 +527,21 @@ test("hunterBite: genome carries the bite weights; a hunter whose bite is always
   runTicks(off, 50);
   for (const h of off.hunters) assert.equal(h.brain!.g.length, len - R.hidden - 1, "bite off: the plain brain");
 });
+
+// rules.hunterRealLife (Rey 2026-11-10: "same rule for both"): hunters' age resistance follows how old hunters really die, like prey.
+import { resistance } from "../src/engine/toxin.ts";
+
+test("hunterRealLife: hunters' average lifespan is tracked from real deaths, and a hunter at half of it takes the plain dose", () => {
+  const R = { ...BOTH_EYES, hunterRealLife: 1 };
+  const w = createWorld(2, R);
+  runTicks(w, 4000);
+  assert.ok(w.eco.hunterDeaths > 0, "some hunters died");
+  assert.ok(w.eco.hunterLife > 0 && w.eco.hunterLife < R.hunterAge, `average hunter lifespan ${w.eco.hunterLife}`);
+  assert.ok(Math.abs(resistance(w.eco.hunterLife / 2, w.eco.hunterLife, R.poisonFrail) - 1) < 1e-12, "full resistance at half the real lifespan");
+  const off = createWorld(2, BOTH_EYES);
+  runTicks(off, 4000);
+  assert.equal(off.eco.hunterLife, 0, "off: nothing tracked (the fixed hunterAge is used)");
+  const a = createWorld(2, R), b = createWorld(2, R);
+  runTicks(a, 3000); runTicks(b, 3000);
+  assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
+});

@@ -22,7 +22,9 @@ import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { SICK, dose, fade, fadeResist, harm, train } from "./toxin.ts";
+import { PREY_LIFE_RATE, SICK, dose, fade, fadeResist, harm, train } from "./toxin.ts";
+// The lifespan a hunter's age resistance is measured against: the fixed hunterAge, or (rules.hunterRealLife) how old hunters really die
+const hunterLifeFor = (w: World): number => (w.rules.hunterRealLife > 0 ? w.eco.hunterLife : w.rules.hunterAge);
 
 export interface Hunter {
   x: number;
@@ -238,7 +240,7 @@ function spitOut(w: World, h: Hunter, prey: Creature): boolean {
   if (w.hrng.next() >= prey.toxin / (prey.toxin + SPIT_HALF)) return false;
   prey.energy -= SPIT_WOUND;
   h.rest = REST;
-  const raw = dose(prey.toxin * SPIT_TASTE, h.age, w.rules.hunterAge, w);
+  const raw = dose(prey.toxin * SPIT_TASTE, h.age, hunterLifeFor(w), w);
   const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw;
   h.toxin += taken;
   h.resist = Math.min(w.rules.hunterResistCap, train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken)));
@@ -260,7 +262,7 @@ function catchPrey(w: World, h: Hunter, prey: Creature): boolean {
     const bin = lv <= 0 ? 0 : lv <= 0.02 ? 1 : lv <= 0.05 ? 2 : lv <= SICK ? 3 : lv <= 0.3 ? 4 : 5;
     w.eco.dose.n[bin]++;
     if (prey.toxin > 0) {
-      const raw = dose(prey.toxin, h.age, w.rules.hunterAge, w); // the prey's whole level, through the hunter's age resistance
+      const raw = dose(prey.toxin, h.age, hunterLifeFor(w), w); // the prey's whole level, through the hunter's age resistance
       const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw; // rules.hunterDoseCap
       w.eco.dose.taken[bin] += taken;
       h.toxin += taken;
@@ -578,6 +580,8 @@ export function liveEcoHunters(w: World): void {
       continue;
     }
     w.eco.hunterDeaths++;
+    // rules.hunterRealLife: every death (starved or old) moves the hunters' average lifespan 1% of the way, as for prey (toxin.ts)
+    if (r.hunterRealLife > 0) w.eco.hunterLife = w.eco.hunterLife > 0 ? w.eco.hunterLife + PREY_LIFE_RATE * (h.age - w.eco.hunterLife) : h.age;
     const hm = harm(h.toxin, h.resist);
     w.eco.dose.deaths++;
     w.eco.dose.deathHarm += 1 + hm;
