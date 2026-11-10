@@ -30,7 +30,6 @@ export interface EcoResult {
   hunterOldAge?: number;
   ticks?: number; // ecosystem ticks run (after the warm-up)
   toxin?: EcoStats["toxin"]; // poison levels, summed over samples (toxin.ts)
-  spat?: number; // prey spat out (rules.hunterSpit)
   defence?: DefenceSummary; // with job.measure: poison eaten near hunters vs not, per window; families
   sick?: EcoStats["sick"]; // catches of sick prey vs their share, poison eaten
   resist?: EcoStats["resist"]; // poison resistance, summed at samples
@@ -68,7 +67,7 @@ export function ecoResultOf(w: World, measure: boolean): EcoResult {
     const e = w.eco;
     Object.assign(eco, {
       hunterPopHist: e.hunterPopHist, rounds: e.rounds, roundStart: e.roundStart, caught: e.caught,
-      hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, spat: e.spat, toxin: e.toxin, sick: e.sick, resist: e.resist,
+      hunterBirths: e.hunterBirths, hunterDeaths: e.hunterDeaths, hunterOldAge: e.hunterOldAge, ticks: w.tick, toxin: e.toxin, sick: e.sick, resist: e.resist,
     });
     if (measure) {
       const { top, rest } = familySplit([...e.m.fam.values()]);

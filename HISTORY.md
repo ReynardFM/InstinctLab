@@ -272,3 +272,21 @@ Code, tests and UI rows removed. To bring one back: `git show 9942908:<file>` (l
 - [code + screen] hunterRealLife, 2026-11-10 (Rey: "so hunters don't have age resistance like prey?" -> a "same rule for both"). Hunters had the same resistance rule as prey, but measured against the FIXED hunterAge 6000 (mid-life 3000), while prey use how old they really die (running average); hunters really die at ~470-700, so nearly all counted as young (x3.7). New switch hunterRealLife (0 = as before): hunters' "mid-life" = half their running average death age. Off: 26 fingerprints identical, golden unchanged, all suites pass; new test fails on the old code. Screen, seed 1, 20k, glow, prey-like breeding, fixed vs real: hunter multiplier median 3.72 vs 2.67 (p10 3.01 vs 1.04, p90 3.85 vs 4.00: with a ~470-tick life, older hunters are frail again); dose from a median sick prey 10.6 vs 7.0 (dose-check); dose per sick catch (hunter-log) 7.76 vs 4.84; died within 300 ticks after a sick catch 99% vs 97%; hunters 15.3 vs 10.6 avg; die-outs 6 vs 15; bred 52% vs 45%. So the fix lowers the dose ~38% but a mistake stays deadly, and on this seed the world got worse. Simple numbers: at 4.8 units hunger is x5.8, a full tank lasts ~100 ticks; a survivable mistake needs about 0.3 units or less (the "costs one meal" cap derived 2026-11-06). The bigger causes are the whole-prey load (~2.8 units carried) and hunger x (1 + poison).
 
 - [code + screen] hunterPoisonHalfLife, 2026-11-10 (Rey: "add a reduction for hunter, bigger metabolism, faster poison degrade"). New switch: ticks for poison to halve inside a hunter (0 = the prey's 500). Off: 26 fingerprints identical; new test fails on the old code (built in a copy first, then applied once Rey said no batch was running). Rule: one dose D costs a hunter about 0.0025 x D x half-life / ln 2 extra energy; for the median sick catch (D ~7.8): 500 -> 14.1, 100 -> 2.8, 50 -> 1.4, 25 -> 0.7 (a full tank is 1.5). Screen, seed 1, 20k, glow, prey-like breeding: died within 300 ticks after a sick catch 99% / 100% / 93% / 77% (half-life 500 / 100 / 50 / 25), after a clean catch 19-22% in all four; hunters logged 530 / 419 / 506 / 441; die-outs 6 / 11 / 7 / 11. Even at 25 most still die: hunters live on a thin margin (median lifespan ~445; most deaths are starvation even without poison).
+
+
+## Archive: deleted settings, second round (2026-11-10, Rey: "we can delete the code of past test as we have the result")
+Code, UI rows, tests and night-batch entries removed. Restore with `git show de515af:<file>`. All were off (or had no effect) by default:
+26 fingerprints over 15 kinds of world identical before and after; golden unchanged; all suites pass.
+| Setting | Old default | What it did | Why deleted (evidence) |
+|---|---|---|---|
+| hunterSpit | 0 | hunters could spit out a poisoned prey (it lived, wounded; the hunter got a taste, no meal) | [check, Oct 26] no prey defence emerged |
+| resistTrain | 0 | prey poison resistance gained per poison pellet | [check, Oct 26 / Nov 2] trained resistance never built a defence |
+| resistHalfLife | 2000 | ticks for trained resistance to halve | part of trained resistance |
+| resistInherit | 0.75 | share of a parent's resistance a baby got | part of trained resistance |
+| resistUpkeep | 0.0002 | energy per tick at full resistance | part of trained resistance |
+| hunterResistTrain | 0 | hunter resistance gained per poisoned catch | [Nov 2] never built (all hunter poison comes in one deadly dose) |
+| hunterResistCap | 1 | the most resistance a hunter could train | part of hunter trained resistance |
+| hunterResistInherit | -1 | share of a hunter parent's resistance its baby got | part of hunter trained resistance |
+Kept: the `resist` field and harm = level x (1 - resist) (now always 0 for prey and ecosystem hunters), and the generations-mode
+hunter resistance gene (hunterResistGene, hunterResistSlow, genPreyToxin), which did work (bred in ~30 generations).
+Night batch: finished entries removed (their results are in this file); only gX / bX remain queued.

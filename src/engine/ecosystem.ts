@@ -134,7 +134,6 @@ function makeChild(w: World, parent: Creature, genome: Genome, energy: number): 
   child.x = place(parent.x + (w.env.next() - 0.5) * 10, W); // born next to the parent
   child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
   child.energy = energy;
-  child.resist = parent.resist * w.rules.resistInherit; // born with part of the parent's poison resistance
   child.depth = parent.depth + 1;
   parent.children++;
   maybeSplit(w, child, true); // no branch trials here: there are no generations to judge them in

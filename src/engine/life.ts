@@ -9,7 +9,7 @@ import { eyeCreatureChanged, eyeFoodChanged, senseInto } from "./senses.ts";
 import { SENSE_GENES, senseOn } from "./genes.ts";
 import { H, W } from "./space.ts";
 import { spreading } from "./plants.ts";
-import { dose, fade, fadeResist, harm, newPoison, preyLife, train } from "./toxin.ts";
+import { dose, fade, harm, newPoison, preyLife } from "./toxin.ts";
 
 // Energy a creature loses by eating poison (good food gives +0.3).
 export const POISON_HIT = 0.5;
@@ -44,10 +44,6 @@ export function live(w: World, c: Creature, costFactor: number): void {
   c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick; // moving costs energy; standing still costs a little
   if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) { let on = 0; for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++; c.energy -= w.rules.senseCost * on; } // switched-on senses cost energy
   if (c.toxin > 0) c.toxin = fade(c.toxin, w);
-  if (c.resist > 0) {
-    c.energy -= w.rules.resistUpkeep * c.resist; // resistance has upkeep
-    c.resist = fadeResist(c.resist, w);
-  }
   const near = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
   let reward = 0;
   if (seen.food && seen.foodDist < 6 && seen.food.remains) {
@@ -66,7 +62,6 @@ export function live(w: World, c: Creature, costFactor: number): void {
       c.poisoned++;
       if (newPoison(w)) {
         c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
-        c.resist = train(c.resist, w.rules.resistTrain);
         w.eco.sick.poisonEaten++;
         if (w.measure) countPoisonEaten(w, c, near);
       }

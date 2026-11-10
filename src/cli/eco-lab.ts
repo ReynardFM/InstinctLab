@@ -1,8 +1,8 @@
 // Ecosystem experiments with hunters: compare rule settings across seeds, paired by seed against the first row.
 //
-// npm run eco-lab -- --hunterSpit=0,1                     (14 seeds x 60,000 ticks by default)
+// npm run eco-lab -- --hunterCue=0,2                      (14 seeds x 60,000 ticks by default)
 // npm run eco-lab -- --poisonDose=0,1 --seeds=1-7 --ticks=30000
-// npm run eco-lab -- --resistTrain=0,0.5 --queue          (runs on the Redis worker containers, README stage 4)
+// npm run eco-lab -- --hunterLearn=0,0.02 --queue          (runs on the Redis worker containers, README stage 4)
 //
 // Starts from the tuned ecosystem (mode 1, 4 hunters, food 60 spreading at 0.0005, regrow 100); any rule can
 // take a comma list and every combination runs once per seed. Reports Rey's brief checks (done: a 20,000-tick
@@ -19,7 +19,7 @@ export const DONE_SHARE = 10 / 14; // the brief: 10 of 14 seeds
 
 export interface EcoRow {
   rules: Rules;
-  changed: string; // the rules that differ from the base, e.g. "hunterSpit=1"
+  changed: string; // the rules that differ from the base, e.g. "hunterCue=2"
   runs: EcoMetrics[]; // one per seed, in seed order
 }
 

@@ -126,7 +126,6 @@ if (isMainThread) {
     const winPick = (r: Result, mi: number) => { const a = r.marks[mi].sick, b = mi ? r.marks[mi - 1].sick : [0, 0, 0, 0]; const c = a[0] - b[0], n = a[3] - b[3], sh = a[2] - b[2]; return c > 0 && n > 0 && sh > 0 ? (a[1] - b[1]) / c / (sh / n) : NaN; };
     console.log(`  pick by window (ending ${MARKS.map((t) => t / 1000 + "k").join(" / ")}): ${MARKS.map((_, mi) => f2(avg(fin(R.map((r) => winPick(r, mi)))))).join(" / ")}`);
     console.log(`  works (no die-out in last ${WORKS_QUIET / 1000}k, each side cycled >= 1 inside the running round): ${R.filter((r) => r.m.works).length} of ${R.length} seeds; prey cycles ${f1(avg(R.map((r) => r.m.preyCyclesNow)))}, hunter cycles ${f1(avg(R.map((r) => r.m.hunterCyclesNow)))}, ticks since last die-out ${Math.round(avg(R.map((r) => r.m.quiet)))}`);
-    if (WORLD.hunterResistTrain) console.log(`  hunter resistance at ${MARKS.map((t) => t / 1000 + "k").join("/")}: ${MARKS.map((_, mi) => avg(R.map((r) => r.marks[mi].hResist)).toFixed(2)).join(" / ")}`);
     console.log(`  hunter deaths ${dd}: hunger factor at death ${(R.reduce((a, r) => a + r.dose.deathHarm, 0) / dd).toFixed(2)}x, harm > 0.5 in ${pct(R.reduce((a, r) => a + r.dose.deathsHarmed, 0) / dd)}`);
     if (c) {
       const L = R.map((r) => r.marks.at(-1)!);

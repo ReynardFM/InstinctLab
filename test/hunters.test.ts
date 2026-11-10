@@ -299,23 +299,6 @@ test("remains: dead prey leave food with their poison, eaten or rotted remains l
 });
 
 // Trained hunter resistance with a cap and its own inheritance (Rey 2026-11-02: b, cap 0.5, babies get 25%).
-test("hunter resistance: trained by poisoned catches, never above hunterResistCap; babies start with the inherit share", () => {
-  const R = { ...EYE_ECO, hunterResistTrain: 0.5, hunterResistCap: 0.5, hunterResistInherit: 0.25 };
-  const w = createWorld(3, R);
-  let maxR = 0, trained = false;
-  for (let t = 0; t < 20000; t++) {
-    const before = new Map(w.hunters.map((h) => [h, h.resist]));
-    runTicks(w, 1);
-    for (const h of w.hunters) {
-      maxR = Math.max(maxR, h.resist);
-      if (h.resist > (before.get(h) ?? 0) + 1e-12) trained = true;
-      if (!before.has(h) && h.age === 0) assert.ok(h.resist <= 0.25 * 0.5 + 1e-12, "a baby starts with at most 25% of the cap");
-    }
-  }
-  assert.ok(trained, "some hunter trained resistance");
-  assert.ok(maxR <= 0.5 + 1e-12 && maxR > 0.3, `cap holds and is reachable (max ${maxR})`);
-});
-
 // Breeding resistance by hand (Rey 2026-11-02, c): generations mode, the judge pays for poison, so the gene rises;
 // off = no gene, no extra random draws (old runs unchanged).
 test("hunter resistance gene: bred up when every prey is poisoned; off leaves it at 0", () => {

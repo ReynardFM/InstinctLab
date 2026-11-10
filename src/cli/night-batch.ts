@@ -9,47 +9,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 const DIR = "proto/out/life-genes";
 const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // half the threads (standing rule; Rey 2026-11-05: back from all-minus-1)
 const S14 = "--seeds=1-14";
-// Night 2026-11-04 (Rey: "prep for overnight batch"). Older nights (m1-m22, n/q tests) are in git at 9942908: they used RAW hunter
-// learning, and hunters now learn relative + forget by default, so re-running them would answer a different question.
-// DEFAULTS THAT CHANGE BEHAVIOUR (all runs below): hunterLearn 0.02, hunterCue 1 (speed), relativeReward 1 + forget 0.002 (now also for hunters).
-// World, fixed up front (no tuning after seeing a result): life mode, prey eye 4, hunterEye 4, eyeMotion 1, food/regrow from ECO_BASE.
-// Both conditions of life-genes run (senses handed out / sense genes evolved); the numbers below are read per condition.
-//   z* = step 1, ZERO POINT (poison ON, dose 1): what a random-picking hunter would score on the pick scale. Counting only.
-//   w* = step 4, WORKS in the base world (HARMLESS poison, --poisonDose=0): no die-out in the last 10k ticks AND each side cycled >= 1
-//        inside the running round. Pass = >= 10 of 14 seeds in a condition (read it in the proof run w3).
-// Gates (evidence ladder): z2 (check) runs only if z1's zero point (within 200px) is >= 0.2 away from 1 in either condition.
-// w2/w3 are NOT gated on "works": a 30k screen can be too short to see a cycle (risk noted 2026-11-03), so a gate on it could kill the proof.
+// The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
+// DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
+// Shared flags: E = both eyes; SAME = prey-like hunter breeding; FOOD2 = twice the food. worksGate(name) = run only if that "works" test passed.
 const E = ["--hunterEye=4", "--eyeMotion=1"];
-const SCREEN = ["--seeds=1", "--ticks=30000"], CHECK = ["--seeds=1-6", "--ticks=30000"], PROOF = [S14, "--ticks=200000"];
+// the evidence ladder: screen = --seeds=1 --ticks=30000; CHECK = 6 seeds x 30k; PROOF = 14 seeds x 200k (kept for the next tests)
+export const CHECK = ["--seeds=1-6", "--ticks=30000"], PROOF = [S14, "--ticks=200000"];
 type Test = [name: string, what: string, args: string[], skipIf?: () => string | null];
-const zeroFarFromOne = (): string | null => {
-  const f = `${DIR}/z1-zero-screen.txt`;
-  if (!existsSync(f)) return null;
-  const zs = [...readFileSync(f, "utf8").matchAll(/within 200px (\d+\.\d+)/g)].map((m) => Number(m[1]));
-  if (!zs.length) return null;
-  return zs.some((z) => Math.abs(z - 1) >= 0.2) ? null : `z1 zero point within 200px ${zs.join(" / ")}: within 0.2 of 1, check not needed`;
-};
-// c3 / cs3 gate: run the proof only if c1's pick is below cs1's in >= 5 of 6 paired seeds, in either condition
-const capGate = (): string | null => {
-  const a = `${DIR}/c1-glowcap-check.json`, b = `${DIR}/cs1-glowshufcap-check.json`;
-  if (!existsSync(a) || !existsSync(b)) return "c1 / cs1 missing";
-  const A = JSON.parse(readFileSync(a, "utf8")), B = JSON.parse(readFileSync(b, "utf8"));
-  const best = Math.max(...[0, 1].map((c) => A.filter((r: { cond: number; seed: number; m: { pick: number } }) => r.cond === c &&
-    B.some((q: { cond: number; seed: number; m: { pick: number } }) => q.cond === c && q.seed === r.seed && r.m.pick < q.m.pick)).length));
-  return best >= 5 ? null : `c1 pick below cs1 in only ${best} of 6 seeds (need 5): proof not run`;
-};
-// Same-stats night (Rey 2026-11-08: a). Hunters breed like prey: any age, energy 1.2, whenever full (fertility still falls to 0 at 6000).
 const SAME = ["--hunterMature=0", "--hunterBirth=1.2", "--hunterBirthChance=1"];
-// gate for the poison runs: the base world must still work under the new stats (>= 10 of 14 in either condition)
-const sameWorks = (): string | null => {
-  const f = `${DIR}/wS3-works-same.json`;
-  if (!existsSync(f)) return "wS3 missing";
-  const A = JSON.parse(readFileSync(f, "utf8")) as { cond: number; m: { works: boolean } }[];
-  const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
-  return best >= 10 ? null : `base world under same stats works in only ${best} of 14: poison runs not run`;
-};
 // gate: the base world must work (>= 10 of 14 in either condition) in the named works run before its poison runs start
-const worksGate = (name: string) => (): string | null => {
+export const worksGate = (name: string) => (): string | null => {
   const f = `${DIR}/${name}.json`;
   if (!existsSync(f)) return `${name} missing`;
   const A = JSON.parse(readFileSync(f, "utf8")) as { cond: number; m: { works: boolean } }[];
@@ -58,101 +27,8 @@ const worksGate = (name: string) => (): string | null => {
 };
 const FOOD2 = ["--food=120"]; // "bigger world" (Rey 2026-11-09: b): twice the food on the same 800 x 600 map (the map size is not a setting)
 const TESTS: Test[] = [
-  ["z1-zero-screen", "step 1 screen: zero point, poison on, seed 1, 30k [screen]", [...SCREEN, ...E]],
-  ["z2-zero-check", "step 1 check: zero point, poison on, 6 seeds, 30k [check]; only if z1 is far from 1", [...CHECK, ...E], zeroFarFromOne],
-  ["w1-works-screen", "step 4 screen: works in the base world, harmless poison, seed 1, 30k [screen]", [...SCREEN, ...E, "--poisonDose=0"]],
-  ["w2-works-check", "step 4 check: works in the base world, harmless poison, 6 seeds, 30k [check]", [...CHECK, ...E, "--poisonDose=0"]],
-  // Control for the zero point (Rey 2026-11-04 "add to the batch"): hunters cannot see the sick cue (old senses, hunterCue 0; prey keep eyeMotion 1).
-  // Prediction (written before running): blind pick lands near its own 200px zero (within ~0.1), or above it because sick prey are slow and stay in reach.
-  // If blind pick is far BELOW its zero, the zero point is not a valid floor (something besides sensing lowers pick).
-  ["zb1-blind-check", "zero-point control: blind hunters (no speed cue), poison on, 6 seeds, 30k [check]", [...CHECK, "--eyeMotion=1", "--hunterCue=0"]],
-  ["w3-works-proof", "step 4 proof: works in the base world, harmless poison, 14 seeds x 200k [proof]", [...PROOF, ...E, "--poisonDose=0"]],
-  // Zero-point repair (Rey 2026-11-05: a). Same seeds/ticks as z2 and zb1 (counting only, so same runs) plus circles of 25 px and 12 px (catch reach is 6).
-  // Prediction (before running): zero falls as the circle shrinks, about 0.5-0.7 at 12 px; blind pick within ~0.15 of its own 12px zero.
-  // Kill-if: blind 12px zero stays > 0.3 above blind pick in >= 4 of 6 seeds -> place is not the cause.
-  ["z5-zero-circles", "zero point with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as z2", [...CHECK, ...E]],
-  ["zb5-blind-circles", "blind-hunter control with 25 px and 12 px circles, poison on, 6 seeds, 30k [check]; same runs as zb1", [...CHECK, "--eyeMotion=1", "--hunterCue=0"]],
-  // ---- Night 2026-11-06 (Rey: "test glow and then gradient, make it long night batch"). Poison on (dose 1), both eyes, defaults above.
-  // rules.hunterCue: 2 glow, 3 glow shuffled (control), 4 scent, 5 scent shuffled (control). Read pairs with: node scripts/pair.mjs <real> <control>
-  // Bar (Rey): pick lower AND hunters alive higher in the real run in >= 10 of 14 paired seeds, per condition.
-  // Cue check before running (scripts/cue-check.mjs, seed 1-2, 8k): glow AUC 1.00, shuffled 0.52; scent 0.89 / 0.97, shuffled 0.37 / 0.46
-  // (shuffled scent still maps prey density, so it is not a clean no-cue control).
-  // Prediction (before running; unverified): glow pick lower than shuffled in >= 10 of 14; survival gain unsure (one poisoned catch kills,
-  // so only selection can build avoidance; prior work: rare toxic prey kill naive predators before avoidance spreads, Sword 1999).
-  // Scent weaker than glow. Kill-if: glow pick lower in < 8 of 14 -> a clean cue is not enough; the bottleneck is selection, not sensing.
-  ["g1-glow-screen", "glow cue, seed 1, 30k [screen]", [...SCREEN, ...E, "--hunterCue=2"]],
-  ["g2-glow-check", "glow cue, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2"]],
-  ["gs2-glowshuf-check", "shuffled glow (control), 6 seeds, 30k [check]; pairs with g2", [...CHECK, ...E, "--hunterCue=3"]],
-  ["g3-glow-proof", "glow cue, 14 seeds x 200k [proof]", [...PROOF, ...E, "--hunterCue=2"]],
-  ["gs3-glowshuf-proof", "shuffled glow (control), 14 seeds x 200k [proof]; pairs with g3", [...PROOF, ...E, "--hunterCue=3"]],
-  ["s1-scent-screen", "scent cue, seed 1, 30k [screen]", [...SCREEN, ...E, "--hunterCue=4"]],
-  ["s2-scent-check", "scent cue, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=4"]],
-  ["ss2-scentshuf-check", "shuffled scent (control), 6 seeds, 30k [check]; pairs with s2", [...CHECK, ...E, "--hunterCue=5"]],
-  ["s3-scent-proof", "scent cue, 14 seeds x 200k [proof]", [...PROOF, ...E, "--hunterCue=4"]],
-  ["ss3-scentshuf-proof", "shuffled scent (control), 14 seeds x 200k [proof]; pairs with s3", [...PROOF, ...E, "--hunterCue=5"]],
-  // replication on fresh seeds 15-28 (guards against the seed range), glow then scent
-  ["g4-glow-s15", "glow cue, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=2"]],
-  ["gs4-glowshuf-s15", "shuffled glow, seeds 15-28 x 200k [proof]; pairs with g4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=3"]],
-  ["s4-scent-s15", "scent cue, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=4"]],
-  ["ss4-scentshuf-s15", "shuffled scent, seeds 15-28 x 200k [proof]; pairs with s4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=5"]],
-  // ---- 2026-11-06 (Rey: b, "cap the hunter dose at 1"). Poison hurts hunters like a pellet hurts prey, not as a death sentence.
-  // Why the cap: a caught prey passes its WHOLE level through the hunter's age frailty: median sick prey 2.83 x hunter multiplier 3.72
-  // = about 10 units (dose-check.mjs, seed 1). Cap fixed up front at 1 (an adult prey's pellet), not tuned after.
-  // Prediction (before running): glow pick lower than shuffled in >= 5 of 6, and below its own 12px zero. Kill-if: lower in <= 3 of 6.
-  // Risk: at 1 the extra hunger is about 0.0025 x 1 x 721 = 1.8 energy over the poison's life, so a hunter may still starve.
-  ["c1-glowcap-check", "glow + hunterDoseCap 1, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", "--hunterDoseCap=1"]],
-  ["cs1-glowshufcap-check", "shuffled glow + hunterDoseCap 1, 6 seeds, 30k [check]; pairs with c1", [...CHECK, ...E, "--hunterCue=3", "--hunterDoseCap=1"]],
-  ["c3-glowcap-proof", "glow + cap 1, 14 x 200k [proof]; only if c1 beats cs1 on pick in >= 5 of 6", [...PROOF, ...E, "--hunterCue=2", "--hunterDoseCap=1"], capGate],
-  ["cs3-glowshufcap-proof", "shuffled glow + cap 1, 14 x 200k [proof]; pairs with c3", [...PROOF, ...E, "--hunterCue=3", "--hunterDoseCap=1"], capGate],
-  // ---- Night 2026-11-08 (Rey: a). Same breeding stats as prey, passed as flags (defaults unchanged tonight; golden untouched).
-  // Control is BLIND (hunterCue 0), not the shuffled glow, which hurt hunters ~30% (6 seeds, 2026-11-06).
-  // Prediction (before running; unverified): wS3 works in >= 12 of 14. Glow pick below blind in >= 10 of 14 in at least one condition:
-  // a coin-flip guess. Kill-if: glow pick below blind in < 8 of 14 in both conditions -> more hunter generations are not enough.
-  // Read: node scripts/pair.mjs gS3-glow-same bS3-blind-same (and gS2/bS2, gS4/bS4); also the zero-point lines (pick vs 12px zero).
-  ["wS3-works-same", "works, harmless poison, same breeding stats, 14 x 200k [proof]", [...PROOF, ...E, "--poisonDose=0", ...SAME]],
-  ["gS2-glow-same", "glow, poison on, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME], sameWorks],
-  ["bS2-blind-same", "blind (control), poison on, same stats, 6 seeds, 30k [check]; pairs with gS2", [...CHECK, ...E, "--hunterCue=0", ...SAME], sameWorks],
-  ["gS3-glow-same", "glow, poison on, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME], sameWorks],
-  ["bS3-blind-same", "blind (control), poison on, same stats, 14 x 200k [proof]; pairs with gS3", [...PROOF, ...E, "--hunterCue=0", ...SAME], sameWorks],
-  ["gS4-glow-same-s15", "glow, same stats, seeds 15-28 x 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=2", ...SAME], sameWorks],
-  ["bS4-blind-same-s15", "blind, same stats, seeds 15-28 x 200k [proof]; pairs with gS4", ["--seeds=15-28", "--ticks=200000", ...E, "--hunterCue=0", ...SAME], sameWorks],
-  // ---- Night 2026-11-09 (Rey: "A and b"). Why: prey and hunters pay about the same per mistake (87% vs 82-97% dead within 300 ticks),
-  // but prey get ~3,150 lives per 20k ticks and hunters 527 (prey-like breeding): hunters adapt slower because they are fewer.
-  // (a) TIME: glow vs blind for 600k ticks, 6 seeds, same breeding stats. Read: node scripts/pick-time.mjs gL-glow-600k bL-blind-600k
-  //     Prediction (before running; low confidence): glow pick keeps falling across windows and is below blind in >= 5 of 6 in the last
-  //     window (handed out). Kill-if: the glow-blind gap in the last window is no bigger than in the 100-200k window -> time alone is not enough.
-  // (b) NUMBERS: twice the food. Screen (seed 1, 12k): prey 137 vs 77, hunters 33 vs 17, about 2x the hunter lives per tick.
-  //     wB3 re-measures "works"; glow vs blind run only if it passes. Prediction: works >= 10 of 14; glow pick below blind in >= 11 of 14 (handed out).
-  ["gL-glow-600k", "(a) glow, same stats, 6 seeds x 600k [check, long]", ["--seeds=1-6", "--ticks=600000", ...E, "--hunterCue=2", ...SAME]],
-  ["bL-blind-600k", "(a) blind control, same stats, 6 seeds x 600k [check, long]; pairs with gL", ["--seeds=1-6", "--ticks=600000", ...E, "--hunterCue=0", ...SAME]],
-  ["wB3-works-food120", "(b) works, harmless poison, same stats, food 120, 14 x 200k [proof]", [...PROOF, ...E, "--poisonDose=0", ...SAME, ...FOOD2]],
-  ["gB2-glow-food120", "(b) glow, food 120, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
-  ["bB2-blind-food120", "(b) blind control, food 120, 6 seeds, 30k [check]; pairs with gB2", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
-  ["gB3-glow-food120", "(b) glow, food 120, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
-  ["bB3-blind-food120", "(b) blind control, food 120, 14 x 200k [proof]; pairs with gB3", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...FOOD2], worksGate("wB3-works-food120")],
-  // ---- Four seasons (Rey 2026-11-09: "put farm paired with season, make it into 4: foraging, poison foraging, farm, poison farm").
-  // A 40,000-tick year, 10k per season; extreme swing: clean seasons have NO poison plants, poison seasons twice the usual; in the farm
-  // seasons every plant stands in one of 2 farm zones (radius 110 px, 16% of the map). Season length fixed up front: about 15-20
-  // hunter or prey lifetimes (prior work: goals switching about every 20 generations sped up evolution, Kashtan & Alon 2005).
-  // Screen (seed 1, one year, glow, same stats): foraging prey 67 / hunters 33; poison foraging 23 / 6 (16 die-outs, sick prey 25%);
-  // farm 64 / 56 (prey in the farms 49%, hunters 78%); poison farm 24 / 6 (12 die-outs). Same breeding stats, poison dose 1, both eyes.
-  // Questions: (1) does the world last 5 years (works)? (2) is the glow-vs-blind pick gap bigger than without seasons (gS3 / bS3: 0.52 vs
-  // 0.64, 11 of 14)? Prediction (before running; low confidence): the world keeps collapsing in the poison seasons (works < 10 of 14);
-  // the pick gap is not bigger, because die-outs reset the hunters. Kill-if for seasons as a help to hunters: pick lower in < 8 of 14.
-  ["gE2-glow-season", "glow, 4 seasons (year 40k), same stats, 6 seeds, 80k = 2 years [check]", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=2", ...SAME, "--season=40000"]],
-  ["bE2-blind-season", "blind control, 4 seasons, 6 seeds, 80k [check]; pairs with gE2", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=0", ...SAME, "--season=40000"]],
-  ["gE3-glow-season", "glow, 4 seasons (year 40k), same stats, 14 x 200k = 5 years [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--season=40000"]],
-  ["bE3-blind-season", "blind control, 4 seasons, 14 x 200k [proof]; pairs with gE3", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--season=40000"]],
-  // ---- Choice (Rey 2026-11-09: "then a"): the bite output is back (rules.hunterBite 1): a hunter may refuse a prey it touches.
-  // Why: catching was automatic on contact; 53% of sick catches were not chased. Tested before only with the drifting speed cue.
-  // Screen (seed 1, 30k, glow + bite, same stats): sick prey in reach refused 63% vs clean 42% (handed out), 50% vs 38% (evolved).
-  // Control: bite + BLIND hunters (the bite cannot tell sick from clean). Also compare with glow without bite (gS3).
-  // Prediction (before running): glow + bite refuses sick prey at least 20 points more than clean prey; pick lower than blind + bite in
-  // >= 10 of 14. Survival unsure: refusing clean prey costs meals. Kill-if: refusal gap < 5 points, or pick lower in < 8 of 14 in both conditions.
-  ["gH2-glow-bite", "glow + bite, same stats, 6 seeds, 30k [check]", [...CHECK, ...E, "--hunterCue=2", "--hunterBite=1", ...SAME]],
-  ["bH2-blind-bite", "blind + bite (control), 6 seeds, 30k [check]; pairs with gH2", [...CHECK, ...E, "--hunterCue=0", "--hunterBite=1", ...SAME]],
-  ["gH3-glow-bite", "glow + bite, same stats, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", "--hunterBite=1", ...SAME]],
-  ["bH3-blind-bite", "blind + bite (control), 14 x 200k [proof]; pairs with gH3", [...PROOF, ...E, "--hunterCue=0", "--hunterBite=1", ...SAME]],
+  // Finished tests were removed 2026-11-10 (Rey: "delete the code of past tests"); every result is in HISTORY.md and every entry is in
+  // git (last at de515af). Finished tests leave their .txt in proto/out/life-genes, so they would be skipped anyway.
   // ---- Night 2026-11-10 (Rey: a): combine what helped. Twice the food (more hunters) + 600k ticks (more time), glow vs BLIND, 14 seeds.
   // Why: glow pick is below blind in ~11 of 14 in every proof, and the gap grows with time (600k check: 0.14 -> 0.23) and with more hunters
   // (food 120: 13 of 14 in the last window). Survival never reached 10 of 14 (best 9 of 14, food 120 evolved).
@@ -161,16 +37,6 @@ const TESTS: Test[] = [
   // Read: node scripts/pair.mjs gX-glow-food120-600k bX-blind-food120-600k ; node scripts/pick-time.mjs gX-glow-food120-600k bX-blind-food120-600k
   ["gX-glow-food120-600k", "glow, food 120, same stats, 14 seeds x 600k [proof, long]", [S14, "--ticks=600000", ...E, "--hunterCue=2", ...SAME, ...FOOD2]],
   ["bX-blind-food120-600k", "blind control, food 120, same stats, 14 seeds x 600k [proof, long]; pairs with gX", [S14, "--ticks=600000", ...E, "--hunterCue=0", ...SAME, ...FOOD2]],
-  // PARKED 2026-11-05 (Rey: "just the important ones"; kept for later, not run). Move a line up into TESTS to run it:
-  //   ["z3-zero-proof", "zero point at proof size, poison on, 14 seeds x 200k [proof], pairs with zb3 and w3 seeds", [...PROOF, ...E]],
-  //   ["zb3-blind-proof", "zero-point control at proof size: blind hunters, poison on, 14 seeds x 200k [proof]", [...PROOF, "--eyeMotion=1", "--hunterCue=0"]],
-  //   // Controls for the Q2 merge (Rey 2026-11-04): paired seeds 1-14 with w3 (new default: relative + forget). NOT tuning, NOT counted as wins.
-  //   // Prediction (before running): hunters in w3 ~ w6 (learning off), both well above w5 (raw learning; before: 27.8 -> 13.5 with harmless poison, 6/6).
-  //   // Kill-if: w3 hunters < 0.75 x w6 hunters in >= 10 of 14 paired seeds -> the new default still harms; record as an open problem, do not tune.
-  //   ["w5-works-raw-learning", "control: raw hunter learning (relativeReward 0, forget 0), harmless poison, 14 x 200k [proof]; pairs with w3", [...PROOF, ...E, "--poisonDose=0", "--relativeReward=0", "--forget=0"]],
-  //   ["w6-works-learning-off", "control: hunter learning off, harmless poison, 14 x 200k [proof]; pairs with w3", [...PROOF, ...E, "--poisonDose=0", "--hunterLearn=0"]],
-  //   ["w4-works-seeds15-28", "works replication on fresh seeds 15-28, harmless poison, 200k [proof]: guards against the seed range", ["--seeds=15-28", "--ticks=200000", ...E, "--poisonDose=0"]],
-  //   ["z4-zero-seeds15-28", "zero point replication on fresh seeds 15-28, poison on, 200k [proof]", ["--seeds=15-28", "--ticks=200000", ...E]],
 ];
 
 mkdirSync(DIR, { recursive: true });

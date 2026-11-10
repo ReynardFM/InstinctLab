@@ -47,10 +47,6 @@ export interface Rules {
   poisonDose: number; // ecosystem: poison level a pellet adds at full resistance (toxin.ts); 0 = harmless
   poisonHalfLife: number; // ecosystem: ticks for the poison level to halve
   poisonFrail: number; // ecosystem: resistance of newborns and the very old (0.25 = they take 4x the dose)
-  resistTrain: number; // ecosystem: poison resistance gained per pellet eaten, as a share of the way to full (toxin.ts); 0 = none
-  resistHalfLife: number; // ecosystem: ticks for resistance to halve without poison
-  resistInherit: number; // ecosystem: share of a parent's resistance its baby is born with
-  resistUpkeep: number; // ecosystem: energy per tick at full resistance
   hunterDoseCap: number; // ecosystem: the most poison a hunter takes from one prey (after age frailty); 0 = no cap.
   // Rey 2026-11-02 (a): keep the food chain but make a poisoned catch painful, not deadly. Window: above 0.5 the
   // learning reward (1 - 2 x dose) is negative; below ~0.8 the extra hunger (0.0025 x dose x 721 ticks) stays under 1.5 energy
@@ -59,10 +55,6 @@ export interface Rules {
   hunterResistSlow: number; // with hunterResistGene: resistance costs speed, top speed x (1 - this x gene) (Rey 2026-11-02, b:
   // like TTX-resistant garter snakes crawling slower); 0 = no speed cost
   genPreyToxin: number; // generations mode with hunterResistGene: poison level every prey carries (a side arena of poisoned prey)
-  hunterResistCap: number; // ecosystem: the most resistance a hunter can train up to (Rey 2026-11-02: 0.5); 1 = no cap
-  hunterResistInherit: number; // ecosystem: share of a hunter parent's resistance its baby is born with; -1 = use resistInherit
-  hunterResistTrain: number; // ecosystem: the same for hunters, per poisoned catch (scaled by the dose); 0 = none
-  hunterSpit: number; // ecosystem: 1 = hunters may spit out a poisoned prey (it lives, wounded; the hunter gets a taste, no meal); 0 = off
   hunterLearn: number; // ecosystem: hunters learn during life (taste aversion): clean catch +1, poisoned down to -1; 0 = off. Reward and forgetting follow rules.relativeReward and rules.forget, shared with prey (merged 2026-11-03)
   hunterBite: number; // brain hunters (restored 2026-11-09, Rey: "choice"; first built 2026-11-02): above 0 = a third output, bite: a prey in reach
   // is caught only if it is above 0. Its weights ride at the end of the hunter genome (inherited and mutated, not learned); this value is
@@ -127,7 +119,7 @@ export const DEFAULT_RULES: Rules = {
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
   poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterLearn: 0.02,
-  hunterSpit: 0, resistTrain: 0, resistHalfLife: 2000, resistInherit: 0.75, resistUpkeep: 0.0002, hunterResistTrain: 0, hunterResistCap: 1, hunterResistInherit: -1, hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
+  hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
@@ -192,7 +184,6 @@ export interface EcoStats {
   huntersStarted: boolean;
   hunterPopHist: number[]; // hunters alive, same samples as popHist
   caught: number; // prey caught
-  spat: number; // prey a hunter spat out (rules.hunterSpit)
   hunterBirths: number;
   hunterDeaths: number;
   hunterOldAge: number; // hunter deaths from old age (rules.hunterAge)
@@ -268,7 +259,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     newcomerCount: 0,
     eco: {
       births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [], scent: [], farms: [],
-      huntersStarted: false, hunterPopHist: [], caught: 0, spat: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
+      huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
       hunterLife: 0,

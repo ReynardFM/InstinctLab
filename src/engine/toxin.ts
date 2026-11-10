@@ -56,18 +56,8 @@ export function fadeHunter(level: number, w: World): number {
   return level > 0 ? level - (level * LN2) / Math.max(1, half) : 0;
 }
 
-// Resistance (Rey 2026-10-25: "slowly become the butterfly"): eating poison trains it, a little per pellet
-// (rules.resistTrain of the way to full); it fades without poison (halves every rules.resistHalfLife ticks);
-// babies are born with rules.resistInherit of the parent's. It shrinks only the harm: energy use and slowdown use
-// level x (1 - resist). The level itself is untouched, so a hunter that eats a resistant prey still takes all of
-// it: the prey becomes a trap. It costs upkeep: rules.resistUpkeep x resist energy per tick. Hunters train too,
-// more slowly (rules.hunterResistTrain per poisoned catch, scaled by the dose taken).
+// Resistance: harm = level x (1 - resist). Trained resistance (resistTrain, hunterResistTrain and their fade, upkeep, inheritance and
+// cap) was deleted 2026-11-10 (Rey: "delete the code of past tests"; no defence, recorded Oct 26 / Nov 2; git 6f17942 has it). resist is
+// now 0 for prey and for ecosystem hunters; the generations-mode hunter resistance gene (rules.hunterResistGene) is separate and kept.
 export const harm = (level: number, resist: number) => level * (1 - resist);
 
-export function train(resist: number, amount: number): number {
-  return resist + amount * (1 - resist);
-}
-
-export function fadeResist(resist: number, w: World): number {
-  return resist > 0 ? resist - (resist * LN2) / Math.max(1, w.rules.resistHalfLife) : 0;
-}

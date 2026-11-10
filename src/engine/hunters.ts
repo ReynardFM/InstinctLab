@@ -22,7 +22,7 @@ import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { PREY_LIFE_RATE, SICK, dose, fadeHunter, fadeResist, harm, train } from "./toxin.ts";
+import { PREY_LIFE_RATE, SICK, dose, fadeHunter, harm } from "./toxin.ts";
 // The lifespan a hunter's age resistance is measured against: the fixed hunterAge, or (rules.hunterRealLife) how old hunters really die
 const hunterLifeFor = (w: World): number => (w.rules.hunterRealLife > 0 ? w.eco.hunterLife : w.rules.hunterAge);
 
@@ -71,7 +71,7 @@ export interface HunterStats {
 
 // Breeding resistance by hand (rules.hunterResistGene, generations mode). Scores are in meals (a catch = 1 meal).
 // From the ecosystem numbers (2026-11-02): poison level 1 costs an adult hunter hunterHunger 0.0025 x ~721 harm-ticks
-// = 1.8 energy = 3.6 meals of 0.5; resistance r cuts that by (1 - r). Upkeep: resistUpkeep 0.0002 x r per tick =
+// = 1.8 energy = 3.6 meals of 0.5; resistance r cuts that by (1 - r). Upkeep (the old resistUpkeep value, 0.0002 x r per tick) =
 // 0.3 r energy = 0.6 r meals per 1500-tick map.
 export const POISON_MEALS = 3.6;
 export const UPKEEP_MEALS_PER_MAP = 0.6;
@@ -228,28 +228,7 @@ function moveChasers(w: World): void {
   }
 }
 
-export const SPIT_HALF = 0.5; // spitting: chance = level / (level + SPIT_HALF), so a level of 0.5 is spat out half the time
-export const SPIT_TASTE = 0.25; // a hunter that spits a prey out still takes in this share of its poison level
-export const SPIT_WOUND = 0.3; // energy a spat-out prey loses
-
-// Spitting out (Rey 2026-10-26, rules.hunterSpit, ecosystem): a hunter that bites a poisoned prey may spit it
-// out, like a bird with a monarch butterfly. The prey lives (wounded); the hunter gets no meal, only a taste of the
-// poison, and still rests. This is what makes carrying poison pay for a prey. Returns true when it spat.
-function spitOut(w: World, h: Hunter, prey: Creature): boolean {
-  if (!(w.rules.hunterSpit > 0 && prey.toxin > 0 && inEcosystem(w))) return false;
-  if (w.hrng.next() >= prey.toxin / (prey.toxin + SPIT_HALF)) return false;
-  prey.energy -= SPIT_WOUND;
-  h.rest = REST;
-  const raw = dose(prey.toxin * SPIT_TASTE, h.age, hunterLifeFor(w), w);
-  const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw;
-  h.toxin += taken;
-  h.resist = Math.min(w.rules.hunterResistCap, train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken)));
-  w.eco.spat++;
-  return true;
-}
-
-function catchPrey(w: World, h: Hunter, prey: Creature): boolean {
-  if (spitOut(w, h, prey)) return true;
+function catchPrey(w: World, h: Hunter, prey: Creature): void {
   prey.alive = false;
   prey.diedAt = w.tick;
   prey.caught++;
@@ -266,13 +245,11 @@ function catchPrey(w: World, h: Hunter, prey: Creature): boolean {
       const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw; // rules.hunterDoseCap
       w.eco.dose.taken[bin] += taken;
       h.toxin += taken;
-      h.resist = Math.min(w.rules.hunterResistCap, train(h.resist, w.rules.hunterResistTrain * Math.min(1, taken))); // hunters build resistance too, up to hunterResistCap
     }
     w.eco.caught++;
     w.eco.sick.caught++;
     if (prey.toxin > SICK) w.eco.sick.caughtSick++;
   }
-  return false;
 }
 
 // The two nearest living prey from (x, y): index into w.creatures (-1 = none) and offsets. Ties keep the earlier creature.
@@ -455,11 +432,11 @@ function moveBrainHunters(w: World): void {
       if (n25) { z[6]++; z[7] += s25 / n25; }
       if (n12) { z[8]++; z[9] += s12 / n12; }
     }
-    const spat = caughtNow && catchPrey(w, h, w.creatures[near.i1]);
+    if (caughtNow) catchPrey(w, h, w.creatures[near.i1]);
     // taste aversion (Rey 2026-10-25): a hunter learns during its life, like prey do. A clean catch is +1; a poisoned
     // one counts down to -1 by the poison it took in, so what led it to that prey (including how fast it moved) fades
     if (eco && r.hunterLearn > 0) {
-      const reward = spat ? -1 : caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0; // spat out: bad taste, no meal
+      const reward = caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
       let felt = reward;
       if (r.relativeReward > 0) {
         felt = reward - b.usual; // better or worse than usual: zero on average, so no steady drift (as prey relativeReward)
@@ -555,9 +532,8 @@ export function liveEcoHunters(w: World): void {
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   const born: Hunter[] = [];
   for (const h of w.hunters) {
-    h.energy -= r.hunterHunger * (1 + harm(h.toxin, h.resist)) + r.resistUpkeep * h.resist; // poison: hunger costs more; resistance has upkeep
+    h.energy -= r.hunterHunger * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
     h.toxin = fadeHunter(h.toxin, w); // rules.hunterPoisonHalfLife: hunters may clear poison faster than prey
-    h.resist = fadeResist(h.resist, w);
     h.age++;
     const adult = h.age >= r.hunterMature;
     const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
@@ -567,7 +543,6 @@ export function liveEcoHunters(w: World): void {
       const p = h.brain!;
       const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
       const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
-      baby.resist = h.resist * (r.hunterResistInherit >= 0 ? r.hunterResistInherit : r.resistInherit);
       born.push(baby);
       w.eco.hunterBirths++;
     }

@@ -45,7 +45,7 @@ test("counting the measures never changes the run (only adds numbers)", () => {
 });
 
 test("eco-lab defaults: 14 seeds x 60,000 ticks on the tuned ecosystem, every combination, measured", () => {
-  const { jobs, combos, seeds } = ecoJobs(["--hunterSpit=0,1"]);
+  const { jobs, combos, seeds } = ecoJobs(["--hunterCue=0,2"]);
   assert.equal(seeds.length, 14);
   assert.equal(combos.length, 2);
   assert.equal(jobs.length, 28);
@@ -57,12 +57,12 @@ test("eco-lab defaults: 14 seeds x 60,000 ticks on the tuned ecosystem, every co
 });
 
 test("eco-lab report: rows, the brief verdict and the paired line", () => {
-  const { jobs, combos, seeds } = ecoJobs(["--seeds=1-2", "--ticks=1500", "--pop=20", "--genTicks=300", "--ecoWarmup=2", "--hunterSpit=0,1"]);
+  const { jobs, combos, seeds } = ecoJobs(["--seeds=1-2", "--ticks=1500", "--pop=20", "--genTicks=300", "--ecoWarmup=2", "--hunterCue=0,2"]);
   const results = jobs.map(runJob);
   const text = report(ecoRows(combos, seeds, results), seeds);
   assert.match(text, /brief: done \d\/2 \(needs 2\)/);
   assert.match(text, /paired by seed, minus the first row/);
-  assert.match(text, /hunterSpit=1/);
+  assert.match(text, /hunterCue=2/);
 });
 
 test("works (strict): needs a quiet last 10k ticks and a cycle in each side inside the running round; a die-out + regrowth is not a rise", () => {
