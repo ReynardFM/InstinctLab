@@ -366,3 +366,16 @@ Settings: prey-like breeding, both eyes, dose 0.75, cap 2, hunterIdle 0.25. Rey:
   Why (arithmetic): a pellet worth 1/4 cuts the world's energy input by 4. Prey births per tick 0.107 -> 0.005; a hunter needs 0.005 catches per tick; so ~21 hunters could be fed before (13.6 measured) and ~1 now.
   food 240 (10k): prey 34 avg (min 17), 11 meals per life, 29% of hunters bred, 4 hunter die-outs.
 - Queued: slowAllg/b (food 60), slowAllFg/b (food 240), dose 0.75, 6 x 100k.
+
+## 2026-11-11 (afternoon): 20 tests read [long check, 6 seeds x 100k, glow vs blind, 3/4 threads, normal priority]
+Settings in all: prey-like breeding, both eyes, dose 0.75 / cap 2 unless noted. "both" = pick lower AND hunters more, handed out / evolved. NO arm reached both in >= 5 of 6.
+- Slow hunters (hunger / 4, meal / 4): works 6 / 6 of 6 in glow and blind. Pick 0.50 vs 0.60 (lower in 4) / 0.49 vs 0.55 (4); hunters 21.2 vs 18.2 (4) / 16.7 vs 16.8 (3); both 3 / 3. Against fast hunters (x75g, same seeds): pick lower in 4 / 6 of 6 (0.50 vs 0.57, 0.49 vs 0.68), prey 114 vs 77, hunters 21 vs 28, poisoned share of hunter deaths 0.62 vs 0.32 (poison piles up over a long life).
+- Slow hunters, dose 3 / cap 8: pick 0.33 vs 0.43 (5) / 0.41 vs 0.32 (1); both 2 / 0; works 6 / 5.
+- Slow hunters AND prey (preySlow 4), food 60: works 0 of 6 (hunters ~3). Food 240: works 2 vs 0 / 2 vs 2, hunters ~6, prey ~320, poisoned share of hunter deaths 0.71-0.87; both 3 / 4. Each food-240 run took 24-29 min. Killed (as predicted for food 60; food 240 also fails).
+- Stomach (digest x burn, with the "full" input): 3 -> works 4 vs 2 / 1 vs 1, hunters ~7 (too tight, as predicted). 5 -> works 6 vs 6 / 2 vs 2; pick 0.68 vs 0.82 (5) / 0.70 vs 0.77 (3); hunters more in 2 / 4; both 1 / 1. 8 -> works 5 vs 4 / 1 vs 4; pick 0.61 vs 0.78 (5) / 0.77 vs 0.71 (3); hunters per prey higher in 5 / 2; both 3 / 0. Pick gap in handed out 0.13-0.17 (x75: 0.13): not clearly wider.
+- Inborn resistance SHOWS (first time in the life world). End resistance vs the no-poison drift control (rP0: prey 0.21 / 0.09, hunters 0.09 / 0.09), same seeds:
+  dose 0.75, gene only: prey 0.40-0.50, above the control in 5 / 6 (glow) and 4 / 6 (blind) of 6; hunters 0.16-0.25, above in 4-6 of 6.
+  dose 0.15 + rising potency: prey 0.21-0.44 (4-6 of 6), hunters 0.21-0.46 (5-6 of 6); almost free upkeep: 0.40-0.53 (3-6 of 6).
+  Potency: hunters' rose to x1.3-2.9 (x2.4-4.3 with free upkeep); prey's stayed ~x1.0 with senses handed out, x1.2-2.6 with evolved senses.
+  But blind hunters did not end with more resistance or potency than glow hunters (4 / 2 and 3 / 2 of 6; potency 4 / 2 and 0 / 0), and glow vs blind stays as without the gene: rG pick 0.61 vs 0.72 (5), hunters more in 4 / 5, both 3 / 2.
+- Across all ten pairs today: glow pick is lower in 4-5 of 6 most of the time (handed out), "more hunters" is a coin flip (1-5 of 6, mostly 3-4).
