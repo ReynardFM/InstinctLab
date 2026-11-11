@@ -12,4 +12,7 @@ for (const c of [0, 1]) {
   const cnt = (fn) => P.filter(([x, y]) => fn(x, y)).length;
   const pickLower = cnt((x, y) => x.m.pick < y.m.pick), huntMore = cnt((x, y) => x.m.hunters > y.m.hunters), both = cnt((x, y) => x.m.pick < y.m.pick && x.m.hunters > y.m.hunters);
   console.log(`${c ? "evolved" : "handed out"}: ${a} vs ${b}, ${n} seeds | pick ${f(avg(P.map(([x]) => x.m.pick)))} vs ${f(avg(P.map(([, y]) => y.m.pick)))}, lower in ${pickLower} of ${n} | hunters ${f(avg(P.map(([x]) => x.m.hunters)))} vs ${f(avg(P.map(([, y]) => y.m.hunters)))}, more in ${huntMore} of ${n} | both in ${both} of ${n} | prey ${f(avg(P.map(([x]) => x.m.prey)))} vs ${f(avg(P.map(([, y]) => y.m.prey)))} | works ${cnt((x) => x.m.works)} vs ${cnt((x, y) => y.m.works)}`);
+  // Extra yardsticks, print only (the bar is unchanged): a better predator should show fewer poisoned deaths and more hunters per prey.
+  const ps = (r) => (r.dose.deaths ? r.dose.deathsHarmed / r.dose.deaths : NaN), hp = (r) => r.m.hunters / r.m.prey;
+  console.log(`  yardsticks: poisoned share of hunter deaths ${f(avg(P.map(([x]) => ps(x))))} vs ${f(avg(P.map(([, y]) => ps(y))))}, lower in ${cnt((x, y) => ps(x) < ps(y))} of ${n} | hunters per prey ${f(avg(P.map(([x]) => hp(x))))} vs ${f(avg(P.map(([, y]) => hp(y))))}, higher in ${cnt((x, y) => hp(x) > hp(y))} of ${n}`);
 }
