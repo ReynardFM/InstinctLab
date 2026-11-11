@@ -532,7 +532,9 @@ export function liveEcoHunters(w: World): void {
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   const born: Hunter[] = [];
   for (const h of w.hunters) {
-    h.energy -= r.hunterHunger * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
+    // rules.hunterIdle: a still hunter pays only that share of its hunger, a hunter at top speed all of it (off: all of it at any speed)
+    const effort = r.hunterIdle > 0 ? r.hunterIdle + (1 - r.hunterIdle) * Math.min(h.speed / r.hunterSpeed, 1) : 1;
+    h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
     h.toxin = fadeHunter(h.toxin, w); // rules.hunterPoisonHalfLife: hunters may clear poison faster than prey
     h.age++;
     const adult = h.age >= r.hunterMature;
@@ -541,7 +543,9 @@ export function liveEcoHunters(w: World): void {
       const half = h.energy / 2;
       h.energy -= half;
       const p = h.brain!;
-      const child = newHunterBrain(w, p.g.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
+      // rules.hunterBrainNow: the baby starts from what the parent's brain is NOW (its learned weights; the bite weights stay the inborn ones)
+      const from = r.hunterBrainNow > 0 && p.w !== p.g ? (p.w.length < p.g.length ? [...p.w, ...p.g.slice(p.w.length)] : p.w) : p.g;
+      const child = newHunterBrain(w, from.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
       const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
       born.push(baby);
       w.eco.hunterBirths++;

@@ -73,6 +73,17 @@ const TESTS: Test[] = [
   // (2d) Do the four seasons last with middle poison? (With today's poison the world died about every 1,200 ticks: works 0 of 14.)
   ["sE50g-glow-season-dose0.5", "glow, 4 seasons (year 40k), poisonDose 0.5, cap 1, 6 seeds x 80k = 2 years [check]", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=2", ...SAME, "--season=40000", "--poisonDose=0.5", "--hunterDoseCap=1"]],
   ["sE50b-blind-season-dose0.5", "blind, 4 seasons, poisonDose 0.5, cap 1, 6 seeds x 80k [check]; pairs with sE50g", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=0", ...SAME, "--season=40000", "--poisonDose=0.5", "--hunterDoseCap=1"]],
+  // (2c) Rey 2026-11-11: two new hunter rules at middle poison (dose 0.5, cap 1; baseline = p50g / p50b), glow vs blind.
+  //     hunterBrainNow 1: babies start from the parent's learned brain. Prediction (low confidence): glow pick falls faster than p50g
+  //     (learned avoidance is no longer lost at birth); risk: learned noise is inherited too and hunters get worse than p50g.
+  //     hunterIdle 0.25: a still hunter pays a quarter of its hunger. Prediction: more hunters in both glow and blind (cheaper life);
+  //     the question is whether glow gains MORE than blind. Kill: glow does not beat blind on pick AND hunters in >= 5 of 6.
+  ["n50g-glow-dose0.5-brainnow", "glow, dose 0.5, cap 1, brainnow, 6 x 30k [check]; baseline p50g", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1"]],
+  ["n50b-blind-dose0.5-brainnow", "blind, dose 0.5, cap 1, brainnow, 6 x 30k [check]; pairs with n50g; baseline p50b", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1"]],
+  ["i50g-glow-dose0.5-idle0.25", "glow, dose 0.5, cap 1, idle0.25, 6 x 30k [check]; baseline p50g", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterIdle=0.25"]],
+  ["i50b-blind-dose0.5-idle0.25", "blind, dose 0.5, cap 1, idle0.25, 6 x 30k [check]; pairs with i50g; baseline p50b", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterIdle=0.25"]],
+  ["ni50g-glow-dose0.5-brainnow-idle", "glow, dose 0.5, cap 1, brainnow-idle, 6 x 30k [check]; baseline p50g", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
+  ["ni50b-blind-dose0.5-brainnow-idle", "blind, dose 0.5, cap 1, brainnow-idle, 6 x 30k [check]; pairs with ni50g; baseline p50b", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
   // (3) Proofs (14 x 200k), only for the arms that pass the sweet-spot gate in their check.
   ...([["p15", "0.15", "0.28"], ["p30", "0.3", "0.6"], ["p50", "0.5", "1"], ["p75", "0.75", "2"]] as const).flatMap(([n, d, c]): Test[] => [
     [`${n}G-glow-dose${d}-proof`, `glow, poisonDose ${d}, cap ${c}, 14 x 200k [proof]; only if ${n}g passed`, [...PROOF, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`], sweetGate(`${n}g-glow-dose${d}`, `${n}b-blind-dose${d}`)],

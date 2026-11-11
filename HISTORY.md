@@ -303,3 +303,9 @@ Night batch: finished entries removed (their results are in this file); only gX 
   No clear sweet spot on one seed: glow pick is clearly below blind only at today's deadly level; glow has more hunters at 0.5 (evolved) and 0.75 (both), within one-seed noise. Batch: p15 / p30 / p50 / p75 glow vs blind at 6 x 30k [check]. (A check command of mine imported night-batch.ts, which starts the batch; it was cut off after 2 minutes, wrote nothing, and nothing kept running.)
 
 - [check] gX4 / bX4, 2026-11-11 (glow vs blind, food 120, prey-like breeding, 6 seeds x 400k; old poison rule). Handed out / evolved: hunters 64.5 vs 65.0 (more in 3 of 6) / 50.2 vs 45.8 (4 of 6): check bar (>= 5 of 6) NOT met; kill-if (< 3 of 6 in both) not hit. Pick 0.46 vs 0.57 / 0.46 vs 0.61, lower in 5 / 5 of 6; last window (200-400k) 0.43 vs 0.57 (5 of 6) / 0.43 vs 0.64 (6 of 6): the gap keeps growing. Prey fewer with glow: 121 vs 136 / 120 vs 133 (as the predator-prey balance predicts: better hunters show up as fewer prey). Hunters at the end: 72 vs 69 / 54 vs 46.
+
+## 2026-11-11: two new hunter rules, built and queued (no result yet)
+- `hunterBrainNow 1`: a hunter baby starts from the parent's current (learned) brain. `hunterIdle 0.25`: a still hunter pays a quarter of its hunger, all of it at top speed.
+- Both off by default; 26 fingerprints unchanged; 2 new tests fail on the old code (38 pass, 2 fail there), 40 pass now.
+- Queued in the night batch at dose 0.5 / cap 1, glow vs blind, 6 x 30k [check]: n50g/b, i50g/b, ni50g/b; baseline p50g/p50b.
+- `pair.mjs` now also prints: poisoned share of hunter deaths, hunters per prey. On gX4 vs bX4 (6 x 400k, check): poisoned share lower in 5 and 6 of 6; hunters per prey higher in 4 and 5 of 6.

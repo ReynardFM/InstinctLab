@@ -546,3 +546,39 @@ test("hunterPoisonHalfLife: a hunter's poison halves in its own half-life; 0 = t
   runTicks(a, 3000); runTicks(b, 3000);
   assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
 });
+
+// rules.hunterIdle (Rey 2026-11-11): standing still costs a hunter less hunger than chasing, so waiting for a better prey is affordable.
+test("hunterIdle: a still hunter pays that share of its hunger, a hunter at top speed all of it; off = the same at any speed", () => {
+  const drop = (rules: Partial<typeof DEFAULT_RULES>, speed: number) => {
+    const w = createWorld(2, { ...BOTH_EYES, ...rules });
+    runTicks(w, 5);
+    const h = w.hunters[0];
+    h.energy = 0.5; h.toxin = 0; h.age = 1; h.speed = speed;
+    liveEcoHunters(w);
+    return 0.5 - h.energy;
+  };
+  const hunger = DEFAULT_RULES.hunterHunger, top = DEFAULT_RULES.hunterSpeed;
+  assert.ok(Math.abs(drop({ hunterIdle: 0.25 }, 0) - hunger * 0.25) < 1e-12, "still: a quarter");
+  assert.ok(Math.abs(drop({ hunterIdle: 0.25 }, top) - hunger) < 1e-12, "top speed: all of it");
+  assert.ok(Math.abs(drop({ hunterIdle: 0.25 }, top / 2) - hunger * 0.625) < 1e-12, "half speed: in between");
+  assert.equal(drop({}, 0), drop({}, top), "off: the same at any speed");
+});
+
+// rules.hunterBrainNow (Rey 2026-11-11): a baby starts from its parent's current (learned) brain, not the inborn one.
+test("hunterBrainNow: a baby's brain is the parent's current brain; off = the parent's inborn brain", () => {
+  const baby = (now: number) => {
+    const w = createWorld(2, { ...BOTH_EYES, hunterBrainNow: now, hunterMature: 0, hunterBirth: 1.2, hunterBirthChance: 1, mutation: 0 });
+    runTicks(w, 5);
+    w.hunters.length = 1;
+    const h = w.hunters[0], b = h.brain!;
+    assert.notEqual(b.w, b.g, "learning on: the working brain is its own copy");
+    for (let k = 0; k < b.w.length; k++) b.w[k] = b.g[k] + 1; // "learned": every weight moved by 1
+    h.energy = 2; h.age = 1; h.toxin = 0;
+    liveEcoHunters(w);
+    assert.equal(w.hunters.length, 2, "one baby");
+    return { g: w.hunters[1].brain!.g, parent: b };
+  };
+  const on = baby(1), off = baby(0);
+  assert.deepEqual(on.g, on.parent.w, "on: the parent's brain as it is now");
+  assert.deepEqual(off.g, off.parent.g, "off: the parent's inborn brain");
+});

@@ -61,6 +61,10 @@ export interface Rules {
   // added to the bite sum as a start bias toward biting (1: most bite at first)
   hunterPoisonHalfLife: number; // ecosystem (Rey 2026-11-10: "bigger metabolism, faster poison degrade"): ticks for poison to halve in a
   // hunter; 0 = the same as prey (poisonHalfLife). One dose D costs a hunter about hunterHunger x D x half-life / ln 2 extra energy
+  hunterBrainNow: number; // ecosystem (Rey 2026-11-11): 1 = a hunter baby starts from its parent's CURRENT brain (what the parent learned in
+  // life is passed on, then mutated), not the parent's inborn brain; 0 = the inborn brain (as before). Needs hunterLearn > 0 to differ
+  hunterIdle: number; // ecosystem (Rey 2026-11-11): share of hunterHunger a hunter standing still pays (rising in a line to all of it at top
+  // speed), so waiting is cheaper than chasing; 0 = off: hunger is the same at every speed (as before)
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
   season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
@@ -118,7 +122,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
