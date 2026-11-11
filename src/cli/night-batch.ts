@@ -103,6 +103,17 @@ const TESTS: Test[] = [
   //     blind gains as much or more, and prey fall. Done: pick lower AND hunters more in >= 10 of 14. Kill: under 8.
   ["wait75G-glow-dose0.75-idle-proof", "glow, dose 0.75, cap 2, hunterIdle 0.25, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterIdle=0.25"]],
   ["wait75B-blind-dose0.75-idle-proof", "blind, same, 14 x 200k [proof]; pairs with wait75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterIdle=0.25"]],
+  // (2g) Rey 2026-11-11 ("a digest bar ... works for prey and hunter"; poison seeps in): a stomach, at the closest arm (dose 0.75).
+  //     Run alone with: node src/cli/night-batch.ts --only=gut. Problem: a hunter is search-limited (1 meal per ~200 ticks, 30 ticks rest),
+  //     so any prey is worth taking and skipping a sick one costs a meal. Mechanism: a full stomach blocks the next catch, so a sick prey
+  //     wastes the slot a clean one could fill (optimal diet: be choosy when handling, not searching, is the limit). digest 0.02 = a meal
+  //     in 25 ticks (about the old rest); 0.01 = 50 ticks. 0.005 crashed hunters in a 10k try (3.5 vs 11.3), so it is not queued.
+  //     Prediction (low confidence): the glow pick gap is wider than x75 (0.58 vs 0.71), more so at 0.01. Risk: full predators let prey
+  //     escape, bigger cycles, more die-outs. Done: works >= 5 of 6 AND both in >= 5 of 6. Kill: die-outs up or no wider pick gap.
+  ["gut10g-glow-dose0.75-digest0.01", "glow, dose 0.75, cap 2, digest 0.01 (stomach), 6 x 100k [long check]; baseline x75g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=0.01"]],
+  ["gut10b-blind-dose0.75-digest0.01", "blind, dose 0.75, cap 2, digest 0.01 (stomach), 6 x 100k [long check]; pairs with gut10g; baseline x75b", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=0.01"]],
+  ["gut20g-glow-dose0.75-digest0.02", "glow, dose 0.75, cap 2, digest 0.02 (stomach), 6 x 100k [long check]; baseline x75g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=0.02"]],
+  ["gut20b-blind-dose0.75-digest0.02", "blind, dose 0.75, cap 2, digest 0.02 (stomach), 6 x 100k [long check]; pairs with gut20g; baseline x75b", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=0.02"]],
   // (2f) Rey 2026-11-11: inborn resistance gene (upkeep 0.0005) + rising potency (10% per 1,000 ticks over the 20% line), base dose 0.15.
   //     Problem: flat poison is deadly per mistake or harmless (all-in). Mechanism: a side that leans on poison meets stronger poison; glow
   //     hunters can stay under the line by avoiding, blind ones cannot. Prediction (low confidence): blind hunters end with higher potency

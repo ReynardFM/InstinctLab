@@ -4,6 +4,7 @@ import { genomeSize, type Genome } from "./brain.ts";
 import { inputCount } from "./senses.ts";
 import { H, W } from "./space.ts";
 import { SENSE_GENES as SENSE_GENES_N } from "./genes.ts";
+import type { Gut } from "./gut.ts";
 
 export interface Food {
   x: number;
@@ -37,6 +38,7 @@ export interface Creature {
   eaten: number; // good food this generation, all layouts so far (this is the score)
   poisoned: number; // poison eaten this generation
   resist: number; // ecosystem: poison resistance 0..1 (toxin.ts): trained by eating poison, partly inherited
+  gut?: Gut; // rules.digest: its stomach (gut.ts), made on the first meal
   toxin: number; // ecosystem: poison level (toxin.ts): energy use x (1 + toxin), fading
   caught: number; // food maps on which a hunter caught it this generation
   alive: boolean;

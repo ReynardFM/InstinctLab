@@ -17,6 +17,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { genomeSize, learn, thinkInto, type Genome } from "./brain.ts";
+import { digestTick, gutToxin, hasRoom, swallow, type Gut } from "./gut.ts";
 import { LEARN_DECAY, USUAL_RATE } from "./life.ts";
 import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
@@ -36,6 +37,7 @@ export interface Hunter {
   age: number; // ecosystem mode: ticks lived
   toxin: number; // ecosystem mode: poison level taken on from poisoned prey (toxin.ts)
   resist: number; // ecosystem mode: poison resistance 0..1, trained by poisoned catches (toxin.ts)
+  gut?: Gut; // rules.digest: its stomach (gut.ts), made on the first catch
 }
 
 export type Origin = "borrowed" | "random";
@@ -232,11 +234,13 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
   prey.alive = false;
   prey.diedAt = w.tick;
   prey.caught++;
-  h.rest = REST;
+  h.rest = inEcosystem(w) && w.rules.digest > 0 ? 0 : REST; // rules.digest: the stomach is the wait, not a rest
   if (h.brain) h.brain.caught++;
   if (h.brain && w.rules.hunterResistGene > 0 && !inEcosystem(w)) h.brain.poisonCost += POISON_MEALS * w.rules.genPreyToxin * (1 - h.brain.resistGene);
   if (inEcosystem(w)) {
-    h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
+    const gut = w.rules.digest > 0; // rules.digest: the meal and its poison go to the stomach (gut.ts)
+    if (gut) swallow(h, w.rules.hunterMeal, w.rules.hunterMeal, 0);
+    else h.energy = Math.min(h.energy + w.rules.hunterMeal, MAX_ENERGY);
     const lv = prey.toxin;
     const bin = lv <= 0 ? 0 : lv <= 0.02 ? 1 : lv <= 0.05 ? 2 : lv <= SICK ? 3 : lv <= 0.3 ? 4 : 5;
     w.eco.dose.n[bin]++;
@@ -245,7 +249,8 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
       const raw = w.rules.potencyRise > 0 ? plain * w.eco.potency.hunter : plain; // rules.potencyRise: the hunter side's potency
       const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw; // rules.hunterDoseCap
       w.eco.dose.taken[bin] += taken;
-      h.toxin += taken;
+      if (gut) h.gut!.toxin += taken;
+      else h.toxin += taken;
     }
     w.eco.caught++;
     w.eco.sick.caught++;
@@ -397,8 +402,9 @@ function moveBrainHunters(w: World): void {
       h.y = (h.y + sin(b.a) * speed + H) % H;
     }
     nearestPrey(w, h.x, h.y, walls);
-    const toxinBefore = h.toxin;
-    const inReach = near.i1 >= 0 && near.d21 < CATCH * CATCH;
+    const toxinBefore = h.gut ? h.toxin + gutToxin(h) : h.toxin; // with a stomach, the poison just swallowed counts for the taste
+    // rules.digest: a hunter with a full stomach cannot catch (its stomach holds one meal)
+    const inReach = near.i1 >= 0 && near.d21 < CATCH * CATCH && (!(eco && r.digest > 0) || hasRoom(h, r.hunterMeal, r.hunterMeal));
     let caughtNow = inReach;
     if (inReach && r.hunterBite > 0) {
       // the bite output: weights after the brain in the genome, read from the middle neurons of this tick's thought
@@ -438,7 +444,7 @@ function moveBrainHunters(w: World): void {
     // taste aversion (Rey 2026-10-25): a hunter learns during its life, like prey do. A clean catch is +1; a poisoned
     // one counts down to -1 by the poison it took in, so what led it to that prey (including how fast it moved) fades
     if (eco && r.hunterLearn > 0) {
-      const reward = caughtNow ? 1 - 2 * Math.min(1, h.toxin - toxinBefore) : 0;
+      const reward = caughtNow ? 1 - 2 * Math.min(1, (h.gut ? h.toxin + gutToxin(h) : h.toxin) - toxinBefore) : 0;
       let felt = reward;
       if (r.relativeReward > 0) {
         felt = reward - b.usual; // better or worse than usual: zero on average, so no steady drift (as prey relativeReward)
@@ -535,6 +541,7 @@ export function liveEcoHunters(w: World): void {
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   const born: Hunter[] = [];
   for (const h of w.hunters) {
+    if (r.digest > 0) digestTick(h, r.digest, MAX_ENERGY); // rules.digest: the stomach feeds the body (gut.ts)
     // rules.hunterIdle: a still hunter pays only that share of its hunger, a hunter at top speed all of it (off: all of it at any speed)
     const effort = r.hunterIdle > 0 ? r.hunterIdle + (1 - r.hunterIdle) * Math.min(h.speed / r.hunterSpeed, 1) : 1;
     h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more

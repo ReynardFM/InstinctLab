@@ -338,3 +338,10 @@ Settings: prey-like breeding, both eyes, dose 0.75, cap 2, hunterIdle 0.25. Rey:
 - Works: glow 10 / 4 of 14, blind 11 / 6 (without waiting, 100k: 14 / 11 and 14 / 12). Prey die-outs per run 6.1-20.2.
 - Waiting vs no waiting (glow; x75g is 100k, so lengths differ): hunters 42.5 vs 28.0 (more in 13 of 14), prey 56 vs 77, hunters per prey 0.78 vs 0.37 (14 of 14), poisoned share of deaths 0.25 vs 0.35 (12 of 14).
 - Reading: cheap waiting makes every hunter cheaper to keep alive, glow or blind. Hunters crowd, prey are eaten down, the world works less often, and the glow gap in pick disappears (0.63 vs 0.64; without waiting 0.58 vs 0.71). My prediction (the glow gain grows) was wrong; the risk seen at dose 0.5 came true.
+
+## 2026-11-11: stomach built (rules.digest), queued, no result yet
+- Rey: "a digest bar, like a literal digestive system, no feces, just consumption, works for prey and hunter"; poison: "b" = seeps in while digesting.
+- src/engine/gut.ts: a meal goes to the stomach (size, energy, poison); rules.digest of it per tick moves to the body; full stomach = no more food (prey 2 pellets, hunters 1 meal); a body at top energy waits (no waste); hunters no longer rest after a catch; a hunter takes the prey's body poison only (not what is still in the prey's stomach); the hunter's taste reward counts the poison just swallowed.
+- Off by default: 26 fingerprints unchanged. 2 new tests (fail to load on the old code); hunters 44 pass, all other files pass.
+- Viability try [seed 1, 10k, below screen], dose 0.75, glow: digest 0.005 -> hunters 3.5 / 2.6 (off: 11.3 / 12.0), 9 / 4 hunter die-outs: too slow. 0.01 -> 8.1 / 6.7; 0.02 -> 7.3 / 6.2.
+- Queued: gut10g/b, gut20g/b (dose 0.75, 6 x 100k, glow vs blind), baseline x75g/b. Prior work: optimal diet / digestion-limited foraging (Jeschke et al. 2002), paradox of enrichment (risk of bigger cycles); from memory, not re-read.

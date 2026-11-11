@@ -632,3 +632,44 @@ test("potencyRise: a side over the 20% line meets stronger poison, under it weak
   assert.ok(top > 1, `in a run, some side crossed the line and its potency rose: x${top}`);
   assert.equal(off.eco.potency.prey, 1); assert.equal(off.eco.potency.hunter, 1);
 });
+
+// rules.digest (Rey 2026-11-11: "a digest bar ... just consumption, works for prey and hunter"; poison seeps in while digesting).
+import { digestTick, hasRoom, swallow, PELLET, PREY_GUT } from "../src/engine/gut.ts";
+
+test("digest: a stomach hands its energy and poison to the body bit by bit, loses nothing, and a full one takes no more", () => {
+  const e = { energy: 0.5, toxin: 0 } as { energy: number; toxin: number; gut?: { bulk: number; energy: number; toxin: number } };
+  assert.ok(hasRoom(e, 0.5, 0.5), "empty: room for a meal");
+  swallow(e, 0.5, 0.5, 2);
+  assert.ok(!hasRoom(e, 0.5, 0.5), "one meal in: a hunter's stomach is full");
+  assert.equal(e.energy, 0.5, "nothing reaches the body at the bite");
+  digestTick(e, 0.005, 1.5);
+  assert.ok(Math.abs(e.energy - 0.505) < 1e-12 && Math.abs(e.toxin - 0.02) < 1e-12, `one tick: 1% of the meal and of its poison (${e.energy}, ${e.toxin})`);
+  for (let t = 0; t < 120; t++) digestTick(e, 0.005, 1.5);
+  assert.ok(Math.abs(e.energy - 1) < 1e-9 && Math.abs(e.toxin - 2) < 1e-9 && e.gut!.bulk === 0, "after 100 ticks all of it arrived, nothing lost");
+  assert.ok(hasRoom(e, 0.5, 0.5), "empty again");
+  const full = { energy: 1.5, toxin: 0 } as typeof e;
+  swallow(full, PELLET, PELLET, 0);
+  digestTick(full, 0.005, 1.5);
+  assert.equal(full.gut!.energy, PELLET, "a body at top energy waits: nothing is wasted");
+  const prey = { energy: 1, toxin: 0 } as typeof e;
+  swallow(prey, PELLET, 0, 1); swallow(prey, PELLET, PELLET, 0);
+  assert.ok(!hasRoom(prey, PELLET, PREY_GUT), "a prey's stomach holds two pellets (a poison pellet takes room too)");
+});
+
+test("digest in the world: hunters and prey get stomachs, a full hunter does not catch, same seed same run; off = no stomachs", () => {
+  const R = { ...BOTH_EYES, digest: 0.005 };
+  const a = createWorld(3, R), b = createWorld(3, R);
+  let seenFullHunter = false, caughtWhileFull = false;
+  for (let t = 0; t < 3000; t++) {
+    const before = a.hunters.map((h) => ({ h, full: !!h.gut && h.gut.bulk > 1e-9, c: h.brain!.caught }));
+    runTicks(a, 1);
+    for (const p of before) { if (p.full) { seenFullHunter = true; if (p.h.brain!.caught > p.c) caughtWhileFull = true; } }
+  }
+  runTicks(b, 3000);
+  assert.ok(seenFullHunter && !caughtWhileFull, "hunters filled up, and none caught while full");
+  assert.ok(a.creatures.some((c) => c.gut), "prey have stomachs");
+  assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
+  const off = createWorld(3, BOTH_EYES);
+  runTicks(off, 1000);
+  assert.ok(off.creatures.every((c) => !c.gut) && off.hunters.every((h) => !h.gut), "off: nobody has a stomach");
+});
