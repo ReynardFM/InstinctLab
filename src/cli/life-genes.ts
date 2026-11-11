@@ -78,7 +78,11 @@ if (isMainThread) {
       const wk = new Worker(new URL(import.meta.url), { argv: process.argv.slice(2) });
       let mine = -1;
       const feed = () => { if (next < js.length) { mine = next++; wk.postMessage(js[mine]); } else wk.terminate(); };
-      wk.on("message", (r: Result) => { res[mine] = r; done++; if (done === js.length) ok(); feed(); });
+      wk.on("message", (r: Result) => {
+        res[mine] = r; done++;
+        console.error(`  run ${done} of ${js.length} done (${((performance.now() - t0) / 60000).toFixed(0)} min)`); // progress (Rey 2026-11-11)
+        if (done === js.length) ok(); feed();
+      });
       wk.on("error", bad);
       feed();
     }

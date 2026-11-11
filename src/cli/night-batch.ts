@@ -34,9 +34,11 @@ const TESTS: Test[] = [
   // (food 120: 13 of 14 in the last window). Survival never reached 10 of 14 (best 9 of 14, food 120 evolved).
   // Prediction (before running; low confidence): hunters more with glow in >= 10 of 14 in at least one condition by the end.
   // Kill-if: hunters more in < 8 of 14 in both conditions -> avoiding sick prey does not turn into survival; find out why (open problem).
-  // Read: node scripts/pair.mjs gX-glow-food120-600k bX-blind-food120-600k ; node scripts/pick-time.mjs gX-glow-food120-600k bX-blind-food120-600k
-  ["gX-glow-food120-600k", "glow, food 120, same stats, 14 seeds x 600k [proof, long]", [S14, "--ticks=600000", ...E, "--hunterCue=2", ...SAME, ...FOOD2]],
-  ["bX-blind-food120-600k", "blind control, food 120, same stats, 14 seeds x 600k [proof, long]; pairs with gX", [S14, "--ticks=600000", ...E, "--hunterCue=0", ...SAME, ...FOOD2]],
+  // Read: node scripts/pair.mjs gX6-glow-food120-600k bX6-blind-food120-600k ; node scripts/pick-time.mjs gX6-glow-food120-600k bX6-blind-food120-600k
+  // Rey 2026-11-11: "we are proving a theory for now, use smaller seeds": the 14-seed version (gX / bX) took too long, so a 6-seed CHECK first.
+  // Check-level bar: hunters more with glow in >= 5 of 6 in at least one condition; kill-if < 3 of 6 in both.
+  ["gX6-glow-food120-600k", "glow, food 120, same stats, 6 seeds x 600k [check, long]", ["--seeds=1-6", "--ticks=600000", ...E, "--hunterCue=2", ...SAME, ...FOOD2]],
+  ["bX6-blind-food120-600k", "blind control, food 120, same stats, 6 seeds x 600k [check, long]; pairs with gX6", ["--seeds=1-6", "--ticks=600000", ...E, "--hunterCue=0", ...SAME, ...FOOD2]],
 ];
 
 mkdirSync(DIR, { recursive: true });
@@ -47,8 +49,9 @@ for (const [name, what, args, skipIf] of TESTS) {
   const why = skipIf?.();
   if (why) { console.log(`skip ${name}: ${why}`); writeFileSync(file, `== ${name}: ${what}\nSKIPPED by gate: ${why}\n`); continue; }
   console.log(`run ${name}: ${what} (${((performance.now() - t0) / 60000).toFixed(0)} min in)`);
-  const r = spawnSync(process.execPath, ["src/cli/life-genes.ts", W, `--out=${name}`, ...args], { encoding: "utf8", maxBuffer: 1 << 24 });
-  const out = `== ${name}: ${what}\n${r.stdout}${r.status ? `\nFAILED (exit ${r.status}):\n${r.stderr.slice(-2000)}` : ""}`;
+  // stderr goes straight to the terminal, so the per-run progress lines of life-genes show live (Rey 2026-11-11)
+  const r = spawnSync(process.execPath, ["src/cli/life-genes.ts", W, `--out=${name}`, ...args], { encoding: "utf8", maxBuffer: 1 << 24, stdio: ["ignore", "pipe", "inherit"] });
+  const out = `== ${name}: ${what}\n${r.stdout}${r.status ? `\nFAILED (exit ${r.status}): see the terminal for the error` : ""}`;
   if (r.status) console.log(`  FAILED, see ${file}`);
   if (!r.status) writeFileSync(file, out);
   else writeFileSync(`${DIR}/${name}.failed.txt`, out);
