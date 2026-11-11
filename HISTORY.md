@@ -309,3 +309,17 @@ Night batch: finished entries removed (their results are in this file); only gX 
 - Both off by default; 26 fingerprints unchanged; 2 new tests fail on the old code (38 pass, 2 fail there), 40 pass now.
 - Queued in the night batch at dose 0.5 / cap 1, glow vs blind, 6 x 30k [check]: n50g/b, i50g/b, ni50g/b; baseline p50g/p50b.
 - `pair.mjs` now also prints: poisoned share of hunter deaths, hunters per prey. On gX4 vs bX4 (6 x 400k, check): poisoned share lower in 5 and 6 of 6; hunters per prey higher in 4 and 5 of 6.
+
+## 2026-11-11: night batch read (all [check], 6 seeds x 30k; seasons 6 x 80k). Ran 03:0x-03:37 local, 3/4 threads, normal priority
+Settings in every arm: prey-like breeding (hunterMature 0, hunterBirth 1.2, hunterBirthChance 1), both eyes, glow (hunterCue 2) vs blind (0). "both" = pick lower AND hunters more, handed out / evolved.
+- NO arm passed the gate (both in >= 5 of 6). No proof ran (all 10 skipped by gate).
+- Poison sweep, both of 6: dose 0.15: 2 / 2; 0.3: 0 / 1; 0.5: 2 / 2; 0.75: 4 / 2. No sweet spot at 30k.
+- Both balancers (real lifespan + half-life 25), today's poison: 2 / 2. Poisoned share of hunter deaths 0.13 (real lifespan alone 0.29 / 0.24, fast fade alone 0.19 / 0.16): the balancers cut poison deaths, glow gains nothing over blind.
+- Food 120 + dose 0.5: 2 / 1; hunters 50 vs 49.
+- Seasons + dose 0.5 (80k): works 0 of 6 in all four. The collapse is the swing, not the poison strength.
+- hunterBrainNow 1 (dose 0.5): hunters 7.3 / 5.6 vs p50g 19.7 / 15.9 (more in 0 of 6 both), works 1 / 0 of 6, pick 1.23 / 0.96. Harmful.
+- hunterIdle 0.25 (dose 0.5): hunters 28.5 / 27.0 vs p50g 19.7 / 15.9 (more in 5 / 6 of 6), prey 53 / 63 vs 109 / 99, works 3 / 2 vs 4 / 5; blind gains more (35.5 / 29.1). glow vs blind both: 1 / 1.
+- Both new rules: 2 / 3; evolved: hunters 24.3 vs 18.2 (5 of 6), pick 0.72 vs 1.08 (4 of 6). Best arm of the night, below the gate.
+- ALL-IN dose 0.5 and 0.3: 2 / 2 and 2 / 2. Poisoned share of hunter deaths 0.00 in all: poison no longer kills hunters, so there is nothing to gain by avoiding. Hunters 46-67.
+- Learning on vs off (p50g vs L50, glow, dose 0.5): with learning pick lower in 5 / 4 of 6 (0.69 vs 0.80, 0.71 vs 0.78), poisoned share of deaths lower in 6 / 6 of 6 (0.27 vs 0.42, 0.29 vs 0.41), but hunters FEWER (more in 2 / 1 of 6).
+- Caveat: 30k may be too short; glow's pick gap grew with time in the 400k check. A fail here is weak evidence.
