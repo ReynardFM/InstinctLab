@@ -7,8 +7,8 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-// LAB_PRIORITY=normal in the environment keeps normal priority (used for the night of 2026-11-11); the standing rule is low
-const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // standing rule: half of the threads (the night of 2026-11-11 used 3/4)
+process.env.LAB_PRIORITY = "normal"; // Rey 2026-11-11 14:10: "75% normal priority" for this run; the standing rule is low. Children inherit it
+const W = `--workers=${Math.max(1, Math.floor((availableParallelism() * 3) / 4))}`; // Rey 2026-11-11 14:10: 3/4 of the threads for this run; the standing rule is half
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
 // DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
