@@ -103,6 +103,19 @@ const TESTS: Test[] = [
   //     blind gains as much or more, and prey fall. Done: pick lower AND hunters more in >= 10 of 14. Kill: under 8.
   ["wait75G-glow-dose0.75-idle-proof", "glow, dose 0.75, cap 2, hunterIdle 0.25, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterIdle=0.25"]],
   ["wait75B-blind-dose0.75-idle-proof", "blind, same, 14 x 200k [proof]; pairs with wait75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterIdle=0.25"]],
+  // (2h) Rey 2026-11-11 ("that was always the problem, creatures die too fast, balance the energy consumption").
+  //     Run alone with: node src/cli/night-batch.ts --only=slow. Measured [seed 1, 12k, dose 0.75, glow; below screen]: a hunter makes a
+  //     median of 2 catches in its life (21% none), dies at ~390-465 ticks, 67% starved clean; a prey eats a median of 2 meals, lives 384
+  //     ticks, 72% are caught. Problem: with 2 catches per life a hunter cannot learn, and luck beats skill in who breeds.
+  //     Fix under test: SLOWER hunters, not cheaper ones: hunger / 4 AND meal / 4. The catch rate a hunter needs is the same (hunger /
+  //     meal = 1 per 200 ticks), so prey should not be eaten down as with cheap waiting; but a body's store lasts 4x longer and a baby
+  //     costs ~5 catches instead of ~1.2. Poison harm rides on hunger, so the same dose costs 1/4: the second pair uses dose x4.
+  //     Prediction (low confidence): catches per life ~8, fewer die-outs, glow pick gap wider than x75 (0.58 vs 0.71). Risk: 4x fewer
+  //     hunter generations in 100k, so evolution is slower. Done: works >= 5 of 6 AND both in >= 5 of 6. Kill: prey fall as with waiting.
+  ["slow75g-glow-slow-hunters-dose0.75", "glow, hunters burn 1/4 and a meal gives 1/4, dose 0.75, cap 2 (same dose), 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["slow75b-blind-slow-hunters-dose0.75", "blind, hunters burn 1/4 and a meal gives 1/4, dose 0.75, cap 2 (same dose), 6 x 100k [long check]; pairs with slow75g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["slow3g-glow-slow-hunters-dose3", "glow, hunters burn 1/4 and a meal gives 1/4, dose 3, cap 8 (dose x4 = the same energy cost per mistake as before), 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=3", "--hunterDoseCap=8"]],
+  ["slow3b-blind-slow-hunters-dose3", "blind, hunters burn 1/4 and a meal gives 1/4, dose 3, cap 8 (dose x4 = the same energy cost per mistake as before), 6 x 100k [long check]; pairs with slow3g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=3", "--hunterDoseCap=8"]],
   // (2g) Rey 2026-11-11 ("a digest bar ... works for prey and hunter"; poison seeps in; "add full, digestion balanced like real nature"):
   //     a stomach with a "how full" input, digesting digest x what the body burns, at the closest arm (dose 0.75).
   //     Run alone with: node src/cli/night-batch.ts --only=gut. Problem: a hunter is search-limited (1 meal per ~200 ticks, 30 ticks rest),

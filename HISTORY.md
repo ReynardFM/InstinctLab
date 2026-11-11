@@ -353,3 +353,8 @@ Settings: prey-like breeding, both eyes, dose 0.75, cap 2, hunterIdle 0.25. Rey:
 - Viability tries [seed 1, 10k, below screen; one seed is noise], dose 0.75, glow, handed out: digest 3 -> prey 25.1, hunters 2.8, 9 hunter die-outs (no stomach: 59.2, 11.3, 6); 5 -> 19.2, 3.3, 11; 8 -> 55.2, 9.6, 6.
   Reading (unverified): a nature-like 3x looks too tight for animals that live only ~350 (prey) / ~500 (hunter) ticks and must double their energy to breed.
 - Queued: gut3g/b, gut5g/b, gut8g/b (dose 0.75, 6 x 100k), baseline x75g/b. The flat-rate tests gut10 / gut20 were replaced before they ran.
+
+## 2026-11-11: "creatures die too fast" (Rey) -> measured, slower hunters queued
+- Lives now [seed 1, 12k, dose 0.75, glow, prey-like breeding; below screen]. Hunters: 278 deaths, median 2 catches per life (21% none), die at 465 (starved clean, 67%) / 392 (starved poisoned, 33%), born with 0.695 energy = 278 ticks of hunger, 51% breed. Prey: 1,282 lives, lifespan 384, 72% caught, median 2 meals per life, 32% breed, 78% dead within 300 ticks of a poison pellet (44% after a clean meal).
+- Slower hunters (hunterHunger / 4 = 0.000625 AND hunterMeal / 4 = 0.125; same needed catch rate) [seed 1, 12k, below screen, only 29 hunters]: median 6 catches per life (parents 21), die at 1,024-2,001, hunters 3.6 avg, prey 137.8 avg; 80% of the 10 deaths were poisoned (poison at death 5.2: it piles up over a longer life). Sick share of catches by hunter age: 13% under 500 ticks, 4-5% at 500-2,000, 9% above.
+- Queued: slow75g/b (dose 0.75, cap 2), slow3g/b (dose 3, cap 8), 6 x 100k, glow vs blind. No new setting.
