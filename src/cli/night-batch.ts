@@ -7,7 +7,7 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // half the threads (standing rule; Rey 2026-11-05: back from all-minus-1)
+const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 4))}`; // a QUARTER of the threads (Rey 2026-11-11, gaming); the standing rule is half
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
 // DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
@@ -26,6 +26,16 @@ export const worksGate = (name: string) => (): string | null => {
   return best >= 10 ? null : `${name}: base world works in only ${best} of 14: poison runs not run`;
 };
 const FOOD2 = ["--food=120"]; // "bigger world" (Rey 2026-11-09: b): twice the food on the same 800 x 600 map (the map size is not a setting)
+// Sweet-spot gate (Rey 2026-11-11): run the proof only if, in the 6-seed check, the real arm beats its control on BOTH pick (lower) and
+// hunters (more) in >= 5 of 6 paired seeds, in at least one condition.
+const sweetGate = (real: string, control: string) => (): string | null => {
+  const f = (n: string) => `${DIR}/${n}.json`;
+  if (!existsSync(f(real)) || !existsSync(f(control))) return `${real} / ${control} missing`;
+  type R = { cond: number; seed: number; m: { pick: number; hunters: number } };
+  const A = JSON.parse(readFileSync(f(real), "utf8")) as R[], B = JSON.parse(readFileSync(f(control), "utf8")) as R[];
+  const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && B.some((q) => q.cond === c && q.seed === r.seed && r.m.pick < q.m.pick && r.m.hunters > q.m.hunters)).length));
+  return best >= 5 ? null : `${real} beat ${control} on pick AND hunters in only ${best} of 6: proof not run`;
+};
 const TESTS: Test[] = [
   // Finished tests were removed 2026-11-10 (Rey: "delete the code of past tests"); every result is in HISTORY.md and every entry is in
   // git (last at de515af). Finished tests leave their .txt in proto/out/life-genes, so they would be skipped anyway.
@@ -47,6 +57,20 @@ const TESTS: Test[] = [
     [`${n}g-glow-dose${d}`, `glow, poisonDose ${d}, hunter cap ${c}, 6 seeds x 30k [check]`, [...CHECK, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`]],
     [`${n}b-blind-dose${d}`, `blind, poisonDose ${d}, hunter cap ${c}, 6 seeds x 30k [check]`, [...CHECK, ...E, "--hunterCue=0", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`]],
   ]),
+  // ---- Night 2026-11-11 extras (Rey: "add more experiments / balancers to test"). All: prey-like breeding, both eyes, 6 x 30k checks first.
+  // (1) Hunter balancers at TODAY's poison: real lifespan for frailty + fast poison fade (half-life 25), glow vs blind.
+  //     Prediction (low confidence): more hunters than without them (gS2 / bS2), glow pick still below blind.
+  ["hB-glow-balancers", "glow + hunterRealLife 1 + hunterPoisonHalfLife 25, today's poison, 6 x 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--hunterRealLife=1", "--hunterPoisonHalfLife=25"]],
+  ["hBb-blind-balancers", "blind + the same balancers, 6 x 30k [check]; pairs with hB", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--hunterRealLife=1", "--hunterPoisonHalfLife=25"]],
+  // (2) Does hunter learning pay once a mistake is survivable? Glow at the middle level (dose 0.5, cap 1), learning OFF; pairs with p50g (on).
+  ["L50-glow-nolearn", "glow, poisonDose 0.5, cap 1, hunterLearn 0, 6 x 30k [check]; compare with p50g", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterLearn=0"]],
+  // (3) Proofs (14 x 200k), only for the arms that pass the sweet-spot gate in their check.
+  ...([["p15", "0.15", "0.28"], ["p30", "0.3", "0.6"], ["p50", "0.5", "1"], ["p75", "0.75", "2"]] as const).flatMap(([n, d, c]): Test[] => [
+    [`${n}G-glow-dose${d}-proof`, `glow, poisonDose ${d}, cap ${c}, 14 x 200k [proof]; only if ${n}g passed`, [...PROOF, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`], sweetGate(`${n}g-glow-dose${d}`, `${n}b-blind-dose${d}`)],
+    [`${n}B-blind-dose${d}-proof`, `blind, poisonDose ${d}, cap ${c}, 14 x 200k [proof]; pairs with ${n}G`, [...PROOF, ...E, "--hunterCue=0", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`], sweetGate(`${n}g-glow-dose${d}`, `${n}b-blind-dose${d}`)],
+  ]),
+  ["hBG-glow-balancers-proof", "glow + balancers, 14 x 200k [proof]; only if hB passed", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--hunterRealLife=1", "--hunterPoisonHalfLife=25"], sweetGate("hB-glow-balancers", "hBb-blind-balancers")],
+  ["hBB-blind-balancers-proof", "blind + balancers, 14 x 200k [proof]; pairs with hBG", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--hunterRealLife=1", "--hunterPoisonHalfLife=25"], sweetGate("hB-glow-balancers", "hBb-blind-balancers")],
 ];
 
 mkdirSync(DIR, { recursive: true });
