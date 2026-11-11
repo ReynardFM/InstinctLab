@@ -358,3 +358,11 @@ Settings: prey-like breeding, both eyes, dose 0.75, cap 2, hunterIdle 0.25. Rey:
 - Lives now [seed 1, 12k, dose 0.75, glow, prey-like breeding; below screen]. Hunters: 278 deaths, median 2 catches per life (21% none), die at 465 (starved clean, 67%) / 392 (starved poisoned, 33%), born with 0.695 energy = 278 ticks of hunger, 51% breed. Prey: 1,282 lives, lifespan 384, 72% caught, median 2 meals per life, 32% breed, 78% dead within 300 ticks of a poison pellet (44% after a clean meal).
 - Slower hunters (hunterHunger / 4 = 0.000625 AND hunterMeal / 4 = 0.125; same needed catch rate) [seed 1, 12k, below screen, only 29 hunters]: median 6 catches per life (parents 21), die at 1,024-2,001, hunters 3.6 avg, prey 137.8 avg; 80% of the 10 deaths were poisoned (poison at death 5.2: it piles up over a longer life). Sick share of catches by hunter age: 13% under 500 ticks, 4-5% at 500-2,000, 9% above.
 - Queued: slow75g/b (dose 0.75, cap 2), slow3g/b (dose 3, cap 8), 6 x 100k, glow vs blind. No new setting.
+
+## 2026-11-11: slow prey built (rules.preySlow), queued
+- Rey: "a" (slow the prey too). preySlow N: prey burn 1/N (moving, senses) and a pellet / remains gives 1/N; the stomach follows. Off by default; 26 fingerprints unchanged; new test fails to load on the old code; hunters 45 pass, all other files pass.
+- Tries [seed 1, 10-12k, dose 0.75, glow, slow hunters too; below screen]:
+  food 60: prey lifespan 947 (was 384), 7 meals per life (was 2), 49% dead within 300 ticks of a poison pellet (was 78%); but only 59 prey lives in 12k (was 1,282), prey 17 avg, hunters: 0 of 24 bred, 5 die-outs.
+  Why (arithmetic): a pellet worth 1/4 cuts the world's energy input by 4. Prey births per tick 0.107 -> 0.005; a hunter needs 0.005 catches per tick; so ~21 hunters could be fed before (13.6 measured) and ~1 now.
+  food 240 (10k): prey 34 avg (min 17), 11 meals per life, 29% of hunters bred, 4 hunter die-outs.
+- Queued: slowAllg/b (food 60), slowAllFg/b (food 240), dose 0.75, 6 x 100k.
