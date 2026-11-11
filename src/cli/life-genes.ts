@@ -67,10 +67,12 @@ function run(j: Job): Result {
 
 if (isMainThread) {
   const threads = Number(opt("workers", String(Math.max(1, Math.floor(availableParallelism() / 2)))));
-  try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
+  // Standing rule: low priority (Rey plays games meanwhile). LAB_PRIORITY=normal (set by the night batch, Rey 2026-11-11) keeps normal priority.
+  const NORMAL = process.env.LAB_PRIORITY === "normal";
+  if (!NORMAL) try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
   const js: Job[] = [];
   for (let cond = 0; cond < CONDS.length; cond++) for (let seed = s0; seed <= (s1 ?? s0); seed++) js.push({ cond, seed });
-  console.error(`${js.length} runs of ${TICKS} ticks on ${threads} of ${availableParallelism()} threads, low priority`);
+  console.error(`${js.length} runs of ${TICKS} ticks on ${threads} of ${availableParallelism()} threads, ${NORMAL ? "normal" : "low"} priority`);
   const t0 = performance.now(), res: Result[] = new Array(js.length);
   let next = 0, done = 0;
   await new Promise<void>((ok, bad) => {
