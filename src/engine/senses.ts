@@ -3,7 +3,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
 import { senseOn } from "./genes.ts";
-import { fullness, preyGut } from "./gut.ts";
+import { PREY_GUT, fullness } from "./gut.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearestBruteInto, nearestOneInto, offset, type Hit, type Near } from "./space.ts";
@@ -432,7 +432,7 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   // no food at all: the distance reads as far (same numbers as always)
   let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
   inputs[k++] = c.energy;
-  if (w.rules.digest > 0) inputs[k++] = fullness(c, preyGut(w.rules)); // rules.digest: how full its stomach is, 0..1
+  if (w.rules.digest > 0) inputs[k++] = fullness(c, PREY_GUT); // rules.digest: how full its stomach is, 0..1
   if (r.senseFood2 && !senseOn(w.rules, c.g, 0)) k = writeNothing(inputs, k);
   else if (r.senseFood2) {
     const s2 = h.goodN > 1 ? h.good[1] : null;
@@ -576,7 +576,7 @@ function eyeInto(w: World, c: Creature, cosH: number, sinH: number): { food: Foo
   for (let i = 0; i < n; i++) inputs[i] = acc[i];
   let k = n;
   inputs[k++] = c.energy;
-  if (w.rules.digest > 0) inputs[k++] = fullness(c, preyGut(w.rules)); // rules.digest: how full its stomach is, 0..1
+  if (w.rules.digest > 0) inputs[k++] = fullness(c, PREY_GUT); // rules.digest: how full its stomach is, 0..1
   if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
   if (inputs.length !== k) inputs.length = k;
   // the nearest pellet of either look; the good-looking one wins a tie

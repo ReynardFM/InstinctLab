@@ -379,3 +379,9 @@ Settings in all: prey-like breeding, both eyes, dose 0.75 / cap 2 unless noted. 
   Potency: hunters' rose to x1.3-2.9 (x2.4-4.3 with free upkeep); prey's stayed ~x1.0 with senses handed out, x1.2-2.6 with evolved senses.
   But blind hunters did not end with more resistance or potency than glow hunters (4 / 2 and 3 / 2 of 6; potency 4 / 2 and 0 / 0), and glow vs blind stays as without the gene: rG pick 0.61 vs 0.72 (5), hunters more in 4 / 5, both 3 / 2.
 - Across all ten pairs today: glow pick is lower in 4-5 of 6 most of the time (handed out), "more hunters" is a coin flip (1-5 of 6, mostly 3-4).
+
+## 2026-11-11 16:58: slow prey deleted; slow hunters become the base of the next tests
+- Rey: "revert the prey, but keep slow hunter. Now retest slow hunter as the default, against all that work".
+- Archive: deleted setting `preySlow` (N: prey burn 1/N, a pellet gives 1/N). Result [6 x 100k]: food 60 works 0 of 6; food 240 works 2 vs 0 / 2 vs 2, prey ~320, hunters ~6, 71-87% of hunter deaths poisoned. Why: hunters live on the flow of newborn prey; a baby cost 8 pellets instead of 2 (catches 160 -> 11 / 56 per 1k ticks), and slow prey survive poison and carry it (sick share 17% -> 27%). Restore from commit 5e8a485. The engine and tests are byte-identical to the commit before it.
+- Nature check (Rey asked): ~10% of energy passes up a level (10% rule); ~111 kg of prey per kg of carnivore (Carbone & Gittleman 2002); the predator share falls as prey rise (Hatton et al. 2015). Ours: 36 hunters per 100 prey (fast), 19 (slow hunters); energy passed up roughly half (rough arithmetic).
+- Queued under --only=sh, SLOW hunters in every test (hunterHunger 0.000625, hunterMeal 0.125; batch flag, NOT an engine default yet): dose 0.75 proof (14 x 200k), dose 3 (14 x 100k), stomach 5 and 8, resistance gene + no-poison control (6 x 100k).

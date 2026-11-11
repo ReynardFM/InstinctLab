@@ -7,18 +7,14 @@ export interface Gut { bulk: number; energy: number; toxin: number }
 interface Eater { gut?: Gut; energy: number; toxin: number }
 
 export const PELLET = 0.3; // a pellet's size and energy (the same 0.3 as without a stomach)
-// rules.preySlow: N above 0 = prey burn 1/N and a pellet gives 1/N (a slower pace of life); the pellet's size in the stomach follows
-export const pellet = (r: { preySlow: number }): number => (r.preySlow > 0 ? PELLET / r.preySlow : PELLET);
-export const preyPace = (r: { preySlow: number }): number => (r.preySlow > 0 ? 1 / r.preySlow : 1);
-export const preyGut = (r: { preySlow: number }): number => 2 * pellet(r); // a prey's stomach holds two pellets; a hunter's one meal (rules.hunterMeal)
-export const PREY_GUT = 2 * PELLET;
+export const PREY_GUT = 2 * PELLET; // a prey's stomach holds two pellets; a hunter's holds one meal (rules.hunterMeal)
 
 // How fast a stomach works (Rey 2026-11-11: "balanced like real nature"): rules.digest is a MULTIPLE of what the body burns, so each
 // side's stomach matches its own body. Hunters burn rules.hunterHunger per tick; prey burn PREY_BURN at top speed (life.ts: 0.0005 +
 // 3 x 0.0004, times rules.energyCost). digest 3 = an animal can take in about three times what it burns (a gorge-and-fast eater).
 export const PREY_BURN = 0.0005 + 3 * 0.0004;
 export const hunterDigest = (r: { digest: number; hunterHunger: number }): number => r.digest * r.hunterHunger;
-export const preyDigest = (r: { digest: number; energyCost: number; preySlow: number }): number => r.digest * PREY_BURN * r.energyCost * preyPace(r);
+export const preyDigest = (r: { digest: number; energyCost: number }): number => r.digest * PREY_BURN * r.energyCost;
 export const fullness = (e: Eater, cap: number): number => (e.gut ? Math.min(1, e.gut.bulk / cap) : 0);
 
 export const gutToxin = (e: Eater): number => (e.gut ? e.gut.toxin : 0);

@@ -10,7 +10,7 @@ import { SENSE_GENES, senseOn } from "./genes.ts";
 import { H, W } from "./space.ts";
 import { spreading } from "./plants.ts";
 import { dose, fade, harm, newPoison, preyLife } from "./toxin.ts";
-import { digestTick, hasRoom, pellet, preyDigest, preyGut, preyPace, swallow } from "./gut.ts";
+import { PELLET, PREY_GUT, digestTick, hasRoom, preyDigest, swallow } from "./gut.ts";
 
 // Energy a creature loses by eating poison (good food gives +0.3).
 export const POISON_HIT = 0.5;
@@ -42,16 +42,13 @@ export function live(w: World, c: Creature, costFactor: number): void {
   }
   if (w.grids?.creaturesOn) w.grids.creatures.move(c.slot!, c.x, c.y); // later creatures this tick sense where it is now
   const sick = newPoison(w) ? 1 + harm(c.toxin, c.resist) : 1; // poison level: everything costs more (toxin.ts), less with resistance
-  const slow = w.rules.preySlow > 0; // rules.preySlow: a slower pace of life (burn 1/N, a meal gives 1/N)
-  if (slow) c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick * preyPace(w.rules);
-  else c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick; // moving costs energy; standing still costs a little
-  if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) { let on = 0; for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++; c.energy -= slow ? w.rules.senseCost * on * preyPace(w.rules) : w.rules.senseCost * on; } // switched-on senses cost energy
+  c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick; // moving costs energy; standing still costs a little
+  if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) { let on = 0; for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++; c.energy -= w.rules.senseCost * on; } // switched-on senses cost energy
   if (w.rules.resistGene > 0 && c.resist > 0) c.energy -= w.rules.resistGene * c.resist; // inborn resistance has an upkeep
   const gut = w.rules.digest > 0; // rules.digest: a stomach (gut.ts)
   if (gut) digestTick(c, preyDigest(w.rules), 1.5);
   if (c.toxin > 0) c.toxin = fade(c.toxin, w);
-  const pe = slow || gut ? pellet(w.rules) : 0.3; // what a pellet gives (and its size in the stomach)
-  const room = !gut || hasRoom(c, pe, preyGut(w.rules)); // a full stomach leaves the food where it is
+  const room = !gut || hasRoom(c, PELLET, PREY_GUT); // a full stomach leaves the food where it is
   const near = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
   let reward = 0;
   if (room && seen.food && seen.foodDist < 6 && seen.food.remains) {
@@ -59,9 +56,9 @@ export function live(w: World, c: Creature, costFactor: number): void {
     reward = 1;
     c.eaten++;
     const t = seen.food.toxin ?? 0;
-    if (gut) swallow(c, pe, pe, t > 0 && newPoison(w) ? t : 0);
+    if (gut) swallow(c, PELLET, PELLET, t > 0 && newPoison(w) ? t : 0);
     else {
-      c.energy = Math.min(c.energy + pe, 1.5);
+      c.energy = Math.min(c.energy + 0.3, 1.5);
       if (t > 0 && newPoison(w)) c.toxin += t;
     }
     w.eco.remainsEaten++;
@@ -74,7 +71,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
       if (newPoison(w)) {
         // rules.potencyRise: the prey side's potency multiplies the dose (x1 when off)
         const taken = w.rules.potencyRise > 0 ? dose(w.rules.poisonDose, c.age, preyLife(w), w) * w.eco.potency.prey : dose(w.rules.poisonDose, c.age, preyLife(w), w);
-        if (gut) swallow(c, pe, 0, taken); // a poison pellet takes room, gives no energy, and its poison seeps in
+        if (gut) swallow(c, PELLET, 0, taken); // a poison pellet takes room, gives no energy, and its poison seeps in
         else c.toxin += taken;
         w.eco.potency.preyPoison++; w.eco.potency.preyFood++;
         w.eco.sick.poisonEaten++;
@@ -83,8 +80,8 @@ export function live(w: World, c: Creature, costFactor: number): void {
       else c.energy -= POISON_HIT;
     } else {
       c.eaten++;
-      if (gut) swallow(c, pe, pe, 0);
-      else c.energy = Math.min(c.energy + pe, 1.5);
+      if (gut) swallow(c, PELLET, PELLET, 0);
+      else c.energy = Math.min(c.energy + 0.3, 1.5);
       w.eco.potency.preyFood++;
     }
     if (spreading(w)) {

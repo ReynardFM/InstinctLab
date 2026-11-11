@@ -677,23 +677,3 @@ test("digest in the world: hunters and prey get stomachs, a full hunter does not
   runTicks(off, 1000);
   assert.ok(off.creatures.every((c) => !c.gut) && off.hunters.every((h) => !h.gut), "off: nobody has a stomach");
 });
-
-// rules.preySlow (Rey 2026-11-11: "creatures die too fast, balance the energy consumption"): prey burn 1/N and a pellet gives 1/N.
-import { pellet, preyGut } from "../src/engine/gut.ts";
-
-test("preySlow: prey burn a quarter and a pellet gives a quarter; off = as before", () => {
-  const slow = createWorld(4, { ...BOTH_EYES, preySlow: 4 }), norm = createWorld(4, BOTH_EYES);
-  const e0 = slow.creatures.map((c) => c.energy);
-  runTicks(slow, 1); runTicks(norm, 1);
-  let n = 0;
-  for (let i = 0; i < slow.creatures.length; i++) {
-    const a = slow.creatures[i], b = norm.creatures[i];
-    if (a.eaten + a.poisoned + b.eaten + b.poisoned > 0) continue; // ate on the first tick: skip
-    assert.ok(Math.abs((e0[i] - a.energy) * 4 - (e0[i] - b.energy)) < 1e-12, "the first tick costs a quarter (moving and senses)");
-    n++;
-  }
-  assert.ok(n > 5, `compared ${n} prey`);
-  assert.equal(pellet({ preySlow: 4 }), 0.075); assert.equal(pellet({ preySlow: 0 }), 0.3); assert.equal(preyGut({ preySlow: 4 }), 0.15);
-  runTicks(slow, 2000);
-  assert.ok(slow.creatures.length > 0 && slow.creatures.every((c) => c.energy <= 1.5), "the slow world runs");
-});

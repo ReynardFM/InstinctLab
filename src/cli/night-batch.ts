@@ -26,6 +26,8 @@ export const worksGate = (name: string) => (): string | null => {
   const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
   return best >= 10 ? null : `${name}: base world works in only ${best} of 14: poison runs not run`;
 };
+// SLOW hunters (Rey 2026-11-11: "keep slow hunter ... as the default"): they burn 1/4 and a meal gives 1/4; the needed catch rate is unchanged
+const SLOW = ["--hunterHunger=0.000625", "--hunterMeal=0.125"];
 const FOOD2 = ["--food=120"]; // "bigger world" (Rey 2026-11-09: b): twice the food on the same 800 x 600 map (the map size is not a setting)
 // Sweet-spot gate (Rey 2026-11-11): run the proof only if, in the 6-seed check, the real arm beats its control on BOTH pick (lower) and
 // hunters (more) in >= 5 of 6 paired seeds, in at least one condition.
@@ -116,15 +118,25 @@ const TESTS: Test[] = [
   ["slow75b-blind-slow-hunters-dose0.75", "blind, hunters burn 1/4 and a meal gives 1/4, dose 0.75, cap 2 (same dose), 6 x 100k [long check]; pairs with slow75g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["slow3g-glow-slow-hunters-dose3", "glow, hunters burn 1/4 and a meal gives 1/4, dose 3, cap 8 (dose x4 = the same energy cost per mistake as before), 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=3", "--hunterDoseCap=8"]],
   ["slow3b-blind-slow-hunters-dose3", "blind, hunters burn 1/4 and a meal gives 1/4, dose 3, cap 8 (dose x4 = the same energy cost per mistake as before), 6 x 100k [long check]; pairs with slow3g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=3", "--hunterDoseCap=8"]],
-  // (2i) Rey 2026-11-11 ("a": slow the prey too): rules.preySlow 4 (prey burn 1/4, a pellet gives 1/4) with the slow hunters of (2h).
-  //     Tries [seed 1, 10-12k, below screen]: prey live 947 ticks (was 384) and eat 7 meals (was 2), but a pellet worth 1/4 cuts the
-  //     world's energy input by 4: prey births fell from 0.107 to 0.005 per tick, which feeds ~1 hunter (a hunter needs 0.005 catches per
-  //     tick); hunters did not breed (0 of 24). With 4x the pellets (food 240) the energy input is back: 29% of hunters bred, prey eat 11
-  //     meals. Prediction (low confidence): food 60 fails (hunters starve), food 240 works. Done / kill as in (2h).
-  ["slowAllg-glow-slow-both-dose0.75", "glow, hunters AND prey at 1/4 pace, food 60, dose 0.75, cap 2, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--preySlow=4", "--poisonDose=0.75", "--hunterDoseCap=2"]],
-  ["slowAllb-blind-slow-both-dose0.75", "blind, hunters AND prey at 1/4 pace, food 60, dose 0.75, cap 2, 6 x 100k [long check]; pairs with slowAllg", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--preySlow=4", "--poisonDose=0.75", "--hunterDoseCap=2"]],
-  ["slowAllFg-glow-slow-both-dose0.75", "glow, hunters AND prey at 1/4 pace, food 240, dose 0.75, cap 2, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--preySlow=4", "--food=240", "--poisonDose=0.75", "--hunterDoseCap=2"]],
-  ["slowAllFb-blind-slow-both-dose0.75", "blind, hunters AND prey at 1/4 pace, food 240, dose 0.75, cap 2, 6 x 100k [long check]; pairs with slowAllFg", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--preySlow=4", "--food=240", "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  // (2j) Rey 2026-11-11 16:58 ("revert the prey, but keep slow hunter. Now retest slow hunter as the default, against all that work").
+  //     Run alone with: node src/cli/night-batch.ts --only=sh. SLOW hunters (hunger / 4, meal / 4) are the base of every test here; prey are
+  //     normal (preySlow was deleted). On top, one at a time, what worked at check level: dose 0.75 (now a PROOF), dose 3 (lowest pick),
+  //     the stomach at 5 and 8, the resistance gene (with its no-poison control).
+  //     Evidence so far [6 x 100k]: slow hunters work 6 / 6 of 6, hunter die-outs 1.7 per run (fast: 6.3), pick 0.50 vs blind 0.60.
+  //     Prediction (low confidence): the proof keeps "works" >= 10 of 14 and pick lower in >= 10 of 14; "more hunters" stays a coin flip.
+  //     Caveats: the stomach's speed is a multiple of the (now 4x smaller) hunger; the resistance upkeep 0.0005 is 80% of a slow hunter's
+  //     hunger (it was 20%), so hunter resistance is expected to stay low.
+  ["sh75G-glow-slowbase-dose0.75-proof", "glow, SLOW hunters, dose 0.75, cap 2, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["sh75B-blind-slowbase-dose0.75-proof", "blind, SLOW hunters, dose 0.75, cap 2, 14 x 200k [proof]; pairs with sh75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["sh3G-glow-slowbase-dose3", "glow, SLOW hunters, dose 3, cap 8, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=3", "--hunterDoseCap=8"]],
+  ["sh3B-blind-slowbase-dose3", "blind, SLOW hunters, dose 3, cap 8, 14 x 100k [long check]; pairs with sh3G", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=3", "--hunterDoseCap=8"]],
+  ["shGut5G-glow-slowbase-digest5", "glow, SLOW hunters, dose 0.75, stomach digest 5, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=5"]],
+  ["shGut5B-blind-slowbase-digest5", "blind, SLOW hunters, dose 0.75, stomach digest 5, 6 x 100k [long check]; pairs with shGut5G", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=5"]],
+  ["shGut8G-glow-slowbase-digest8", "glow, SLOW hunters, dose 0.75, stomach digest 8, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=8"]],
+  ["shGut8B-blind-slowbase-digest8", "blind, SLOW hunters, dose 0.75, stomach digest 8, 6 x 100k [long check]; pairs with shGut8G", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=8"]],
+  ["shResG-glow-slowbase-resist", "glow, SLOW hunters, dose 0.75, resistGene 0.0005, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.0005"]],
+  ["shResB-blind-slowbase-resist", "blind, SLOW hunters, dose 0.75, resistGene 0.0005, 6 x 100k [long check]; pairs with shResG", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.0005"]],
+  ["shRes0-glow-slowbase-resist-nopoison", "DRIFT CONTROL: glow, SLOW hunters, no poison plants, resistGene 0.0005, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poison=0", "--resistGene=0.0005"]],
   // (2g) Rey 2026-11-11 ("a digest bar ... works for prey and hunter"; poison seeps in; "add full, digestion balanced like real nature"):
   //     a stomach with a "how full" input, digesting digest x what the body burns, at the closest arm (dose 0.75).
   //     Run alone with: node src/cli/night-batch.ts --only=gut. Problem: a hunter is search-limited (1 meal per ~200 ticks, 30 ticks rest),
