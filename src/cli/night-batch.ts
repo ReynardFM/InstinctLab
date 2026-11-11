@@ -7,7 +7,7 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-// LAB_PRIORITY=normal in the environment keeps normal priority (used 2026-11-11); the standing rule is low
+process.env.LAB_PRIORITY = "normal"; // Rey 2026-11-11 17:03: "50% normal priority" for this run; the standing rule is low. Children inherit it
 const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // standing rule: half of the threads (3/4 was used twice on 2026-11-11)
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
@@ -130,6 +130,12 @@ const TESTS: Test[] = [
   ["sh75B-blind-slowbase-dose0.75-proof", "blind, SLOW hunters, dose 0.75, cap 2, 14 x 200k [proof]; pairs with sh75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["sh3G-glow-slowbase-dose3", "glow, SLOW hunters, dose 3, cap 8, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=3", "--hunterDoseCap=8"]],
   ["sh3B-blind-slowbase-dose3", "blind, SLOW hunters, dose 3, cap 8, 14 x 100k [long check]; pairs with sh3G", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=3", "--hunterDoseCap=8"]],
+  // Rey 2026-11-11 17:03 ("also add test to compare old result"): the same two big tests with the OLD fast hunters, same seeds and
+  // length, so slow vs fast is a paired comparison. The 6-seed tests already have old results: gut5 / gut8, rGg / rGb, rP0.
+  ["shOld75G-glow-fastbase-dose0.75-proof", "OLD BASE for comparison: glow, FAST hunters (as before), dose 0.75, cap 2, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["shOld75B-blind-fastbase-dose0.75-proof", "OLD BASE for comparison: blind, FAST hunters (as before), dose 0.75, cap 2, 14 x 200k [proof]; pairs with shOld75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["shOld3G-glow-fastbase-dose3", "OLD BASE for comparison: glow, FAST hunters (as before), dose 3, cap 8, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=3", "--hunterDoseCap=8"]],
+  ["shOld3B-blind-fastbase-dose3", "OLD BASE for comparison: blind, FAST hunters (as before), dose 3, cap 8, 14 x 100k [long check]; pairs with shOld3G", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=3", "--hunterDoseCap=8"]],
   ["shGut5G-glow-slowbase-digest5", "glow, SLOW hunters, dose 0.75, stomach digest 5, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=5"]],
   ["shGut5B-blind-slowbase-digest5", "blind, SLOW hunters, dose 0.75, stomach digest 5, 6 x 100k [long check]; pairs with shGut5G", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=5"]],
   ["shGut8G-glow-slowbase-digest8", "glow, SLOW hunters, dose 0.75, stomach digest 8, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=8"]],
