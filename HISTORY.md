@@ -331,3 +331,10 @@ Settings: prey-like breeding, both eyes, glow vs blind. "both" = pick lower AND 
 - Built (off by default, 26 fingerprints unchanged, hunters tests 42 pass): resistGene (inborn resistance, upkeep) and potencyRise (per-side potency, 20% line, x1..x8, 1,000-tick window).
   Finding while building [one seed, 12k, below screen]: with brain-size nudges (0.15) resistance drifted to 0.49 / 0.38 with NO poison; nudge cut to RESIST_STEP 0.03, still ~0.14 with and without poison at 12k -> every test needs the no-poison control.
   Prior work: costs on both sides are needed for cycles (Agrawal & Lively 2002); mismatches where predators out-resist the toxin are common (Reimche 2020); the snake cost is crawl speed in one lineage (Hague 2018); hungry predators eat toxic prey (Barnett 2007).
+
+## 2026-11-11: cheap waiting at dose 0.75 [PROOF, 14 seeds x 200k, glow vs blind] -> KILLED
+Settings: prey-like breeding, both eyes, dose 0.75, cap 2, hunterIdle 0.25. Rey: "test poison 0.75 with idling, just that, in proof".
+- Glow vs blind, handed out / evolved: pick 0.63 vs 0.64 (lower in 6 of 14) / 0.68 vs 0.69 (7); hunters 42.5 vs 39.5 (more in 9) / 31.2 vs 29.1 (10); both 5 / 6 of 14 (kill line 8). Hunters per prey higher in 7 / 8. Poisoned share of hunter deaths 0.25 vs 0.24 / 0.26 vs 0.26.
+- Works: glow 10 / 4 of 14, blind 11 / 6 (without waiting, 100k: 14 / 11 and 14 / 12). Prey die-outs per run 6.1-20.2.
+- Waiting vs no waiting (glow; x75g is 100k, so lengths differ): hunters 42.5 vs 28.0 (more in 13 of 14), prey 56 vs 77, hunters per prey 0.78 vs 0.37 (14 of 14), poisoned share of deaths 0.25 vs 0.35 (12 of 14).
+- Reading: cheap waiting makes every hunter cheaper to keep alive, glow or blind. Hunters crowd, prey are eaten down, the world works less often, and the glow gap in pick disappears (0.63 vs 0.64; without waiting 0.58 vs 0.71). My prediction (the glow gain grows) was wrong; the risk seen at dose 0.5 came true.
