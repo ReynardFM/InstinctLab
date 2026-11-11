@@ -39,6 +39,11 @@ usually >= 1) and give all hunter poison. One poisoned catch costs an adult hunt
 - d1 [screen: weak] Dose each caught prey carries: build-up false (all poison from prey > 0.3)
   - d2 [answered] More potent poison? Already acute (one catch = reward -1, ~3.6 meals lost); stronger = worse for hunters
 
+## Next in line (Rey 2026-11-11)
+- Inborn poison resistance gene in life mode (less harm, with upkeep), with poison potency that rises when a side leans on poison
+  (line: poison >= 20% of what it eats): an arms race (cf. garter snake vs newt, to cite). Trained resistance was deleted 2026-11-10
+  (never built a defence); the generations-mode gene did breed up (~30 generations). Build after the flat-potency test.
+
 ## Parked branches (from earlier tonight)
 - d1 [parked] Senses they develop themselves, with memory
   - d2 [parked] Raw color eye (RGB per slice, no kind labels) + color flips in life mode + memory
