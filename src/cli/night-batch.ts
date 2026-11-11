@@ -126,16 +126,19 @@ const TESTS: Test[] = [
   //     Prediction (low confidence): the proof keeps "works" >= 10 of 14 and pick lower in >= 10 of 14; "more hunters" stays a coin flip.
   //     Caveats: the stomach's speed is a multiple of the (now 4x smaller) hunger; the resistance upkeep 0.0005 is 80% of a slow hunter's
   //     hunger (it was 20%), so hunter resistance is expected to stay low.
+  // Rey 2026-11-11 17:05 ("I mean the old engine scenario, we will start incorporating it into the engine"): the four OLD proof
+  // scenarios again, same arguments, same seeds, same length, plus SLOW hunters. Each pairs with its old result file (no rerun needed):
+  // w3-works-proof (engine breeding, harmless poison: works 14 / 14), wS3-works-same (prey-like breeding: 14 / 13),
+  // gS3-glow-same and bS3-blind-same (today's full poison, dose 1, no cap). Done: works in at least as many seeds as the old run.
+  // Kill: works in fewer seeds. Unknown: engine breeding (birth at 1.4 energy, chance 0.03) with meals of 0.125 may breed too slowly.
+  ["shW3-works-engine-breeding", "OLD SCENARIO w3 + SLOW hunters: works, harmless poison, engine breeding, 14 x 200k [proof]", [...PROOF, ...E, "--poisonDose=0", ...SLOW]],
+  ["shWS3-works-same-breeding", "OLD SCENARIO wS3 + SLOW hunters: works, harmless poison, prey-like breeding, 14 x 200k [proof]", [...PROOF, ...E, "--poisonDose=0", ...SAME, ...SLOW]],
+  ["shGS3-glow-same-fullpoison", "OLD SCENARIO gS3 + SLOW hunters: glow, full poison (dose 1), prey-like breeding, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...SLOW]],
+  ["shBS3-blind-same-fullpoison", "OLD SCENARIO bS3 + SLOW hunters: blind, same, 14 x 200k [proof]; pairs with shGS3", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...SLOW]],
   ["sh75G-glow-slowbase-dose0.75-proof", "glow, SLOW hunters, dose 0.75, cap 2, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["sh75B-blind-slowbase-dose0.75-proof", "blind, SLOW hunters, dose 0.75, cap 2, 14 x 200k [proof]; pairs with sh75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["sh3G-glow-slowbase-dose3", "glow, SLOW hunters, dose 3, cap 8, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=3", "--hunterDoseCap=8"]],
   ["sh3B-blind-slowbase-dose3", "blind, SLOW hunters, dose 3, cap 8, 14 x 100k [long check]; pairs with sh3G", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=3", "--hunterDoseCap=8"]],
-  // Rey 2026-11-11 17:03 ("also add test to compare old result"): the same two big tests with the OLD fast hunters, same seeds and
-  // length, so slow vs fast is a paired comparison. The 6-seed tests already have old results: gut5 / gut8, rGg / rGb, rP0.
-  ["shOld75G-glow-fastbase-dose0.75-proof", "OLD BASE for comparison: glow, FAST hunters (as before), dose 0.75, cap 2, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
-  ["shOld75B-blind-fastbase-dose0.75-proof", "OLD BASE for comparison: blind, FAST hunters (as before), dose 0.75, cap 2, 14 x 200k [proof]; pairs with shOld75G", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
-  ["shOld3G-glow-fastbase-dose3", "OLD BASE for comparison: glow, FAST hunters (as before), dose 3, cap 8, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=3", "--hunterDoseCap=8"]],
-  ["shOld3B-blind-fastbase-dose3", "OLD BASE for comparison: blind, FAST hunters (as before), dose 3, cap 8, 14 x 100k [long check]; pairs with shOld3G", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=3", "--hunterDoseCap=8"]],
   ["shGut5G-glow-slowbase-digest5", "glow, SLOW hunters, dose 0.75, stomach digest 5, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=5"]],
   ["shGut5B-blind-slowbase-digest5", "blind, SLOW hunters, dose 0.75, stomach digest 5, 6 x 100k [long check]; pairs with shGut5G", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=5"]],
   ["shGut8G-glow-slowbase-digest8", "glow, SLOW hunters, dose 0.75, stomach digest 8, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, ...SLOW, "--poisonDose=0.75", "--hunterDoseCap=2", "--digest=8"]],
