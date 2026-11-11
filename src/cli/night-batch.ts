@@ -7,7 +7,7 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 4))}`; // a QUARTER of the threads (Rey 2026-11-11, gaming); the standing rule is half
+const W = `--workers=${Math.max(1, Math.floor((availableParallelism() * 3) / 4))}`; // THREE QUARTERS of the threads, this night (Rey 2026-11-11); the standing rule is half
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
 // DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
@@ -64,6 +64,15 @@ const TESTS: Test[] = [
   ["hBb-blind-balancers", "blind + the same balancers, 6 x 30k [check]; pairs with hB", [...CHECK, ...E, "--hunterCue=0", ...SAME, "--hunterRealLife=1", "--hunterPoisonHalfLife=25"]],
   // (2) Does hunter learning pay once a mistake is survivable? Glow at the middle level (dose 0.5, cap 1), learning OFF; pairs with p50g (on).
   ["L50-glow-nolearn", "glow, poisonDose 0.5, cap 1, hunterLearn 0, 6 x 30k [check]; compare with p50g", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterLearn=0"]],
+  // (2b) Each balancer alone (glow only), to see which one does the work; compare with hB (both) and gS2 (none).
+  ["hR-glow-reallife", "glow + hunterRealLife 1 only, today's poison, 6 x 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--hunterRealLife=1"]],
+  ["hF-glow-fastfade", "glow + hunterPoisonHalfLife 25 only, today's poison, 6 x 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, "--hunterPoisonHalfLife=25"]],
+  // (2c) More hunters + middle poison: food 120 at dose 0.5 / cap 1, glow vs blind.
+  ["f50g-glow-food120-dose0.5", "glow, food 120, poisonDose 0.5, cap 1, 6 x 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, ...FOOD2, "--poisonDose=0.5", "--hunterDoseCap=1"]],
+  ["f50b-blind-food120-dose0.5", "blind, food 120, poisonDose 0.5, cap 1, 6 x 30k [check]; pairs with f50g", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2, "--poisonDose=0.5", "--hunterDoseCap=1"]],
+  // (2d) Do the four seasons last with middle poison? (With today's poison the world died about every 1,200 ticks: works 0 of 14.)
+  ["sE50g-glow-season-dose0.5", "glow, 4 seasons (year 40k), poisonDose 0.5, cap 1, 6 seeds x 80k = 2 years [check]", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=2", ...SAME, "--season=40000", "--poisonDose=0.5", "--hunterDoseCap=1"]],
+  ["sE50b-blind-season-dose0.5", "blind, 4 seasons, poisonDose 0.5, cap 1, 6 seeds x 80k [check]; pairs with sE50g", ["--seeds=1-6", "--ticks=80000", ...E, "--hunterCue=0", ...SAME, "--season=40000", "--poisonDose=0.5", "--hunterDoseCap=1"]],
   // (3) Proofs (14 x 200k), only for the arms that pass the sweet-spot gate in their check.
   ...([["p15", "0.15", "0.28"], ["p30", "0.3", "0.6"], ["p50", "0.5", "1"], ["p75", "0.75", "2"]] as const).flatMap(([n, d, c]): Test[] => [
     [`${n}G-glow-dose${d}-proof`, `glow, poisonDose ${d}, cap ${c}, 14 x 200k [proof]; only if ${n}g passed`, [...PROOF, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`], sweetGate(`${n}g-glow-dose${d}`, `${n}b-blind-dose${d}`)],
