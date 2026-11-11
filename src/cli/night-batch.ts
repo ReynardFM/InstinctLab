@@ -40,6 +40,13 @@ const TESTS: Test[] = [
   // Check-level bar: hunters more with glow in >= 5 of 6 in at least one condition; kill-if < 3 of 6 in both.
   ["gX4-glow-food120-400k", "glow, food 120, same stats, 6 seeds x 400k [check]", ["--seeds=1-6", "--ticks=400000", ...E, "--hunterCue=2", ...SAME, ...FOOD2]],
   ["bX4-blind-food120-400k", "blind control, food 120, same stats, 6 seeds x 400k [check]; pairs with gX4", ["--seeds=1-6", "--ticks=400000", ...E, "--hunterCue=0", ...SAME, ...FOOD2]],
+  // ---- Poison sweet spot (Rey 2026-11-11: "lets find the sweet spot"). Flat potency levels, glow vs blind, 6 seeds x 30k [check], same stats.
+  // Level = prey poisonDose / hunter dose cap. Today's level (1 / no cap) at this size is gS2 / bS2. Seed-1 screen gave no clear winner.
+  // Sweet spot = hunters more with glow AND glow pick below blind, in >= 5 of 6, in at least one condition. Read each pair with pair.mjs.
+  ...([["p15", "0.15", "0.28"], ["p30", "0.3", "0.6"], ["p50", "0.5", "1"], ["p75", "0.75", "2"]] as const).flatMap(([n, d, c]): Test[] => [
+    [`${n}g-glow-dose${d}`, `glow, poisonDose ${d}, hunter cap ${c}, 6 seeds x 30k [check]`, [...CHECK, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`]],
+    [`${n}b-blind-dose${d}`, `blind, poisonDose ${d}, hunter cap ${c}, 6 seeds x 30k [check]`, [...CHECK, ...E, "--hunterCue=0", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`]],
+  ]),
 ];
 
 mkdirSync(DIR, { recursive: true });

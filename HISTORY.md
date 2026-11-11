@@ -292,3 +292,12 @@ hunter resistance gene (hunterResistGene, hunterResistSlow, genPreyToxin), which
 Night batch: finished entries removed (their results are in this file); only gX / bX remain queued.
 
 - [screen] Flat gentler poison, 2026-11-11 (Rey: "balance poison like a ... for now just a flat number in a smaller simulation, to test if less potent did have an effect"). Seed 1, 30k, both eyes, prey-like hunter breeding; "about one meal" level = --poisonDose=0.15 --hunterDoseCap=0.28 (my arithmetic, set up front) vs today's (dose 1, no cap). Handed out / evolved. Today: glow pick 0.51 / 0.19, blind 0.66 / 0.56; hunters glow 19.3 / 11.7, blind 17.2 / 13.1; prey poison eaten per prey per 1k 1.6 / 2.1 (glow). Gentler: glow pick 0.83 / 0.92, blind 0.76 / 1.08; hunters glow 24.7 / 17.2, blind 23.5 / 17.1; prey poison eaten 2.8 / 2.3 (glow). So gentler poison gives MORE hunters (+25-45%) but hunters stop avoiding (pick near 1, the glow-blind gap is gone) and prey eat more poison: with a mild cost there is little reason to avoid. Trade-off: deadly = no survivors to select on; mild = no pressure. Caveat: "sick" is still toxin > 0.1, so with smaller doses milder prey count as sick. Next in line (IDEAS.md): inborn resistance gene + potency that rises when a side leans on poison.
+
+- [screen, one seed] Poison sweet-spot sweep, 2026-11-11 (Rey: "lets find the sweet spot"). Seed 1, 30k, both eyes, prey-like hunter breeding; level = prey poisonDose / hunter dose cap; handed out / evolved.
+  | level | hunters glow | hunters blind | pick glow | pick blind |
+  | 0.15 / 0.28 | 24.7 / 17.2 | 23.5 / 17.1 | 0.83 / 0.92 | 0.76 / 1.08 |
+  | 0.3 / 0.6 | 19.8 / 17.6 | 19.2 / 20.7 | 0.82 / 1.04 | 0.59 / 0.76 |
+  | 0.5 / 1 | 21.3 / 20.1 | 20.9 / 12.7 | 0.67 / 0.70 | 0.66 / 0.63 |
+  | 0.75 / 2 | 18.8 / 19.4 | 16.4 / 13.9 | 0.74 / 0.45 | 0.57 / 0.45 |
+  | 1 / none (today) | 19.3 / 11.7 | 17.2 / 13.1 | 0.51 / 0.19 | 0.66 / 0.56 |
+  No clear sweet spot on one seed: glow pick is clearly below blind only at today's deadly level; glow has more hunters at 0.5 (evolved) and 0.75 (both), within one-seed noise. Batch: p15 / p30 / p50 / p75 glow vs blind at 6 x 30k [check]. (A check command of mine imported night-batch.ts, which starts the batch; it was cut off after 2 minutes, wrote nothing, and nothing kept running.)
