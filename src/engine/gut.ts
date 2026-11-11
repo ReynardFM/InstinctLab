@@ -9,6 +9,14 @@ interface Eater { gut?: Gut; energy: number; toxin: number }
 export const PELLET = 0.3; // a pellet's size and energy (the same 0.3 as without a stomach)
 export const PREY_GUT = 2 * PELLET; // a prey's stomach holds two pellets; a hunter's holds one meal (rules.hunterMeal)
 
+// How fast a stomach works (Rey 2026-11-11: "balanced like real nature"): rules.digest is a MULTIPLE of what the body burns, so each
+// side's stomach matches its own body. Hunters burn rules.hunterHunger per tick; prey burn PREY_BURN at top speed (life.ts: 0.0005 +
+// 3 x 0.0004, times rules.energyCost). digest 3 = an animal can take in about three times what it burns (a gorge-and-fast eater).
+export const PREY_BURN = 0.0005 + 3 * 0.0004;
+export const hunterDigest = (r: { digest: number; hunterHunger: number }): number => r.digest * r.hunterHunger;
+export const preyDigest = (r: { digest: number; energyCost: number }): number => r.digest * PREY_BURN * r.energyCost;
+export const fullness = (e: Eater, cap: number): number => (e.gut ? Math.min(1, e.gut.bulk / cap) : 0);
+
 export const gutToxin = (e: Eater): number => (e.gut ? e.gut.toxin : 0);
 export const hasRoom = (e: Eater, size: number, cap: number): boolean => (e.gut ? e.gut.bulk : 0) + size <= cap + 1e-9;
 

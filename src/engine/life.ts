@@ -10,7 +10,7 @@ import { SENSE_GENES, senseOn } from "./genes.ts";
 import { H, W } from "./space.ts";
 import { spreading } from "./plants.ts";
 import { dose, fade, harm, newPoison, preyLife } from "./toxin.ts";
-import { PELLET, PREY_GUT, digestTick, hasRoom, swallow } from "./gut.ts";
+import { PELLET, PREY_GUT, digestTick, hasRoom, preyDigest, swallow } from "./gut.ts";
 
 // Energy a creature loses by eating poison (good food gives +0.3).
 export const POISON_HIT = 0.5;
@@ -46,7 +46,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
   if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) { let on = 0; for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++; c.energy -= w.rules.senseCost * on; } // switched-on senses cost energy
   if (w.rules.resistGene > 0 && c.resist > 0) c.energy -= w.rules.resistGene * c.resist; // inborn resistance has an upkeep
   const gut = w.rules.digest > 0; // rules.digest: a stomach (gut.ts)
-  if (gut) digestTick(c, w.rules.digest, 1.5);
+  if (gut) digestTick(c, preyDigest(w.rules), 1.5);
   if (c.toxin > 0) c.toxin = fade(c.toxin, w);
   const room = !gut || hasRoom(c, PELLET, PREY_GUT); // a full stomach leaves the food where it is
   const near = w.measure && newPoison(w) ? countNearHunter(w, c) : false;

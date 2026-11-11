@@ -17,7 +17,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import { genomeSize, learn, thinkInto, type Genome } from "./brain.ts";
-import { digestTick, gutToxin, hasRoom, swallow, type Gut } from "./gut.ts";
+import { digestTick, fullness, gutToxin, hasRoom, hunterDigest, swallow, type Gut } from "./gut.ts";
 import { LEARN_DECAY, USUAL_RATE } from "./life.ts";
 import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
@@ -328,6 +328,7 @@ export function hunterEyeInto(w: World, h: Hunter, inputs: number[], cosH: numbe
     inputs[2 * K + eyeSlice(dx, dy, cosH, sinH, K)] += 1 - d2 / EYE_R2;
   }
   inputs[n] = eco ? h.energy : 1;
+  if (w.rules.digest > 0) { inputs[n + 1] = fullness(h, w.rules.hunterMeal); return n + 2; } // rules.digest: how full its stomach is, 0..1
   return n + 1;
 }
 
@@ -356,6 +357,7 @@ function moveBrainHunters(w: World): void {
     if (hEye > 0) k = hunterEyeInto(w, h, inputs, cosH, sinH, hEye, walls, eco);
     else {
       k = writeTowards(inputs, 0, near.dx1, near.dy1, near.d21, cosH, sinH); // "food" = nearest prey
+      if (r.digest > 0) { inputs[k++] = eco ? h.energy : 1; inputs[k++] = fullness(h, r.hunterMeal); } else
       inputs[k++] = eco ? h.energy : 1; // "energy": its real energy in ecosystem mode; elsewhere 1 = ready (resting hunters don't think)
       if (r.senseFood2) k = near.i2 >= 0 ? writeTowards(inputs, k, near.dx2, near.dy2, near.d22, cosH, sinH) : writeNothing(inputs, k);
       if (r.senseCreature) {
@@ -541,7 +543,7 @@ export function liveEcoHunters(w: World): void {
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   const born: Hunter[] = [];
   for (const h of w.hunters) {
-    if (r.digest > 0) digestTick(h, r.digest, MAX_ENERGY); // rules.digest: the stomach feeds the body (gut.ts)
+    if (r.digest > 0) digestTick(h, hunterDigest(r), MAX_ENERGY); // rules.digest: the stomach feeds the body (gut.ts)
     // rules.hunterIdle: a still hunter pays only that share of its hunger, a hunter at top speed all of it (off: all of it at any speed)
     const effort = r.hunterIdle > 0 ? r.hunterIdle + (1 - r.hunterIdle) * Math.min(h.speed / r.hunterSpeed, 1) : 1;
     h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more

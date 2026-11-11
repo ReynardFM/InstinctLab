@@ -3,6 +3,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature, Food } from "./creature.ts";
 import { senseOn } from "./genes.ts";
+import { PREY_GUT, fullness } from "./gut.ts";
 import { IN } from "./brain.ts";
 import { cos, sin } from "./dmath.ts";
 import { CELL, Grid, H, RING_OX, RING_OY, RINGS, SPATIAL, W, cellAt, cellOf, nearestBruteInto, nearestOneInto, offset, type Hit, type Near } from "./space.ts";
@@ -15,6 +16,7 @@ export interface SenseRules {
   hunters?: number; // hunters on the map; above 0 (with hunterSense), prey sense the nearest one
   hunterSense?: number;
   eyeMotion?: number; // with the eye: 1 = one more channel, how much hunter movement each slice sees (closeness x speed)
+  digest?: number; // above 0 = a stomach (gut.ts): one more input, how full it is
   hunterEye?: number; // 0 = hunters keep the old senses; 4 or 8 = hunters see with a raw eye too (hunters.ts hunterEyeInto)
   eye?: number; // 0 = off; 4 or 8 = raw all-around eye (Rey 2026-10-31): the view is cut into that many slices and each
   // slice reports how much green, purple, creature and hunter it sees. It replaces every "nearest X" sense (see eyeInto)
@@ -32,14 +34,15 @@ const sensesHunter = (r: SenseRules) => (r.hunters ?? 0) > 0 && (r.hunterSense ?
 
 export function inputCount(r: SenseRules): number {
   const K = eyeSlices(r);
-  if (K > 0) return K * eyeChannels(r) + 1 + (r.walls ? 1 : 0);
-  return IN + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
+  const full = (r.digest ?? 0) > 0 ? 1 : 0; // rules.digest: one more input, how full the stomach is (gut.ts)
+  if (K > 0) return K * eyeChannels(r) + 1 + full + (r.walls ? 1 : 0);
+  return IN + full + (r.senseFood2 ? 3 : 0) + (r.senseCreature ? 3 : 0) + (r.poison > 0 ? 3 : 0) + (sensesHunter(r) ? 3 : 0) + (r.walls ? 1 : 0);
 }
 
 // Hunter brains always read the old "nearest X" layout (hunters.ts writes it), even when prey use the eye.
 export const hunterInputCount = (r: SenseRules): number => {
   const K = hunterEyeSlices(r);
-  return K > 0 ? K * HUNTER_EYE_CHANNELS.length + 1 + (r.walls ? 1 : 0) : inputCount({ ...r, eye: 0 });
+  return K > 0 ? K * HUNTER_EYE_CHANNELS.length + 1 + ((r.digest ?? 0) > 0 ? 1 : 0) + (r.walls ? 1 : 0) : inputCount({ ...r, eye: 0 });
 };
 
 export function inputLabels(r: SenseRules): string[] {
@@ -49,10 +52,12 @@ export function inputLabels(r: SenseRules): string[] {
     for (const ch of EYE_CHANNELS) for (let i = 0; i < K; i++) eye.push(`Eye ${ch} slice ${i + 1}`);
     if (eyeChannels(r) > EYE_CHANNELS.length) for (let i = 0; i < K; i++) eye.push(`Eye hunter motion slice ${i + 1}`);
     eye.push("Energy");
+    if ((r.digest ?? 0) > 0) eye.push("Stomach full");
     if (r.walls) eye.push("Wall distance ahead");
     return eye;
   }
   const labels = ["Food left/right", "Food ahead", "Food distance", "Energy"];
+  if ((r.digest ?? 0) > 0) labels.push("Stomach full");
   if (r.senseFood2) labels.push("2nd food left/right", "2nd food ahead", "2nd food distance");
   if (r.senseCreature) labels.push("Neighbour left/right", "Neighbour ahead", "Neighbour distance");
   if (r.poison > 0) labels.push("Poison left/right", "Poison ahead", "Poison distance");
@@ -427,6 +432,7 @@ export function senseInto(w: World, c: Creature): { food: Food | null; foodDist:
   // no food at all: the distance reads as far (same numbers as always)
   let k = f ? writeTowards(inputs, 0, f.dx, f.dy, f.d2, cosH, sinH) : writeTowards(inputs, 0, 0, 0, Infinity, cosH, sinH);
   inputs[k++] = c.energy;
+  if (w.rules.digest > 0) inputs[k++] = fullness(c, PREY_GUT); // rules.digest: how full its stomach is, 0..1
   if (r.senseFood2 && !senseOn(w.rules, c.g, 0)) k = writeNothing(inputs, k);
   else if (r.senseFood2) {
     const s2 = h.goodN > 1 ? h.good[1] : null;
@@ -570,6 +576,7 @@ function eyeInto(w: World, c: Creature, cosH: number, sinH: number): { food: Foo
   for (let i = 0; i < n; i++) inputs[i] = acc[i];
   let k = n;
   inputs[k++] = c.energy;
+  if (w.rules.digest > 0) inputs[k++] = fullness(c, PREY_GUT); // rules.digest: how full its stomach is, 0..1
   if (walls) inputs[k++] = wallAhead(c.x, c.y, c.a);
   if (inputs.length !== k) inputs.length = k;
   // the nearest pellet of either look; the good-looking one wins a tie

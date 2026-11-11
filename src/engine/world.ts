@@ -66,8 +66,10 @@ export interface Rules {
   hunterIdle: number; // ecosystem (Rey 2026-11-11): share of hunterHunger a hunter standing still pays (rising in a line to all of it at top
   // speed), so waiting is cheaper than chasing; 0 = off: hunger is the same at every speed (as before)
   digest: number; // ecosystem (Rey 2026-11-11: "a digest bar"): above 0 = prey and hunters have a stomach (gut.ts). A meal fills the
-  // stomach; this much of it per tick moves to the body, with its energy and its poison (poison seeps in). A full stomach takes no more
-  // (prey: two pellets; hunters: one meal), and hunters no longer rest after a catch. Must be above hunterHunger. 0 = off (as before)
+  // stomach; each tick it hands the body this many times what the body burns (hunters: x hunterHunger; prey: x their top-speed burn),
+  // with that share of the meal's energy and poison (poison seeps in). A full stomach takes no more (prey: two pellets; hunters: one
+  // meal), hunters no longer rest after a catch, and every brain gets one more input: how full its stomach is. 3 = "can take in three
+  // times what it burns". Must be above 1 (or a full animal starves). 0 = off (as before)
   resistGene: number; // ecosystem (Rey 2026-11-10, built 2026-11-11): above 0 = every prey and hunter carries an inborn poison resistance
   // 0..1 (harm = level x (1 - resistance)), passed to its babies with a small random nudge (RESIST_STEP, toxin.ts), founders start at 0.
   // The value is the upkeep: energy per tick a fully resistant body pays (in proportion to its resistance); 0 = off (no resistance)

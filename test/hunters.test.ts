@@ -634,13 +634,14 @@ test("potencyRise: a side over the 20% line meets stronger poison, under it weak
 });
 
 // rules.digest (Rey 2026-11-11: "a digest bar ... just consumption, works for prey and hunter"; poison seeps in while digesting).
-import { digestTick, hasRoom, swallow, PELLET, PREY_GUT } from "../src/engine/gut.ts";
+import { digestTick, hasRoom, swallow, PELLET, PREY_GUT, hunterDigest, preyDigest, fullness } from "../src/engine/gut.ts";
 
 test("digest: a stomach hands its energy and poison to the body bit by bit, loses nothing, and a full one takes no more", () => {
   const e = { energy: 0.5, toxin: 0 } as { energy: number; toxin: number; gut?: { bulk: number; energy: number; toxin: number } };
   assert.ok(hasRoom(e, 0.5, 0.5), "empty: room for a meal");
   swallow(e, 0.5, 0.5, 2);
   assert.ok(!hasRoom(e, 0.5, 0.5), "one meal in: a hunter's stomach is full");
+  assert.equal(fullness(e, 0.5), 1, "it feels full");
   assert.equal(e.energy, 0.5, "nothing reaches the body at the bite");
   digestTick(e, 0.005, 1.5);
   assert.ok(Math.abs(e.energy - 0.505) < 1e-12 && Math.abs(e.toxin - 0.02) < 1e-12, `one tick: 1% of the meal and of its poison (${e.energy}, ${e.toxin})`);
@@ -657,7 +658,7 @@ test("digest: a stomach hands its energy and poison to the body bit by bit, lose
 });
 
 test("digest in the world: hunters and prey get stomachs, a full hunter does not catch, same seed same run; off = no stomachs", () => {
-  const R = { ...BOTH_EYES, digest: 0.005 };
+  const R = { ...BOTH_EYES, digest: 3 };
   const a = createWorld(3, R), b = createWorld(3, R);
   let seenFullHunter = false, caughtWhileFull = false;
   for (let t = 0; t < 3000; t++) {
@@ -668,6 +669,9 @@ test("digest in the world: hunters and prey get stomachs, a full hunter does not
   runTicks(b, 3000);
   assert.ok(seenFullHunter && !caughtWhileFull, "hunters filled up, and none caught while full");
   assert.ok(a.creatures.some((c) => c.gut), "prey have stomachs");
+  assert.equal(hunterInputCount(R), hunterInputCount(BOTH_EYES) + 1, "hunters get one more input: how full the stomach is");
+  assert.equal(inputCount(R), inputCount(BOTH_EYES) + 1, "prey too");
+  assert.ok(Math.abs(hunterDigest(R as never) - 3 * R.hunterHunger) < 1e-15 && Math.abs(preyDigest(R as never) - 3 * 0.0017) < 1e-15, "the rate is 3 x what each body burns");
   assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
   const off = createWorld(3, BOTH_EYES);
   runTicks(off, 1000);

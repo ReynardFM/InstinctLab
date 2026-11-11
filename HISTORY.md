@@ -345,3 +345,11 @@ Settings: prey-like breeding, both eyes, dose 0.75, cap 2, hunterIdle 0.25. Rey:
 - Off by default: 26 fingerprints unchanged. 2 new tests (fail to load on the old code); hunters 44 pass, all other files pass.
 - Viability try [seed 1, 10k, below screen], dose 0.75, glow: digest 0.005 -> hunters 3.5 / 2.6 (off: 11.3 / 12.0), 9 / 4 hunter die-outs: too slow. 0.01 -> 8.1 / 6.7; 0.02 -> 7.3 / 6.2.
 - Queued: gut10g/b, gut20g/b (dose 0.75, 6 x 100k, glow vs blind), baseline x75g/b. Prior work: optimal diet / digestion-limited foraging (Jeschke et al. 2002), paradox of enrichment (risk of bigger cycles); from memory, not re-read.
+
+## 2026-11-11: stomach, second pass (Rey: "add full, digestive balanced like real nature")
+- New brain input for prey and hunters when digest is on: how full the stomach is (0..1). Verified [seed 1, 3k]: reads full for 325 of 338 full hunters and 1,845 of 1,913 full prey (the rest are one tick behind).
+- rules.digest is now a MULTIPLE of what the body burns (hunters: x hunterHunger 0.0025; prey: x top-speed burn 0.0017), not a flat amount. 3 = nature-like gorge-and-fast.
+- 26 fingerprints unchanged; hunters 44 pass, all other files pass.
+- Viability tries [seed 1, 10k, below screen; one seed is noise], dose 0.75, glow, handed out: digest 3 -> prey 25.1, hunters 2.8, 9 hunter die-outs (no stomach: 59.2, 11.3, 6); 5 -> 19.2, 3.3, 11; 8 -> 55.2, 9.6, 6.
+  Reading (unverified): a nature-like 3x looks too tight for animals that live only ~350 (prey) / ~500 (hunter) ticks and must double their energy to breed.
+- Queued: gut3g/b, gut5g/b, gut8g/b (dose 0.75, 6 x 100k), baseline x75g/b. The flat-rate tests gut10 / gut20 were replaced before they ran.
