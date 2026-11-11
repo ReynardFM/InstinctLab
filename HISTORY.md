@@ -323,3 +323,11 @@ Settings in every arm: prey-like breeding (hunterMature 0, hunterBirth 1.2, hunt
 - ALL-IN dose 0.5 and 0.3: 2 / 2 and 2 / 2. Poisoned share of hunter deaths 0.00 in all: poison no longer kills hunters, so there is nothing to gain by avoiding. Hunters 46-67.
 - Learning on vs off (p50g vs L50, glow, dose 0.5): with learning pick lower in 5 / 4 of 6 (0.69 vs 0.80, 0.71 vs 0.78), poisoned share of deaths lower in 6 / 6 of 6 (0.27 vs 0.42, 0.29 vs 0.41), but hunters FEWER (more in 2 / 1 of 6).
 - Caveat: 30k may be too short; glow's pick gap grew with time in the 400k check. A fail here is weak evidence.
+
+## 2026-11-11 (day): the two closest arms, longer [long check, 14 seeds x 100k, half threads: 47 min for the four runs]
+Settings: prey-like breeding, both eyes, glow vs blind. "both" = pick lower AND hunters more.
+- Dose 0.75, cap 2. Handed out: pick 0.58 vs 0.71 (lower in 10 of 14), hunters 28.0 vs 25.5 (more in 12 of 14), both 9 of 14, hunters per prey 0.37 vs 0.28 (higher in 13 of 14), works 14 vs 14. Evolved: pick 0.72 vs 0.71 (8), hunters 21.3 vs 20.6 (8), both 5 of 14. Done-if (>= 10) missed by one in handed out; evolved under the kill line (8).
+- hunterBrainNow 1 + hunterIdle 0.25, dose 0.5: both 4 / 5 of 14; pick RISES with time to above 1 (glow 0.88 -> 1.46, blind 0.71 -> 2.19 by window); works 8 vs 3 and 3 vs 6. Killed. The 30k "best of the night" did not hold.
+- Built (off by default, 26 fingerprints unchanged, hunters tests 42 pass): resistGene (inborn resistance, upkeep) and potencyRise (per-side potency, 20% line, x1..x8, 1,000-tick window).
+  Finding while building [one seed, 12k, below screen]: with brain-size nudges (0.15) resistance drifted to 0.49 / 0.38 with NO poison; nudge cut to RESIST_STEP 0.03, still ~0.14 with and without poison at 12k -> every test needs the no-poison control.
+  Prior work: costs on both sides are needed for cycles (Agrawal & Lively 2002); mismatches where predators out-resist the toxin are common (Reimche 2020); the snake cost is crawl speed in one lineage (Hague 2018); hungry predators eat toxic prey (Barnett 2007).

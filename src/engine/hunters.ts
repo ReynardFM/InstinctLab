@@ -22,7 +22,7 @@ import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { PREY_LIFE_RATE, SICK, dose, fadeHunter, harm } from "./toxin.ts";
+import { PREY_LIFE_RATE, SICK, babyResist, dose, fadeHunter, harm } from "./toxin.ts";
 // The lifespan a hunter's age resistance is measured against: the fixed hunterAge, or (rules.hunterRealLife) how old hunters really die
 const hunterLifeFor = (w: World): number => (w.rules.hunterRealLife > 0 ? w.eco.hunterLife : w.rules.hunterAge);
 
@@ -241,14 +241,16 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
     const bin = lv <= 0 ? 0 : lv <= 0.02 ? 1 : lv <= 0.05 ? 2 : lv <= SICK ? 3 : lv <= 0.3 ? 4 : 5;
     w.eco.dose.n[bin]++;
     if (prey.toxin > 0) {
-      const raw = dose(prey.toxin, h.age, hunterLifeFor(w), w); // the prey's whole level, through the hunter's age resistance
+      const plain = dose(prey.toxin, h.age, hunterLifeFor(w), w); // the prey's whole level, through the hunter's age resistance
+      const raw = w.rules.potencyRise > 0 ? plain * w.eco.potency.hunter : plain; // rules.potencyRise: the hunter side's potency
       const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw; // rules.hunterDoseCap
       w.eco.dose.taken[bin] += taken;
       h.toxin += taken;
     }
     w.eco.caught++;
     w.eco.sick.caught++;
-    if (prey.toxin > SICK) w.eco.sick.caughtSick++;
+    w.eco.potency.catches++;
+    if (prey.toxin > SICK) { w.eco.sick.caughtSick++; w.eco.potency.sickCatches++; }
   }
 }
 
@@ -503,6 +505,7 @@ export interface BestBrain {
   origin: Origin;
   from: number | null;
   depth?: number; // prey: births since its founder (stats only), carried through a restart
+  resist?: number; // rules.resistGene: its inborn poison resistance, carried through a restart
 }
 
 // Keeps the BEST_KEEP highest scores, highest first. A tie doesn't push out an earlier brain.
@@ -535,6 +538,7 @@ export function liveEcoHunters(w: World): void {
     // rules.hunterIdle: a still hunter pays only that share of its hunger, a hunter at top speed all of it (off: all of it at any speed)
     const effort = r.hunterIdle > 0 ? r.hunterIdle + (1 - r.hunterIdle) * Math.min(h.speed / r.hunterSpeed, 1) : 1;
     h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
+    if (r.resistGene > 0 && h.resist > 0) h.energy -= r.resistGene * h.resist; // inborn resistance has an upkeep
     h.toxin = fadeHunter(h.toxin, w); // rules.hunterPoisonHalfLife: hunters may clear poison faster than prey
     h.age++;
     const adult = h.age >= r.hunterMature;
@@ -547,6 +551,7 @@ export function liveEcoHunters(w: World): void {
       const from = r.hunterBrainNow > 0 && p.w !== p.g ? (p.w.length < p.g.length ? [...p.w, ...p.g.slice(p.w.length)] : p.w) : p.g;
       const child = newHunterBrain(w, from.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
       const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
+      if (r.resistGene > 0) baby.resist = babyResist(h.resist, w.hrng.gauss()); // inborn resistance (toxin.ts)
       born.push(baby);
       w.eco.hunterBirths++;
     }
@@ -567,7 +572,7 @@ export function liveEcoHunters(w: World): void {
     if (hm > 0.5) w.eco.dose.deathsHarmed++;
     if (old) w.eco.hunterOldAge++;
     const b = h.brain!;
-    remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+    remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from, resist: h.resist });
   }
   w.hunters = alive.concat(born);
 }
@@ -582,7 +587,9 @@ export function restartHunters(w: World): void {
     const brain = src
       ? newHunterBrain(w, i < best.length ? src.g.slice() : src.g.map((x) => x + w.hrng.gauss() * w.rules.mutation), src.origin, src.from)
       : newHunterBrain(w, Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5), "random", null);
-    w.hunters.push(newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1));
+    const nh = newEcoHunter(w, brain, w.hrng.next() * W, w.hrng.next() * H, 1);
+    if (src) nh.resist = src.resist ?? 0; // rules.resistGene: a restart keeps the remembered resistance
+    w.hunters.push(nh);
   }
 }
 
@@ -604,7 +611,7 @@ export function thinHunters(w: World): void {
   for (const h of hs) {
     if (keep.includes(h)) continue;
     const b = h.brain!;
-    remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from });
+    remember(w.eco.bestHunters, { g: b.g, score: b.caught, origin: b.origin, from: b.from, resist: h.resist });
   }
   if (n >= 2) {
     const g = Array.from({ length: hunterGenomeLength(w) }, () => w.hrng.gauss() * 0.5);

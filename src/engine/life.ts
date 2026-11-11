@@ -43,6 +43,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
   const sick = newPoison(w) ? 1 + harm(c.toxin, c.resist) : 1; // poison level: everything costs more (toxin.ts), less with resistance
   c.energy -= (0.0005 + speed * 0.0004) * w.rules.energyCost * costFactor * sick; // moving costs energy; standing still costs a little
   if (w.rules.senseGenes > 0 && w.rules.senseCost > 0) { let on = 0; for (let s = 0; s < SENSE_GENES; s++) if (senseOn(w.rules, c.g, s)) on++; c.energy -= w.rules.senseCost * on; } // switched-on senses cost energy
+  if (w.rules.resistGene > 0 && c.resist > 0) c.energy -= w.rules.resistGene * c.resist; // inborn resistance has an upkeep
   if (c.toxin > 0) c.toxin = fade(c.toxin, w);
   const near = w.measure && newPoison(w) ? countNearHunter(w, c) : false;
   let reward = 0;
@@ -61,7 +62,9 @@ export function live(w: World, c: Creature, costFactor: number): void {
     if (seen.food.poison) {
       c.poisoned++;
       if (newPoison(w)) {
-        c.toxin += dose(w.rules.poisonDose, c.age, preyLife(w), w);
+        // rules.potencyRise: the prey side's potency multiplies the dose (x1 when off)
+        c.toxin += w.rules.potencyRise > 0 ? dose(w.rules.poisonDose, c.age, preyLife(w), w) * w.eco.potency.prey : dose(w.rules.poisonDose, c.age, preyLife(w), w);
+        w.eco.potency.preyPoison++; w.eco.potency.preyFood++;
         w.eco.sick.poisonEaten++;
         if (w.measure) countPoisonEaten(w, c, near);
       }
@@ -69,6 +72,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
     } else {
       c.eaten++;
       c.energy = Math.min(c.energy + 0.3, 1.5);
+      w.eco.potency.preyFood++;
     }
     if (spreading(w)) {
       seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow); // spreading food (plants.ts): an eaten plant regrows where it was

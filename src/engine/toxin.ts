@@ -61,3 +61,20 @@ export function fadeHunter(level: number, w: World): number {
 // now 0 for prey and for ecosystem hunters; the generations-mode hunter resistance gene (rules.hunterResistGene) is separate and kept.
 export const harm = (level: number, resist: number) => level * (1 - resist);
 
+
+// Inborn resistance (rules.resistGene, Rey 2026-11-10 / 11): a baby's resistance is its parent's plus a small random nudge, kept in 0..1.
+// The nudge is RESIST_STEP x a bell-curve draw: small on purpose. With the brain's `mutation` (0.15) resistance drifted to 0.4-0.5 in
+// 12k ticks with NO poison in the world (the floor at 0 pushes the average up); see HISTORY 2026-11-11.
+export const RESIST_STEP = 0.03;
+export const babyResist = (parent: number, draw: number): number => Math.min(1, Math.max(0, parent + draw * RESIST_STEP));
+
+// Rising potency (rules.potencyRise, Rey 2026-11-10: "increase the potency if they rely too much"). Called every POTENCY_WINDOW ticks.
+// A side that got POTENCY_LINE or more of its food from poison meets stronger poison next window; a side that stayed under it, weaker.
+export const POTENCY_WINDOW = 1000, POTENCY_LINE = 0.2, POTENCY_MAX = 8, POTENCY_MIN_MEALS = 5;
+export function updatePotency(w: World): void {
+  const p = w.eco.potency, up = 1 + w.rules.potencyRise;
+  const turn = (now: number, poison: number, all: number) => (all < POTENCY_MIN_MEALS ? now : Math.min(POTENCY_MAX, Math.max(1, poison / all >= POTENCY_LINE ? now * up : now / up)));
+  p.prey = turn(p.prey, p.preyPoison, p.preyFood);
+  p.hunter = turn(p.hunter, p.sickCatches, p.catches);
+  p.preyFood = p.preyPoison = p.catches = p.sickCatches = 0;
+}

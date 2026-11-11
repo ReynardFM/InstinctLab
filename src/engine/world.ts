@@ -65,6 +65,13 @@ export interface Rules {
   // life is passed on, then mutated), not the parent's inborn brain; 0 = the inborn brain (as before). Needs hunterLearn > 0 to differ
   hunterIdle: number; // ecosystem (Rey 2026-11-11): share of hunterHunger a hunter standing still pays (rising in a line to all of it at top
   // speed), so waiting is cheaper than chasing; 0 = off: hunger is the same at every speed (as before)
+  resistGene: number; // ecosystem (Rey 2026-11-10, built 2026-11-11): above 0 = every prey and hunter carries an inborn poison resistance
+  // 0..1 (harm = level x (1 - resistance)), passed to its babies with a small random nudge (RESIST_STEP, toxin.ts), founders start at 0.
+  // The value is the upkeep: energy per tick a fully resistant body pays (in proportion to its resistance); 0 = off (no resistance)
+  potencyRise: number; // ecosystem (Rey 2026-11-10: "increase the potency if they rely too much"): above 0 = each side has its own poison
+  // potency (x1 at the start). Every POTENCY_WINDOW ticks: if poison was POTENCY_LINE (20%) or more of what that side ate (prey: poison
+  // pellets of all pellets; hunters: sick prey of all catches) its potency grows by this share, else it shrinks by it (never below x1,
+  // never above POTENCY_MAX). The dose a side takes is multiplied by its potency. 0 = off
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
   season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
@@ -122,7 +129,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
@@ -203,6 +210,8 @@ export interface EcoStats {
   // eco-lab measures (World.measure): poison eaten by prey with a hunter within MEASURE_NEAR px vs none, per
   // MEASURE_WINDOW ticks; and per family (to see whether poison-eating families grow)
   m: { win: { nearEat: number; farEat: number; nearTicks: number; farTicks: number }[]; fam: Map<number, { eat: number; ticks: number; nearEat: number; nearTicks: number }> };
+  // rules.potencyRise: each side's poison potency now, and what it ate in the running window (toxin.ts)
+  potency: { prey: number; hunter: number; preyFood: number; preyPoison: number; catches: number; sickCatches: number };
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
   hunterLife: number; // rules.hunterRealLife: average age hunters die at (same running average); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
@@ -266,6 +275,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
+      potency: { prey: 1, hunter: 1, preyFood: 0, preyPoison: 0, catches: 0, sickCatches: 0 },
       hunterLife: 0,
       m: { win: [], fam: new Map() },
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },

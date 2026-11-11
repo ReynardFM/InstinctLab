@@ -97,6 +97,17 @@ const TESTS: Test[] = [
   ["x75b-blind-dose0.75-100k", "blind, dose 0.75, cap 2, 14 x 100k [long check]; pairs with x75g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["xni50g-glow-brainnow-idle-100k", "glow, dose 0.5, cap 1, brain now + idle 0.25, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
   ["xni50b-blind-brainnow-idle-100k", "blind, same, 14 x 100k [long check]; pairs with xni50g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
+  // (2f) Rey 2026-11-11: inborn resistance gene (upkeep 0.0005) + rising potency (10% per 1,000 ticks over the 20% line), base dose 0.15.
+  //     Problem: flat poison is deadly per mistake or harmless (all-in). Mechanism: a side that leans on poison meets stronger poison; glow
+  //     hunters can stay under the line by avoiding, blind ones cannot. Prediction (low confidence): blind hunters end with higher potency
+  //     and resistance than glow hunters; resistance with poison is above the no-poison drift control (drift alone gave ~0.14 at 12k).
+  //     Done: both in >= 5 of 6. Kill: resistance the same with and without poison.
+  ["rPg-glow-resist-potency", "glow, dose 0.15, resistGene 0.0005, potencyRise 0.1, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.15", "--resistGene=0.0005", "--potencyRise=0.1"]],
+  ["rPb-blind-resist-potency", "blind, same, 6 x 100k [long check]; pairs with rPg", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.15", "--resistGene=0.0005", "--potencyRise=0.1"]],
+  ["rP0-glow-resist-nopoison", "DRIFT CONTROL: glow, no poison plants, resistGene 0.0005, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poison=0", "--resistGene=0.0005"]],
+  ["rPf-glow-resist-free", "COST CONTROL: glow, dose 0.15, resistGene almost free (0.000001), potencyRise 0.1, 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.15", "--resistGene=0.000001", "--potencyRise=0.1"]],
+  ["rGg-glow-resist-dose0.75", "glow, dose 0.75, cap 2, resistGene 0.0005, no rising potency, 6 x 100k [long check]; baseline x75g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.0005"]],
+  ["rGb-blind-resist-dose0.75", "blind, same, 6 x 100k [long check]; pairs with rGg", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.0005"]],
   // (3) Proofs (14 x 200k), only for the arms that pass the sweet-spot gate in their check.
   ...([["p15", "0.15", "0.28"], ["p30", "0.3", "0.6"], ["p50", "0.5", "1"], ["p75", "0.75", "2"]] as const).flatMap(([n, d, c]): Test[] => [
     [`${n}G-glow-dose${d}-proof`, `glow, poisonDose ${d}, cap ${c}, 14 x 200k [proof]; only if ${n}g passed`, [...PROOF, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`], sweetGate(`${n}g-glow-dose${d}`, `${n}b-blind-dose${d}`)],

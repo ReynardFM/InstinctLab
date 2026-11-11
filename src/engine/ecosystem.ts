@@ -10,7 +10,7 @@ import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { spreadFood, spreading } from "./plants.ts";
-import { SICK, notePreyDeath, preyLife } from "./toxin.ts";
+import { POTENCY_WINDOW, SICK, babyResist, notePreyDeath, preyLife, updatePotency } from "./toxin.ts";
 import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters, updateScent } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
@@ -96,7 +96,7 @@ export function stepEcosystem(w: World): void {
     w.eco.deaths++;
     notePreyDeath(w, c.age);
     if (scale > 0 && c.age >= scale) w.eco.oldAge++;
-    if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family, depth: c.depth });
+    if (hunting) remember(w.eco.bestPrey, { g: c.g, score: c.age, origin: "random", from: c.family, depth: c.depth, resist: c.resist });
     w.eco.recentDeaths.push({ x: c.x, y: c.y, tick: w.tick });
     if (rules.remains > 0) w.food.push({ x: c.x, y: c.y, poison: false, readyAt: w.tick + 1, remains: true, until: w.tick + rules.remains, toxin: c.toxin });
   }
@@ -124,6 +124,7 @@ export function stepEcosystem(w: World): void {
   for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
 
   w.tick++;
+  if (w.rules.potencyRise > 0 && w.tick % POTENCY_WINDOW === 0) updatePotency(w);
   if (w.tick % ECO_SAMPLE === 0) sample(w);
 }
 
@@ -135,6 +136,7 @@ function makeChild(w: World, parent: Creature, genome: Genome, energy: number): 
   child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
   child.energy = energy;
   child.depth = parent.depth + 1;
+  if (w.rules.resistGene > 0) child.resist = babyResist(parent.resist, w.env.gauss()); // inborn resistance (toxin.ts)
   parent.children++;
   maybeSplit(w, child, true); // no branch trials here: there are no generations to judge them in
   w.eco.births++;
@@ -168,6 +170,7 @@ function restartPrey(w: World): void {
     const k = i % best.length;
     const genome = i < best.length ? best[k].g.slice() : mutate(w, best[k].g, rules.mutation);
     const c = newCreature(w, genome, fams[k], false, null);
+    c.resist = best[k].resist ?? 0; // rules.resistGene: a restart keeps the remembered resistance
     c.depth = (best[k].depth ?? 0) + (i < best.length ? 0 : 1); // stats only: a restart doesn't reset the count
     w.creatures.push(c);
   }
