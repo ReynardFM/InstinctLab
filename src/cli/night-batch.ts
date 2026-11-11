@@ -7,8 +7,8 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-process.env.LAB_PRIORITY = "normal"; // this night (Rey 2026-11-11: "priority medium"); the standing rule is low. Children inherit it
-const W = `--workers=${Math.max(1, Math.floor((availableParallelism() * 3) / 4))}`; // THREE QUARTERS of the threads, this night (Rey 2026-11-11); the standing rule is half
+// LAB_PRIORITY=normal in the environment keeps normal priority (used for the night of 2026-11-11); the standing rule is low
+const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // standing rule: half of the threads (the night of 2026-11-11 used 3/4)
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
 // DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
@@ -91,6 +91,12 @@ const TESTS: Test[] = [
   ["all50b-blind-dose0.5-all-in", "blind, ALL-IN: dose 0.5, cap 1, food 120, real lifespan, half-life 25, brain now, idle 0.25, 6 x 30k [check]; pairs with all50g", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterRealLife=1", "--hunterPoisonHalfLife=25", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
   ["all30g-glow-dose0.3-all-in", "glow, ALL-IN: dose 0.3, cap 0.6, food 120, real lifespan, half-life 25, brain now, idle 0.25, 6 x 30k [check]", [...CHECK, ...E, "--hunterCue=2", ...SAME, ...FOOD2, "--poisonDose=0.3", "--hunterDoseCap=0.6", "--hunterRealLife=1", "--hunterPoisonHalfLife=25", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
   ["all30b-blind-dose0.3-all-in", "blind, ALL-IN: dose 0.3, cap 0.6, food 120, real lifespan, half-life 25, brain now, idle 0.25, 6 x 30k [check]; pairs with all30g", [...CHECK, ...E, "--hunterCue=0", ...SAME, ...FOOD2, "--poisonDose=0.3", "--hunterDoseCap=0.6", "--hunterRealLife=1", "--hunterPoisonHalfLife=25", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
+  // (2e) Rey 2026-11-11 ("c"): the two closest arms of the night, longer: 14 seeds x 100k, glow vs blind. Prediction (low confidence):
+  //     the glow pick gap grows with time as in the 400k check. Done: pick lower AND hunters more in >= 10 of 14. Kill: under 8 of 14.
+  ["x75g-glow-dose0.75-100k", "glow, dose 0.75, cap 2, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["x75b-blind-dose0.75-100k", "blind, dose 0.75, cap 2, 14 x 100k [long check]; pairs with x75g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
+  ["xni50g-glow-brainnow-idle-100k", "glow, dose 0.5, cap 1, brain now + idle 0.25, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
+  ["xni50b-blind-brainnow-idle-100k", "blind, same, 14 x 100k [long check]; pairs with xni50g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
   // (3) Proofs (14 x 200k), only for the arms that pass the sweet-spot gate in their check.
   ...([["p15", "0.15", "0.28"], ["p30", "0.3", "0.6"], ["p50", "0.5", "1"], ["p75", "0.75", "2"]] as const).flatMap(([n, d, c]): Test[] => [
     [`${n}G-glow-dose${d}-proof`, `glow, poisonDose ${d}, cap ${c}, 14 x 200k [proof]; only if ${n}g passed`, [...PROOF, ...E, "--hunterCue=2", ...SAME, `--poisonDose=${d}`, `--hunterDoseCap=${c}`], sweetGate(`${n}g-glow-dose${d}`, `${n}b-blind-dose${d}`)],
