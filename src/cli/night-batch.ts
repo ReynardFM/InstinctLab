@@ -97,6 +97,11 @@ const TESTS: Test[] = [
   ["x75b-blind-dose0.75-100k", "blind, dose 0.75, cap 2, 14 x 100k [long check]; pairs with x75g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["xni50g-glow-brainnow-idle-100k", "glow, dose 0.5, cap 1, brain now + idle 0.25, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
   ["xni50b-blind-brainnow-idle-100k", "blind, same, 14 x 100k [long check]; pairs with xni50g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.5", "--hunterDoseCap=1", "--hunterBrainNow=1", "--hunterIdle=0.25"]],
+  // (2e2) Rey 2026-11-11 ("we didn't check with waiting on this one"): cheap waiting ALONE at the closest arm (dose 0.75), 14 x 100k.
+  //     Baseline x75g / x75b (both 9 of 14). Prediction (low confidence): a glow hunter can afford to skip a sick prey, so the glow gain
+  //     grows. Risk (seen at dose 0.5, 30k): blind gains as much or more, and prey fall. Done: both in >= 10 of 14. Kill: under 8.
+  ["xi75g-glow-dose0.75-idle-100k", "glow, dose 0.75, cap 2, hunterIdle 0.25, 14 x 100k [long check]", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterIdle=0.25"]],
+  ["xi75b-blind-dose0.75-idle-100k", "blind, same, 14 x 100k [long check]; pairs with xi75g", ["--seeds=1-14", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterIdle=0.25"]],
   // (2f) Rey 2026-11-11: inborn resistance gene (upkeep 0.0005) + rising potency (10% per 1,000 ticks over the 20% line), base dose 0.15.
   //     Problem: flat poison is deadly per mistake or harmless (all-in). Mechanism: a side that leans on poison meets stronger poison; glow
   //     hunters can stay under the line by avoiding, blind ones cannot. Prediction (low confidence): blind hunters end with higher potency
