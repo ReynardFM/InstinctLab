@@ -7,7 +7,7 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-process.env.LAB_PRIORITY = "normal"; // Rey 2026-11-11 17:03: "50% normal priority" for this run; the standing rule is low. Children inherit it
+// LAB_PRIORITY=normal in the environment keeps normal priority (used 2026-11-11); the standing rule is low
 const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`; // standing rule: half of the threads (3/4 was used twice on 2026-11-11)
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
