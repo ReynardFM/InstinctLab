@@ -26,6 +26,15 @@ export const worksGate = (name: string) => (): string | null => {
   const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
   return best >= 10 ? null : `${name}: base world works in only ${best} of 14: poison runs not run`;
 };
+// Testing rule (Rey 2026-11-11): small first, the proof runs by itself on a pass. Gate: the named small test must work in >= need
+// seeds (in either condition) for its proof to run.
+export const passGate = (name: string, need: number) => (): string | null => {
+  const f = `${DIR}/${name}.json`;
+  if (!existsSync(f)) return `${name} missing`;
+  const A = JSON.parse(readFileSync(f, "utf8")) as { cond: number; m: { works: boolean } }[];
+  const best = Math.max(...[0, 1].map((c) => A.filter((r) => r.cond === c && r.m.works).length));
+  return best >= need ? null : `${name}: works in only ${best} seeds (needs ${need}): proof not run`;
+};
 // SLOW hunters (Rey 2026-11-11: "keep slow hunter ... as the default"): they burn 1/4 and a meal gives 1/4; the needed catch rate is unchanged
 const SLOW = ["--hunterHunger=0.000625", "--hunterMeal=0.125"];
 const FOOD2 = ["--food=120"]; // "bigger world" (Rey 2026-11-09: b): twice the food on the same 800 x 600 map (the map size is not a setting)
@@ -147,6 +156,10 @@ const TESTS: Test[] = [
   ["seScG-glow-4season-scattered-resist", "glow, four seasons with 8 SCATTERED farms, resistance gene, dose 0.75, cap 2, slow hunters, 6 x 160k = 4 years [long check]", ["--seeds=1-6", "--ticks=160000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--season=40000", "--seasonFarm=8", "--resistGene=0.3"]],
   ["seSc0-glow-4season-scattered-nogene", "CONTROL no gene: glow, four seasons with 8 scattered farms, dose 0.75, cap 2, slow hunters, 6 x 160k = 4 years [long check]", ["--seeds=1-6", "--ticks=160000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--season=40000", "--seasonFarm=8"]],
   ["seBothG-glow-4season-stomach-scattered-resist", "glow, four seasons, STOMACH 8 + 8 SCATTERED farms, resistance gene (half the seeds), dose 0.75, cap 2, slow hunters, 3 x 160k = 4 years [long check]", ["--seeds=1-3", "--ticks=160000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--season=40000", "--seasonFarm=8", "--digest=8", "--resistGene=0.3"]],
+  // Testing rule: proofs of the main season + resistance test (14 x 200k = 5 years), only if seRG works in >= 5 of 6.
+  ["seRGp-glow-season-resist-proof", "glow, poison seasons (no farm), resistance gene, 14 x 200k [proof]; only if seRG passed", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--season=40000", "--seasonFarm=0", "--resistGene=0.3"], passGate("seRG-glow-season-resist", 5)],
+  ["seRBp-blind-season-resist-proof", "blind, same, 14 x 200k [proof]; pairs with seRGp", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--season=40000", "--seasonFarm=0", "--resistGene=0.3"], passGate("seRG-glow-season-resist", 5)],
+  ["seRnp-glow-season-resist-nopoison-proof", "DRIFT CONTROL for the proof: no poison plants, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--season=40000", "--seasonFarm=0", "--resistGene=0.3", "--poison=0"], passGate("seRG-glow-season-resist", 5)],
   // (2j) Rey 2026-11-11 16:58 ("revert the prey, but keep slow hunter. Now retest slow hunter as the default, against all that work").
   //     Run alone with: node src/cli/night-batch.ts --only=sh. SLOW hunters (hunger / 4, meal / 4) are the base of every test here; prey are
   //     normal (preySlow was deleted). On top, one at a time, what worked at check level: dose 0.75 (now a PROOF), dose 3 (lowest pick),
