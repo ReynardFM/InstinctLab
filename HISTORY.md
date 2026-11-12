@@ -414,3 +414,12 @@ CORRECTION: "slow hunters dodge better than fast ones" (afternoon) was a wrong r
 - rules.seasonFarm is now the NUMBER of farms (2 = as built and the default; 8 = scattered, radius 55, same total area; 0 = no farm seasons). Fingerprints identical; season tests pass (fail on the old code).
 - Try [seed 1, 16k, year 8k, below screen], stomach 8 + 8 farms + gene: prey 52 / 44 / 127 / 98 by season (2 big farms, no stomach: 22 / 22 / 140 / 74), 7 die-outs (9).
 - Queued under --only=se: seStG / seSt0 (stomach 8, gene / no gene), seScG / seSc0 (8 farms, gene / no gene), seBothG (both, 3 seeds); with the 7 tests queued at 23:00.
+
+## 2026-11-12: resistance + seasons read [long check, 6 seeds x 160k = 4 years of 40k; "both" 3 seeds; 3/4 threads, normal priority, ~75 min]
+Slow hunters (default), prey-like breeding, both eyes, dose 0.75 / cap 2, resistGene 0.3 (share of burn), glow unless noted. Handed out / evolved.
+CORRECTION: my one-seed try (year 8k, 16k ticks) said poison-only seasons keep prey steady (89-163). With the real year (40k) every poison season crashes the prey. The Nov 11 finding "the season collapse is the swing, not the dose" already said this; I should have weighted it over a short try.
+- EVERY world with poison seasons fails: works 0 of 6 in all ten season arms (poison-only, four seasons with 2 farms, stomach 8, 8 scattered farms, both), with or without the gene, glow or blind. Die-outs per run: prey 30-45, hunters 35-49. No-poison seasons (seRn): works 6 / 6, 0 die-outs. All three gated proofs skipped.
+- Why [seed 1, one 40k year]: in the poison seasons poison plants reach 50-53% (clean seasons 3%); prey fall from 91 / 243 to 24 / 30, sick share 39-44%, 8-9 die-outs in each poison season.
+- Resistance in seasons does NOT build: end prey resistance 0.02 / 0.06 vs the no-poison control 0.19 / 0.24 (higher in 0 / 1 of 6). By season end it is 0.13 after clean seasons and 0.05 after poison seasons: each poison-season crash restarts the prey and wipes it.
+- Stomach and scattered farms (rule 6: each balancer alone + both at half seeds): no help; die-outs 37-45 vs 35-37 without. Parked.
+- Resistance with STEADY poison (seRflat, no seasons): works 5 / 5 of 6; prey resistance 0.46 / 0.51 vs no-poison control 0.19 / 0.24, higher in 5 / 5 of 6; hunters 0.31 / 0.13 at the end (rising: 0.03 -> 0.31 handed out). Passes the done-if of (2k); no proof was queued for it.
