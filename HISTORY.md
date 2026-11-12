@@ -395,3 +395,8 @@ CORRECTION: "slow hunters dodge better than fast ones" (afternoon) was a wrong r
 - Glow vs blind WITH slow hunters: full poison pick 0.45 vs 0.47 (lower in 6 of 14) / 0.38 vs 0.43 (10); more hunters 5 / 7; both 3 / 5. Dose 0.75 proof: 0.49 vs 0.51 (7) / 0.51 vs 0.54 (10); more hunters 8 / 9; both 5 / 7; works 14 vs 14 / 13 vs 14. Dose 3 [14 x 100k]: 0.37 vs 0.44 (9) / 0.43 vs 0.37 (4); both 3 / 2. (Old fast hunters, full poison: pick lower in 11 / 8 of 14.) The glow gap with senses handed out is gone or smaller with slow hunters.
 - Stomach on slow hunters [6 x 100k]: digest 8: pick 0.53 vs 0.72 (4 of 6), more hunters 4, both 4 / 1, works 6 vs 3 / 6 vs 5, hunters per prey higher in 5 / 3. digest 5: both 2 / 2, works 5 vs 5.
 - Resistance on slow hunters [6 x 100k]: prey 0.22-0.44 vs control 0.14 / 0.19; hunters 0.05-0.10 vs 0.04 / 0.05 (upkeep is 80% of a slow hunter's hunger, as warned). Glow pick lower in 1 / 1 of 6.
+
+## 2026-11-11 23:00: SLOW hunters are the engine default (behaviour-changing default)
+- Rey: "hunter will default slow". DEFAULT_RULES: hunterHunger 0.0025 -> 0.000625, hunterMeal 0.5 -> 0.125. Breeding defaults unchanged (hunterMature 1000, hunterBirth 1.4, hunterBirthChance 0.03); tests still pass prey-like breeding as flags.
+- Re-record (own commit): scripts/fingerprint-2026-11-11.txt. 22 of 26 fingerprints changed (every life-mode run with hunters); the 4 generations-mode fingerprints are identical. All test files pass unchanged (engine 40, hunters 44, grid 4, toxin 9, eco-lab 7, cli 11, split 5, stats 2): no test number depended on the two values. Web sliders: steps widened so the new defaults sit on the grid.
+- Every result above this line used the old fast hunters unless it says SLOW.

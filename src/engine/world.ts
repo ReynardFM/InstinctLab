@@ -136,7 +136,10 @@ export const DEFAULT_RULES: Rules = {
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
   poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
-  foodSpread: 0, hunterHunger: 0.0025, hunterMeal: 0.5, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
+  // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
+  // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby
+  // costs ~5 catches. Proofs 2026-11-11: works about the same, hunter die-outs 3-7x fewer (HISTORY.md).
+  foodSpread: 0, hunterHunger: 0.000625, hunterMeal: 0.125, hunterBirth: 1.4, hunterAge: 6000, hunterMature: 1000, hunterBirthChance: 0.03, // tuned with food 120 (README 2026-10-23)
 };
 
 export interface World {

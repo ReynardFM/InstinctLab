@@ -60,7 +60,7 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
 | mode, birth, birthEnergy, ageScale, ecoWarmup | 0, 0, 1.2, 3000, 20 | life (ecosystem) mode |
 | poisonDose, poisonHalfLife, poisonFrail | 1, 500, 0.25 | poison food chain |
 | hunters, hunterSpeed, hunterBrains, hunterPool, hunterFrom | 0, 2, 0, 12, 1 | hunters |
-| hunterHunger, hunterMeal, hunterBirth, hunterAge, hunterMature, hunterBirthChance | 0.0025, 0.5, 1.4, 6000, 1000, 0.03 | life-mode hunters |
+| hunterHunger, hunterMeal, hunterBirth, hunterAge, hunterMature, hunterBirthChance | 0.000625, 0.125, 1.4, 6000, 1000, 0.03 | life-mode hunters. SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"; was 0.0025, 0.5): behaviour-changing default; fingerprints re-recorded in scripts/fingerprint-2026-11-11.txt (22 life-mode lines changed, 4 generations-mode lines the same); results before this date used the old values unless a test says SLOW |
 | **hunterLearn** | **0.02 (changes behaviour)** | hunter taste aversion; raw version halves hunters (m4, m1) |
 | learnRate, inheritLearned, forget, relativeReward | 0, 0.75, 0.002, 1 | prey learning (m20 crashed hunters: unexplained) |
 | hunterEye | 0 | likely helps hunters [check: m14 vs m5 11/14, learning off] |
