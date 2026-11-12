@@ -20,6 +20,13 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
   3. *Twins:* not automatic. Add a blind twin or a rule-off twin only when the question needs it ("every comparison needs a control" still holds), and say that it was added.
   4. *Machine use:* ask Rey before every batch (threads and priority); no default.
   5. *Writing:* simple words and one analogy per idea by default; numbers only where needed; details when Rey asks.
+  6. *A new feature that needs balancers (Rey 2026-11-11, from the resistance + seasons case: "test the resistance in 2 different ways, stomach and scattered farms, add half the number of seeds with both"):* when a new feature only works with helpers (balancers), and there are several candidate balancers:
+     - test the feature with EACH balancer alone, at the full small size (6 seeds);
+     - add ONE run with all the balancers together, at HALF the seeds (3);
+     - keep the feature without any balancer as the baseline;
+     - a rule-off twin per way only if the question needs it (say so);
+     - then: if one balancer alone passes, it goes to the gated proof. If only "all together" passes, remove one balancer at a time to find which ones matter, and proof the smallest set that still works. If nothing passes, the feature is parked with its numbers in HISTORY.md.
+     - Each new feature and each balancer counts against the parameter budget; list them at the top of the result and clean up after the run.
 - **Stop rules (Rey 2026-11-03):** every branch starts with done-if / kill-if / max runs; at the limit, record and park. Main problem finish line: hunters alive = die-outs <= 5 per 60k and >= 10 hunters on average in 4/6 seeds; then run the 200k hunter-sense proof and stop, whatever the result. New problems found meanwhile go to IDEAS.md as parked, not into the current work.
 - **Commit policy (Rey 2026-11-03, a):** Claude commits by itself at each checkpoint (feature + passing test, or a recorded result), clear messages, repo-local noreply author. Push only when Rey says "push".
 - **Parameter budget (Rey 2026-11-03):** a new setting must replace or delete an existing one, or Rey approves it as an exception. A failed experiment's setting is deleted once its result is recorded (git keeps the code). Keep the "Live settings" table below; anything not on it gets deleted. Prefer a gene that evolution sets over a hand-tuned setting when the question is "can evolution find it?". Defaults that change behaviour (like hunterLearn) are listed at the top of every result.
