@@ -679,12 +679,17 @@ test("digest in the world: hunters and prey get stomachs, a full hunter does not
 });
 
 // rules.seasonFarm (Rey 2026-11-11: seasons to make resistance useful): 0 = the poison still swings with the season, but no farm seasons.
+import { farmRadius } from "../src/engine/plants.ts";
 test("seasonFarm 0: the poison swings with the seasons but the plants are never packed into farms; 1 = farms as before", () => {
   const noFarm = createWorld(2, { ...BOTH_EYES, season: 2000, seasonFarm: 0 }), farm = createWorld(2, { ...BOTH_EYES, season: 2000 });
   const share: number[] = [];
   for (let q = 0; q < 4; q++) { runTicks(noFarm, 500); share.push(noFarm.food.filter((f) => f.poison).length / noFarm.food.length); }
   runTicks(farm, 1600);
   assert.equal(noFarm.eco.farms.length, 0, "no farms were ever made");
-  assert.ok(farm.eco.farms.length > 0, "default: the farm season made its farms");
+  assert.equal(farm.eco.farms.length, 2 * 2, "default: the farm season made its 2 farms");
+  const many = createWorld(2, { ...BOTH_EYES, season: 2000, seasonFarm: 8 });
+  runTicks(many, 1600);
+  assert.equal(many.eco.farms.length, 2 * 8, "seasonFarm 8: eight scattered farms");
+  assert.ok(Math.abs(farmRadius(8) - 55) < 1e-9 && farmRadius(2) === 110, "the same total area: 8 farms have radius 55");
   assert.ok(share[1] > share[0] + 0.1 && share[3] > share[2] + 0.1, `poison plants swing: ${share.map((x) => x.toFixed(2)).join(" / ")}`);
 });

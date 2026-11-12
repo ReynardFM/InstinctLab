@@ -28,6 +28,8 @@ export const spreading = (w: World) => w.rules.foodSpread > 0 && inEcosystem(w);
 // Off (0): factor 1, nothing moves, nothing is drawn.
 export const SEASON_SWING = 1; // extreme (Rey 2026-11-09): no poison plants in the clean seasons, double in the poison seasons
 export const FARMS = 2, FARM_R = 110;
+// rules.seasonFarm = the number of farms; their total area stays that of the 2 built farms, so more farms are smaller (8 farms: radius 55)
+export const farmRadius = (n: number): number => FARM_R * Math.sqrt(FARMS / n);
 export const SEASON_NAMES = ["foraging", "poison foraging", "farm", "poison farm"];
 export const seasonQuarter = (w: World): number => (w.rules.season > 0 ? Math.floor((4 * w.tick) / w.rules.season) % 4 : -1);
 export const seasonFactor = (w: World): number => {
@@ -55,10 +57,11 @@ function turnSeason(w: World): void {
     const walls = r.walls > 0;
     const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
     const farms = w.eco.farms;
-    if (q === 2 && !farms.length) for (let k = 0; k < FARMS; k++) farms.push(w.env.next() * W, w.env.next() * H);
+    const nFarms = Math.max(1, Math.round(r.seasonFarm)), farmR = farmRadius(nFarms); // rules.seasonFarm: how many farms (2 = as built)
+    if (q === 2 && !farms.length) for (let k = 0; k < nFarms; k++) farms.push(w.env.next() * W, w.env.next() * H);
     for (const f of plants) {
       if (q === 0) { f.x = w.env.next() * W; f.y = w.env.next() * H; continue; }
-      const k = Math.floor(w.env.next() * FARMS), a = w.env.next() * Math.PI * 2, d = FARM_R * Math.sqrt(w.env.next()); // even over the disc
+      const k = Math.floor(w.env.next() * nFarms), a = w.env.next() * Math.PI * 2, d = farmR * Math.sqrt(w.env.next()); // even over the disc
       f.x = place(farms[2 * k] + cos(a) * d, W);
       f.y = place(farms[2 * k + 1] + sin(a) * d, H);
     }
