@@ -597,13 +597,13 @@ test("resistGene: a hunter baby inherits its parent's resistance, resistance has
     assert.equal(w.hunters.length, 2, "one baby");
     return { baby: w.hunters[1].resist, parentEnergy: h.energy };
   };
-  const on = run(0.001), off = run(0);
+  const on = run(0.4), off = run(0);
   assert.ok(on.baby !== 0.5 && Math.abs(on.baby - 0.5) < 0.2, `on: the baby has the parent's resistance plus a small nudge: ${on.baby}`);
   assert.equal(off.baby, 0, "off: babies have none");
-  assert.ok(Math.abs(off.parentEnergy - on.parentEnergy - 0.001 * 0.5 / 2) < 1e-12, "upkeep: gene cost x resistance, paid before the split halves the energy");
+  assert.ok(Math.abs(off.parentEnergy - on.parentEnergy - 0.4 * DEFAULT_RULES.hunterHunger * 0.5 / 2) < 1e-12, "upkeep: gene cost x resistance, paid before the split halves the energy");
   assert.equal(babyResist(0.95, 2), 1); assert.equal(babyResist(0.05, -2), 0);
   assert.equal(harmOf(2, 0.5), 1, "half resistance: half the harm");
-  const a = createWorld(3, { ...BOTH_EYES, resistGene: 0.0005 }), b = createWorld(3, { ...BOTH_EYES, resistGene: 0.0005 });
+  const a = createWorld(3, { ...BOTH_EYES, resistGene: 0.3 }), b = createWorld(3, { ...BOTH_EYES, resistGene: 0.3 });
   runTicks(a, 3000); runTicks(b, 3000);
   assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
   assert.ok(a.creatures.some((c) => c.resist > 0), "prey babies carry resistance after 3000 ticks");
@@ -676,4 +676,15 @@ test("digest in the world: hunters and prey get stomachs, a full hunter does not
   const off = createWorld(3, BOTH_EYES);
   runTicks(off, 1000);
   assert.ok(off.creatures.every((c) => !c.gut) && off.hunters.every((h) => !h.gut), "off: nobody has a stomach");
+});
+
+// rules.seasonFarm (Rey 2026-11-11: seasons to make resistance useful): 0 = the poison still swings with the season, but no farm seasons.
+test("seasonFarm 0: the poison swings with the seasons but the plants are never packed into farms; 1 = farms as before", () => {
+  const noFarm = createWorld(2, { ...BOTH_EYES, season: 2000, seasonFarm: 0 }), farm = createWorld(2, { ...BOTH_EYES, season: 2000 });
+  const share: number[] = [];
+  for (let q = 0; q < 4; q++) { runTicks(noFarm, 500); share.push(noFarm.food.filter((f) => f.poison).length / noFarm.food.length); }
+  runTicks(farm, 1600);
+  assert.equal(noFarm.eco.farms.length, 0, "no farms were ever made");
+  assert.ok(farm.eco.farms.length > 0, "default: the farm season made its farms");
+  assert.ok(share[1] > share[0] + 0.1 && share[3] > share[2] + 0.1, `poison plants swing: ${share.map((x) => x.toFixed(2)).join(" / ")}`);
 });

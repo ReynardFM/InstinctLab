@@ -547,7 +547,7 @@ export function liveEcoHunters(w: World): void {
     // rules.hunterIdle: a still hunter pays only that share of its hunger, a hunter at top speed all of it (off: all of it at any speed)
     const effort = r.hunterIdle > 0 ? r.hunterIdle + (1 - r.hunterIdle) * Math.min(h.speed / r.hunterSpeed, 1) : 1;
     h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
-    if (r.resistGene > 0 && h.resist > 0) h.energy -= r.resistGene * h.resist; // inborn resistance has an upkeep
+    if (r.resistGene > 0 && h.resist > 0) h.energy -= r.resistGene * r.hunterHunger * h.resist; // inborn resistance has an upkeep: a share of the body's burn
     h.toxin = fadeHunter(h.toxin, w); // rules.hunterPoisonHalfLife: hunters may clear poison faster than prey
     h.age++;
     const adult = h.age >= r.hunterMature;

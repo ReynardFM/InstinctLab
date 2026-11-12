@@ -400,3 +400,11 @@ CORRECTION: "slow hunters dodge better than fast ones" (afternoon) was a wrong r
 - Rey: "hunter will default slow". DEFAULT_RULES: hunterHunger 0.0025 -> 0.000625, hunterMeal 0.5 -> 0.125. Breeding defaults unchanged (hunterMature 1000, hunterBirth 1.4, hunterBirthChance 0.03); tests still pass prey-like breeding as flags.
 - Re-record (own commit): scripts/fingerprint-2026-11-11.txt. 22 of 26 fingerprints changed (every life-mode run with hunters); the 4 generations-mode fingerprints are identical. All test files pass unchanged (engine 40, hunters 44, grid 4, toxin 9, eco-lab 7, cli 11, split 5, stats 2): no test number depended on the two values. Web sliders: steps widened so the new defaults sit on the grid.
 - Every result above this line used the old fast hunters unless it says SLOW.
+
+## 2026-11-11 23:00: resistance gene + seasons, queued (no result yet)
+- Rey: "add resistance gene, make it useful by incorporating season, hunter will default slow".
+- resistGene's value is now a SHARE of the body's burn (hunters x hunterHunger, prey x 0.0017): 0.3 = the old 0.0005 for prey, and 0.00019 instead of 0.0005 for a slow hunter (0.0005 was 80% of its hunger and kept hunter resistance at 0.05-0.10). Earlier resistGene results used the flat cost.
+- New switch seasonFarm (default 1 = four seasons with farm, as built; 0 = poison swings only). Test fails on the old code (the rule is ignored there). life-genes: with seasons the marks are the end of every season.
+- Off / default: fingerprints identical to fingerprint-2026-11-11.txt; hunters 45 pass, all other files pass.
+- Tries [seed 1, 16k ticks, year 8k = 2k seasons, glow, dose 0.75, gene on; below screen]. Four seasons with farm: prey 22 (foraging) / 22 (poison foraging) / 140 (farm) / 74 (poison farm), hunters 3.5 / 3.5 / 9.9 / 21.4, 9 die-outs: the farm seasons boom and the next foraging season busts. No farm: prey 102 / 89 / 163 / 133, sick share 12% / 42% / 19% / 39%, 6 die-outs. Resistance stayed near 0 in the farm try (each die-out restarts it).
+- Queued under --only=se (6 x 160k = 4 years of 40k): seRG / seRB (glow / blind, poison seasons, gene), se0G (no gene), seRn (no poison plants), seRflat (no seasons), seFRG / seF0G (four seasons with farm, gene / no gene).

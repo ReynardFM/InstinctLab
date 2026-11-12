@@ -34,7 +34,7 @@ export const seasonFactor = (w: World): number => {
   const q = seasonQuarter(w);
   return q < 0 ? 1 : q % 2 === 0 ? 1 - SEASON_SWING : 1 + SEASON_SWING;
 };
-export const farmSeason = (w: World): boolean => seasonQuarter(w) >= 2;
+export const farmSeason = (w: World): boolean => w.rules.seasonFarm > 0 && seasonQuarter(w) >= 2;
 function turnSeason(w: World): void {
   const r = w.rules;
   const plants = w.food.filter((f) => !f.remains);
@@ -51,7 +51,7 @@ function turnSeason(w: World): void {
   }
   // the layout: quarter 2 packs every plant into the farms, quarter 0 spreads them over the map again (not at the very start: the fresh map is spread already)
   const q = seasonQuarter(w);
-  if (q === 2 || (q === 0 && w.tick > 0)) {
+  if (r.seasonFarm > 0 && (q === 2 || (q === 0 && w.tick > 0))) { // rules.seasonFarm 0: no farm seasons, the plants stay spread
     const walls = r.walls > 0;
     const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
     const farms = w.eco.farms;

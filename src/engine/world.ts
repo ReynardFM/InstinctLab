@@ -72,13 +72,18 @@ export interface Rules {
   // times what it burns". Must be above 1 (or a full animal starves). 0 = off (as before)
   resistGene: number; // ecosystem (Rey 2026-11-10, built 2026-11-11): above 0 = every prey and hunter carries an inborn poison resistance
   // 0..1 (harm = level x (1 - resistance)), passed to its babies with a small random nudge (RESIST_STEP, toxin.ts), founders start at 0.
-  // The value is the upkeep: energy per tick a fully resistant body pays (in proportion to its resistance); 0 = off (no resistance)
+  // The value is the upkeep as a SHARE of what the body burns (hunters: x hunterHunger; prey: x their top-speed burn 0.0017): 0.3 = a
+  // fully resistant body burns 30% more. (Until 2026-11-11 23:00 it was a flat energy per tick; 0.0005 then = 0.3 now for prey, and it
+  // was 80% of a slow hunter's hunger, which kept hunter resistance near 0.) 0 = off (no resistance)
   potencyRise: number; // ecosystem (Rey 2026-11-10: "increase the potency if they rely too much"): above 0 = each side has its own poison
   // potency (x1 at the start). Every POTENCY_WINDOW ticks: if poison was POTENCY_LINE (20%) or more of what that side ate (prey: poison
   // pellets of all pellets; hunters: sick prey of all catches) its potency grows by this share, else it shrinks by it (never below x1,
   // never above POTENCY_MAX). The dose a side takes is multiplied by its potency. 0 = off
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
+  seasonFarm: number; // with season: 1 = the year has farm seasons (plants packed into farm zones in the 3rd and 4th quarter), as
+  // built 2026-11-09; 0 = no farm: only the poison swings, so the year is clean / poison / clean / poison (Rey 2026-11-11: seasons to
+  // make resistance useful; the farm seasons boom and bust the world: prey 140 in farm, 22 in foraging, one seed)
   season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
   // no poison plants), poison foraging (twice the poison), farm (plants packed into farm zones, no poison), poison farm (plants.ts)
   hunterCue: number; // ecosystem (Rey 2026-11-06; replaces hunterSeeSpeed): what hunters see of a prey's sickness. 0 blind; 1 speed (poison slows
@@ -134,7 +139,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, digest: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 1, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
   // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby

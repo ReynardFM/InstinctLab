@@ -37,7 +37,10 @@ const CONDS: [string, Partial<Rules>][] = [
   ["handed out", { senseGenes: 0 }],
   [`evolved, cost ${COST}/tick`, { senseGenes: 1, senseCost: COST }],
 ];
-const MARKS = [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS].filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
+// With seasons (rules.season) the marks are the end of every season (a quarter of the year), so resistance and pick can be read per season.
+const QUARTER = (WORLD.season ?? 0) > 0 ? Math.round((WORLD.season as number) / 4) : 0;
+const MARKS = (QUARTER > 0 ? Array.from({ length: Math.floor(TICKS / QUARTER) }, (_, i) => (i + 1) * QUARTER).concat(TICKS)
+  : [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS]).filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
 interface Job { cond: number; seed: number }
 interface Mark { prey: number; hunters: number; hResist: number; pResist: number; potency: number[]; // potency: [prey side, hunter side]
   hDrift: number; depth: number; maxDepth: number; adopt: number[];
