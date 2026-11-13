@@ -475,3 +475,12 @@ Archive: deleted settings (restore from commit e64fb27):
 - Fingerprints identical; engine 40, hunters 46, grid 4, toxin 9, eco-lab 7, cli 11, split 5, stats 2 pass.
 - KEPT, working or still needed: resistGene (works with steady poison and on the ramp), hunterEarlyBreed + hunterHangover (best ramp result; "too slow to show"), poisonRamp / poisonPeak (the test tool), hunterPoisonHalfLife and hunterDoseCap (used by those tests), slow hunters (default).
 - KEPT, waiting for Rey's call: hunterIdle (killed in proof with FAST hunters; never tested with slow hunters; Rey: "waiting makes sense"), digest (the stomach: parked twice, but on the too-slow list with slow hunters), seasonFarm 0 / 8 and seasons themselves (every poison-season world broke), hunterRealLife, hunterBite, the scent and shuffled-glow cues, the zero-point counters.
+
+## 2026-11-13 (14:20-14:55 local): fast-only leftovers with slow hunters [3-seed hint: seeds 13 / 9 / 14 x 100k; half threads, low priority]
+Slow hunters (default), prey-like breeding, both eyes, dose 0.75 / cap 2, steady poison. Compared with s3-base-glow seed by seed. Handed out / evolved. A 3-seed test is a hint, not a pass.
+- Baseline glow: hunters 14 / 18 / 25 by seed (the picked order low / middle / high held), prey 129 / 135 / 94, works 3 / 3. Blind had MORE hunters than glow in 3 / 1 of 3: no glow advantage in these seeds.
+- Cheap waiting (hunterIdle 0.25): hunters 36 / 43 / 39 vs 14 / 18 / 25 (more in 3 / 3 of 3), prey 78 / 54 / 67 vs 129 / 135 / 94, poisoned share of hunter deaths lower in 3 / 3, works 3 / 2 of 3, pick lower in 1 / 1. Same shape as with fast hunters (more hunters, fewer prey), but the world keeps working.
+- The bite (hunterBite 1): hunters more in 3 / 1 of 3 (17 / 26 / 28); it refuses sick prey in reach more than clean ones: 57% vs 39% (handed out), 42% vs 34% (evolved); pick lower in 2 / 2.
+- Real-lifespan rule (hunterRealLife 1): hunters more in 3 / 1 (20 / 19 / 25), poisoned deaths lower in 2 / 1; small.
+- Scent cue in place of glow: about the same as glow (hunters more in 2 / 1, pick lower in 2 / 2).
+- Label for all four: "too slow to show / too small to tell" (3 seeds); none broke the world.
