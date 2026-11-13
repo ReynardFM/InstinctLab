@@ -38,6 +38,8 @@ export interface Hunter {
   toxin: number; // ecosystem mode: poison level taken on from poisoned prey (toxin.ts)
   resist: number; // ecosystem mode: poison resistance 0..1, trained by poisoned catches (toxin.ts)
   gut?: Gut; // rules.digest: its stomach (gut.ts), made on the first catch
+  high?: number; // rules.hunterHangover: ticks it has been poisoned (level above SICK) since its last hangover started
+  hang?: number; // rules.hunterHangover: ticks of hangover left (the debuff runs while this is above 0)
 }
 
 export type Origin = "borrowed" | "random";
@@ -292,17 +294,32 @@ function nearestPrey(w: World, x: number, y: number, walls: boolean): void {
 // The hunters' raw eye (rules.hunterEye; Rey 2026-11-02): like the prey eye, K slices around the heading, each
 // summing closeness (1 - d^2/200^2) of prey, of prey movement (closeness x speed / 3: a sick prey is slow, so it
 // shows strong in "prey" and weak in "prey motion") and of other hunters; then energy and the wall. Returns k.
+// Hangover (rules.hunterHangover, Rey 2026-11-13: "debuff, like shutting off one sense after the poison wears off"). For hunters the
+// poison no longer raises hunger. While a hunter's poison is above SICK it is "high" (no debuff; with rules.hunterEarlyBreed it breeds
+// early). When the poison falls back under SICK the hangover starts and lasts as long as the high did. 1 = it cannot see the sickness
+// cue; 2 = its eye reaches half as far; 3 = both. Resistance counts: the level used is the harm (level x (1 - resistance)).
+export const hungOver = (h: Hunter): boolean => (h.hang ?? 0) > 0;
+const hangGlow = (w: World, h: Hunter): boolean => (w.rules.hunterHangover === 1 || w.rules.hunterHangover === 3) && hungOver(h);
+const hangRange = (w: World, h: Hunter): boolean => w.rules.hunterHangover >= 2 && hungOver(h);
+export function hangoverTick(h: Hunter): void {
+  if (harm(h.toxin, h.resist) > SICK) h.high = (h.high ?? 0) + 1; // the party: the bill grows
+  else if ((h.high ?? 0) > 0) { h.hang = (h.hang ?? 0) + h.high!; h.high = 0; } // it wore off: the hangover starts
+  else if ((h.hang ?? 0) > 0) h.hang!--;
+}
+
 export function hunterEyeInto(w: World, h: Hunter, inputs: number[], cosH: number, sinH: number, K: number, walls: boolean, eco: boolean): number {
   const n = K * 3;
   for (let i = 0; i < n; i++) inputs[i] = 0;
-  const cs = w.creatures, cue = w.rules.hunterCue;
+  const hang = w.rules.hunterHangover > 0; // rules.hunterHangover: a hung-over hunter misses the cue and / or sees half as far
+  const cs = w.creatures, cue = hang && hangGlow(w, h) ? 0 : w.rules.hunterCue;
+  const reach = hang && hangRange(w, h) ? EYE_R2 / 4 : EYE_R2;
   for (let i = 0; i < cs.length; i++) {
     const c = cs[i];
     if (!c.alive) continue;
     const dx = offset(c.x - h.x, W, walls);
     const dy = offset(c.y - h.y, H, walls);
     const d2 = dx * dx + dy * dy;
-    if (d2 >= EYE_R2) continue;
+    if (d2 >= reach) continue;
     const v = 1 - d2 / EYE_R2;
     const sl = eyeSlice(dx, dy, cosH, sinH, K);
     inputs[sl] += v;
@@ -546,13 +563,16 @@ export function liveEcoHunters(w: World): void {
     if (r.digest > 0) digestTick(h, hunterDigest(r), MAX_ENERGY); // rules.digest: the stomach feeds the body (gut.ts)
     // rules.hunterIdle: a still hunter pays only that share of its hunger, a hunter at top speed all of it (off: all of it at any speed)
     const effort = r.hunterIdle > 0 ? r.hunterIdle + (1 - r.hunterIdle) * Math.min(h.speed / r.hunterSpeed, 1) : 1;
-    h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
+    if (r.hunterHangover > 0) { h.energy -= r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger; hangoverTick(h); } // the hangover replaces the hunger harm
+    else h.energy -= (r.hunterIdle > 0 ? r.hunterHunger * effort : r.hunterHunger) * (1 + harm(h.toxin, h.resist)); // poison: hunger costs more
     if (r.resistGene > 0 && h.resist > 0) h.energy -= r.resistGene * r.hunterHunger * h.resist; // inborn resistance has an upkeep: a share of the body's burn
     h.toxin = fadeHunter(h.toxin, w); // rules.hunterPoisonHalfLife: hunters may clear poison faster than prey
     h.age++;
     const adult = h.age >= r.hunterMature;
     const fertile = adult ? 1 - (h.age - r.hunterMature) / Math.max(1, r.hunterAge - r.hunterMature) : 0;
-    if (adult && h.energy >= r.hunterBirth && w.hunters.length + born.length < HUNTER_CAP && w.hrng.next() < r.hunterBirthChance * fertile) {
+    // rules.hunterEarlyBreed: a poisoned hunter breeds at lower energy (down by this share at harm 1 or more): breed early, in case it dies early
+    const birthAt = r.hunterEarlyBreed > 0 ? r.hunterBirth * (1 - r.hunterEarlyBreed * Math.min(1, harm(h.toxin, h.resist))) : r.hunterBirth;
+    if (adult && h.energy >= birthAt && w.hunters.length + born.length < HUNTER_CAP && w.hrng.next() < r.hunterBirthChance * fertile) {
       const half = h.energy / 2;
       h.energy -= half;
       const p = h.brain!;

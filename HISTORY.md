@@ -446,3 +446,10 @@ Slow hunters (default), prey-like breeding, glow, dose 0.75 / cap 2, resistGene 
 - Prey, ramp to 60%: with the gene vs without: prey die-outs 6.0 / 28.8 vs 12.7 / 27.0; end prey resistance 0.71 / 0.23 (steady 0.60 / 0.48). Handed out: prey resistance climbs 0.12 -> 0.72 by 120k as the poison rises. Evolved: no gain.
 - Prey, ramp to 90%: die-outs 76 / 61 (gene) vs 60 / 76 (no gene): no gene effect; resistance 0.14-0.27.
 - Reading: the top of the pyramid breaks first, because poison is passed up whole (a hunter takes the prey's whole level). Like DDT in birds of prey (biomagnification; general knowledge, no source read this time).
+
+## 2026-11-13 11:55: early breeding + hangover built, queued under --only=hang (no result yet)
+- Rey: poison as a trade: "help breed early but maybe die early", then "debuff, like shutting off one sense after poison wears off", "add the debuff glow and shorter range, make it into additional 3 tests with early breeding"; the stomach comes back as a helper.
+- hunterEarlyBreed k: a poisoned hunter's birth bar is hunterBirth x (1 - k x harm). hunterHangover 1 / 2 / 3: poison no longer raises a hunter's hunger; while its harm is above SICK it is "high"; when it wears off, a hangover of the same length dulls it: 1 = no sight of the glow cue, 2 = eye reach halved, 3 = both. Resistance lowers both.
+- Verified [seed 1]: hung-over hunter sees prey 4.99 -> 1.79 (half reach), glow 4.99 -> 0.00 (cue off). Off: fingerprints identical; 2 new tests (fail to load on the old code); hunters 48 pass, all other files pass.
+- Design choice flagged: hunters clear poison with half-life 100 in these tests (high and hangover ~430 ticks each for a full dose); with 500 the high alone (~2,160 ticks) outlasts a hunter's life. Twin hangHL isolates that change.
+- Queued on the fixed 60% ramp + gene (6 x 200k; all together 3 seeds): hangSt (stomach), hangHL (half-life twin), hangG (early + glow off), hangR (early + short range), hangGR (early + both), hangAll, gated proof hangGRp. Baseline rmp2-60G (hunters ~3, 48-93 die-outs).

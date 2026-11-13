@@ -710,3 +710,39 @@ test("poisonRamp: starts at the normal world's poison share, climbs to poisonPea
   assert.ok(Math.abs(share(w) - 0.6) < 0.06, `held at the peak: ${share(w).toFixed(2)}`);
   assert.ok(Math.abs(share(off) - 54 / 234) < 0.06, `off: the steady share: ${share(off).toFixed(2)}`);
 });
+
+// rules.hunterEarlyBreed / hunterHangover (Rey 2026-11-13): poison lets a hunter breed early; when it wears off, a sense is dulled.
+import { hangoverTick, hungOver } from "../src/engine/hunters.ts";
+test("hunterEarlyBreed: a poisoned hunter has its baby at lower energy; a clean one and off = the usual energy", () => {
+  const babies = (early: number, toxin: number) => {
+    const w = createWorld(2, { ...BOTH_EYES, hunterEarlyBreed: early, hunterMature: 0, hunterBirth: 1.2, hunterBirthChance: 1 });
+    runTicks(w, 5);
+    w.hunters.length = 1;
+    const h = w.hunters[0];
+    h.energy = 1.0; h.age = 1; h.toxin = toxin;
+    liveEcoHunters(w);
+    return w.hunters.length - 1;
+  };
+  assert.equal(babies(0.3, 1), 1, "poisoned, early breeding on: 1.0 energy is enough (the bar is 0.84)");
+  assert.equal(babies(0.3, 0), 0, "clean: the bar stays 1.2");
+  assert.equal(babies(0, 1), 0, "off: the bar stays 1.2");
+});
+test("hunterHangover: poison no longer raises hunger; after it wears off the hangover lasts as long as the poison did", () => {
+  const w = createWorld(2, { ...BOTH_EYES, hunterHangover: 3 }), off = createWorld(2, BOTH_EYES);
+  const drop = (x: typeof w) => { runTicks(x, 5); x.hunters.length = 1; const h = x.hunters[0]; h.energy = 0.5; h.age = 1; h.toxin = 1; h.speed = 0; liveEcoHunters(x); return 0.5 - h.energy; };
+  assert.ok(Math.abs(drop(w) - DEFAULT_RULES.hunterHunger) < 1e-12, "on: plain hunger");
+  assert.ok(Math.abs(drop(off) - 2 * DEFAULT_RULES.hunterHunger) < 1e-12, "off: hunger x (1 + poison)");
+  const h = { toxin: 1, resist: 0 } as World["hunters"][number];
+  for (let t = 0; t < 40; t++) hangoverTick(h);
+  assert.ok(!hungOver(h) && h.high === 40, "while poisoned: no hangover yet, the bill grows");
+  h.toxin = 0; hangoverTick(h);
+  assert.ok(hungOver(h) && h.hang === 40, "it wore off: a hangover as long as the poison lasted");
+  for (let t = 0; t < 40; t++) hangoverTick(h);
+  assert.ok(!hungOver(h), "and then it is over");
+  const res = { toxin: 1, resist: 1 } as World["hunters"][number];
+  hangoverTick(res);
+  assert.ok(!res.high, "a fully resistant hunter feels nothing");
+  const a = createWorld(3, { ...BOTH_EYES, hunterHangover: 3, hunterEarlyBreed: 0.3 }), b = createWorld(3, { ...BOTH_EYES, hunterHangover: 3, hunterEarlyBreed: 0.3 });
+  runTicks(a, 3000); runTicks(b, 3000);
+  assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
+});
