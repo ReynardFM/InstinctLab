@@ -464,3 +464,14 @@ Slow hunters, prey-like breeding, glow, dose 0.75 / cap 2, resistGene 0.3, ramp 
 - hangHL (half-life 100 only, the twin): works 0 / 0; hunter die-outs 48 / 58: faster clearing alone gives part of the gain, not the main part.
 - Pick rose in every hangover arm: 0.86-1.16 (baseline 0.54 / 0.62; no blind twin here): the kill-if "pick above the baseline" is hit. Reading: with the hunger harm gone and early breeding on, hunters no longer avoid sick prey; glow-off hangover removes the cue half the time by design.
 - Balancer rule outcome: one balancer alone (early + glow-off hangover) does best; all together is worse; the stomach is parked again.
+
+## 2026-11-13 13:20: clean-up (Rey: "c": stop here, delete the killed ones, keep what works)
+Archive: deleted settings (restore from commit e64fb27):
+| setting | what it did | why deleted |
+|---|---|---|
+| hunterBrainNow | a hunter baby started from its parent's learned brain | [long check, 14 x 100k, with cheap waiting] killed: pick rose above 1 (0.88 -> 1.46), hunters 7 vs 20 alone at 30k; learned noise piled up each birth |
+| potencyRise | each side's poison got stronger while poison was >= 20% of what it ate | [long check, 6 x 100k] no glow gain (pick 0.78 vs 0.78); blind hunters did not end with more potency or resistance than glow |
+- The night-batch queue is emptied: every test in it is finished and recorded here (last full queue: commit 26f0ccb).
+- Fingerprints identical; engine 40, hunters 46, grid 4, toxin 9, eco-lab 7, cli 11, split 5, stats 2 pass.
+- KEPT, working or still needed: resistGene (works with steady poison and on the ramp), hunterEarlyBreed + hunterHangover (best ramp result; "too slow to show"), poisonRamp / poisonPeak (the test tool), hunterPoisonHalfLife and hunterDoseCap (used by those tests), slow hunters (default).
+- KEPT, waiting for Rey's call: hunterIdle (killed in proof with FAST hunters; never tested with slow hunters; Rey: "waiting makes sense"), digest (the stomach: parked twice, but on the too-slow list with slow hunters), seasonFarm 0 / 8 and seasons themselves (every poison-season world broke), hunterRealLife, hunterBite, the scent and shuffled-glow cues, the zero-point counters.

@@ -10,7 +10,7 @@ import { live } from "./life.ts";
 import { prepareGrids } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { spreadFood, spreading } from "./plants.ts";
-import { POTENCY_WINDOW, SICK, babyResist, notePreyDeath, preyLife, updatePotency } from "./toxin.ts";
+import { SICK, babyResist, notePreyDeath, preyLife } from "./toxin.ts";
 import { liveEcoHunters, moveHunters, remember, restartHunters, startEcoHunters, thinHunters, updateScent } from "./hunters.ts";
 
 export const ECO_SAMPLE = 100; // ticks between population samples (popHist, ageHist)
@@ -124,7 +124,6 @@ export function stepEcosystem(w: World): void {
   for (const fam of [...w.families.values()]) if (!present.has(fam.id)) retire(w, fam, w.tick);
 
   w.tick++;
-  if (w.rules.potencyRise > 0 && w.tick % POTENCY_WINDOW === 0) updatePotency(w);
   if (w.tick % ECO_SAMPLE === 0) sample(w);
 }
 

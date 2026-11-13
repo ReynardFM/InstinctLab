@@ -564,27 +564,8 @@ test("hunterIdle: a still hunter pays that share of its hunger, a hunter at top 
   assert.equal(drop({}, 0), drop({}, top), "off: the same at any speed");
 });
 
-// rules.hunterBrainNow (Rey 2026-11-11): a baby starts from its parent's current (learned) brain, not the inborn one.
-test("hunterBrainNow: a baby's brain is the parent's current brain; off = the parent's inborn brain", () => {
-  const baby = (now: number) => {
-    const w = createWorld(2, { ...BOTH_EYES, hunterBrainNow: now, hunterMature: 0, hunterBirth: 1.2, hunterBirthChance: 1, mutation: 0 });
-    runTicks(w, 5);
-    w.hunters.length = 1;
-    const h = w.hunters[0], b = h.brain!;
-    assert.notEqual(b.w, b.g, "learning on: the working brain is its own copy");
-    for (let k = 0; k < b.w.length; k++) b.w[k] = b.g[k] + 1; // "learned": every weight moved by 1
-    h.energy = 2; h.age = 1; h.toxin = 0;
-    liveEcoHunters(w);
-    assert.equal(w.hunters.length, 2, "one baby");
-    return { g: w.hunters[1].brain!.g, parent: b };
-  };
-  const on = baby(1), off = baby(0);
-  assert.deepEqual(on.g, on.parent.w, "on: the parent's brain as it is now");
-  assert.deepEqual(off.g, off.parent.g, "off: the parent's inborn brain");
-});
-
 // rules.resistGene (Rey 2026-11-10, built 2026-11-11): inborn poison resistance, inherited with a nudge, with an upkeep.
-import { babyResist, updatePotency, POTENCY_MAX, harm as harmOf } from "../src/engine/toxin.ts";
+import { babyResist, harm as harmOf } from "../src/engine/toxin.ts";
 
 test("resistGene: a hunter baby inherits its parent's resistance, resistance has an upkeep and cuts harm; off = no resistance", () => {
   const run = (gene: number) => {
@@ -607,30 +588,6 @@ test("resistGene: a hunter baby inherits its parent's resistance, resistance has
   runTicks(a, 3000); runTicks(b, 3000);
   assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
   assert.ok(a.creatures.some((c) => c.resist > 0), "prey babies carry resistance after 3000 ticks");
-});
-
-// rules.potencyRise (Rey 2026-11-10: "increase the potency if they rely too much", line: 20% of what a side eats).
-test("potencyRise: a side over the 20% line meets stronger poison, under it weaker (never below x1 or above the cap)", () => {
-  const w = createWorld(2, { ...BOTH_EYES, potencyRise: 0.1 });
-  const p = w.eco.potency;
-  Object.assign(p, { prey: 1, hunter: 1, preyFood: 100, preyPoison: 20, catches: 100, sickCatches: 19 });
-  updatePotency(w);
-  assert.ok(Math.abs(p.prey - 1.1) < 1e-12, "prey at 20%: up");
-  assert.equal(p.hunter, 1, "hunters at 19%: down, but never below x1");
-  assert.equal(p.preyFood + p.preyPoison + p.catches + p.sickCatches, 0, "the window starts again");
-  Object.assign(p, { preyFood: 100, preyPoison: 5, catches: 3, sickCatches: 3, hunter: 2 });
-  updatePotency(w);
-  assert.ok(Math.abs(p.prey - 1) < 1e-12, "prey at 5%: back down");
-  assert.equal(p.hunter, 2, "under 5 catches: no change");
-  Object.assign(p, { hunter: POTENCY_MAX, catches: 10, sickCatches: 10 });
-  updatePotency(w);
-  assert.equal(p.hunter, POTENCY_MAX, "capped");
-  const on = createWorld(3, { ...BOTH_EYES, potencyRise: 0.1 }), off = createWorld(3, BOTH_EYES);
-  let top = 1;
-  for (let k = 0; k < 6; k++) { runTicks(on, 1000); top = Math.max(top, on.eco.potency.prey, on.eco.potency.hunter); }
-  runTicks(off, 6000);
-  assert.ok(top > 1, `in a run, some side crossed the line and its potency rose: x${top}`);
-  assert.equal(off.eco.potency.prey, 1); assert.equal(off.eco.potency.hunter, 1);
 });
 
 // rules.digest (Rey 2026-11-11: "a digest bar ... just consumption, works for prey and hunter"; poison seeps in while digesting).

@@ -61,8 +61,6 @@ export interface Rules {
   // added to the bite sum as a start bias toward biting (1: most bite at first)
   hunterPoisonHalfLife: number; // ecosystem (Rey 2026-11-10: "bigger metabolism, faster poison degrade"): ticks for poison to halve in a
   // hunter; 0 = the same as prey (poisonHalfLife). One dose D costs a hunter about hunterHunger x D x half-life / ln 2 extra energy
-  hunterBrainNow: number; // ecosystem (Rey 2026-11-11): 1 = a hunter baby starts from its parent's CURRENT brain (what the parent learned in
-  // life is passed on, then mutated), not the parent's inborn brain; 0 = the inborn brain (as before). Needs hunterLearn > 0 to differ
   hunterIdle: number; // ecosystem (Rey 2026-11-11): share of hunterHunger a hunter standing still pays (rising in a line to all of it at top
   // speed), so waiting is cheaper than chasing; 0 = off: hunger is the same at every speed (as before)
   digest: number; // ecosystem (Rey 2026-11-11: "a digest bar"): above 0 = prey and hunters have a stomach (gut.ts). A meal fills the
@@ -75,10 +73,6 @@ export interface Rules {
   // The value is the upkeep as a SHARE of what the body burns (hunters: x hunterHunger; prey: x their top-speed burn 0.0017): 0.3 = a
   // fully resistant body burns 30% more. (Until 2026-11-11 23:00 it was a flat energy per tick; 0.0005 then = 0.3 now for prey, and it
   // was 80% of a slow hunter's hunger, which kept hunter resistance near 0.) 0 = off (no resistance)
-  potencyRise: number; // ecosystem (Rey 2026-11-10: "increase the potency if they rely too much"): above 0 = each side has its own poison
-  // potency (x1 at the start). Every POTENCY_WINDOW ticks: if poison was POTENCY_LINE (20%) or more of what that side ate (prey: poison
-  // pellets of all pellets; hunters: sick prey of all catches) its potency grows by this share, else it shrinks by it (never below x1,
-  // never above POTENCY_MAX). The dose a side takes is multiplied by its potency. 0 = off
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
   hunterEarlyBreed: number; // ecosystem (Rey 2026-11-13: "poison can help breed early but maybe die early"): a poisoned hunter has its baby
@@ -148,7 +142,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, digest: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
   // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby
@@ -232,8 +226,6 @@ export interface EcoStats {
   // eco-lab measures (World.measure): poison eaten by prey with a hunter within MEASURE_NEAR px vs none, per
   // MEASURE_WINDOW ticks; and per family (to see whether poison-eating families grow)
   m: { win: { nearEat: number; farEat: number; nearTicks: number; farTicks: number }[]; fam: Map<number, { eat: number; ticks: number; nearEat: number; nearTicks: number }> };
-  // rules.potencyRise: each side's poison potency now, and what it ate in the running window (toxin.ts)
-  potency: { prey: number; hunter: number; preyFood: number; preyPoison: number; catches: number; sickCatches: number };
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
   hunterLife: number; // rules.hunterRealLife: average age hunters die at (same running average); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
@@ -297,7 +289,6 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
       huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
-      potency: { prey: 1, hunter: 1, preyFood: 0, preyPoison: 0, catches: 0, sickCatches: 0 },
       hunterLife: 0,
       m: { win: [], fam: new Map() },
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },

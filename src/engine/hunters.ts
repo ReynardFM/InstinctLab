@@ -248,7 +248,7 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
     w.eco.dose.n[bin]++;
     if (prey.toxin > 0) {
       const plain = dose(prey.toxin, h.age, hunterLifeFor(w), w); // the prey's whole level, through the hunter's age resistance
-      const raw = w.rules.potencyRise > 0 ? plain * w.eco.potency.hunter : plain; // rules.potencyRise: the hunter side's potency
+      const raw = plain;
       const taken = w.rules.hunterDoseCap > 0 ? Math.min(raw, w.rules.hunterDoseCap) : raw; // rules.hunterDoseCap
       w.eco.dose.taken[bin] += taken;
       if (gut) h.gut!.toxin += taken;
@@ -256,8 +256,7 @@ function catchPrey(w: World, h: Hunter, prey: Creature): void {
     }
     w.eco.caught++;
     w.eco.sick.caught++;
-    w.eco.potency.catches++;
-    if (prey.toxin > SICK) { w.eco.sick.caughtSick++; w.eco.potency.sickCatches++; }
+    if (prey.toxin > SICK) w.eco.sick.caughtSick++;
   }
 }
 
@@ -576,8 +575,7 @@ export function liveEcoHunters(w: World): void {
       const half = h.energy / 2;
       h.energy -= half;
       const p = h.brain!;
-      // rules.hunterBrainNow: the baby starts from what the parent's brain is NOW (its learned weights; the bite weights stay the inborn ones)
-      const from = r.hunterBrainNow > 0 && p.w !== p.g ? (p.w.length < p.g.length ? [...p.w, ...p.g.slice(p.w.length)] : p.w) : p.g;
+      const from = p.g; // babies start from the inborn brain (hunterBrainNow, the learned brain, was deleted 2026-11-13: HISTORY.md)
       const child = newHunterBrain(w, from.map((x) => x + w.hrng.gauss() * r.mutation), p.origin, p.from);
       const baby = newEcoHunter(w, child, place(h.x + (w.hrng.next() - 0.5) * 10, W), place(h.y + (w.hrng.next() - 0.5) * 10, H), half);
       if (r.resistGene > 0) baby.resist = babyResist(h.resist, w.hrng.gauss()); // inborn resistance (toxin.ts)

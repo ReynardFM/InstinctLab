@@ -69,11 +69,9 @@ export function live(w: World, c: Creature, costFactor: number): void {
     if (seen.food.poison) {
       c.poisoned++;
       if (newPoison(w)) {
-        // rules.potencyRise: the prey side's potency multiplies the dose (x1 when off)
-        const taken = w.rules.potencyRise > 0 ? dose(w.rules.poisonDose, c.age, preyLife(w), w) * w.eco.potency.prey : dose(w.rules.poisonDose, c.age, preyLife(w), w);
+        const taken = dose(w.rules.poisonDose, c.age, preyLife(w), w);
         if (gut) swallow(c, PELLET, 0, taken); // a poison pellet takes room, gives no energy, and its poison seeps in
         else c.toxin += taken;
-        w.eco.potency.preyPoison++; w.eco.potency.preyFood++;
         w.eco.sick.poisonEaten++;
         if (w.measure) countPoisonEaten(w, c, near);
       }
@@ -82,7 +80,6 @@ export function live(w: World, c: Creature, costFactor: number): void {
       c.eaten++;
       if (gut) swallow(c, PELLET, PELLET, 0);
       else c.energy = Math.min(c.energy + 0.3, 1.5);
-      w.eco.potency.preyFood++;
     }
     if (spreading(w)) {
       seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow); // spreading food (plants.ts): an eaten plant regrows where it was
