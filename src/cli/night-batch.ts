@@ -49,6 +49,18 @@ const sweetGate = (real: string, control: string) => (): string | null => {
   return best >= 5 ? null : `${real} beat ${control} on pick AND hunters in only ${best} of 6: proof not run`;
 };
 const TESTS: Test[] = [
+  // (3a) Rey 2026-11-13 ("make a small test with slow hunter as that is the default, 3 seeds x 100k; can we pick the seed?").
+  //     Run alone with: node src/cli/night-batch.ts --only=s3. The leftovers that were only ever tested with FAST hunters, one at a time,
+  //     on the slow-hunter world (dose 0.75, steady poison). Seeds picked BEFORE the run from four old slow-hunter proofs, one of each kind:
+  //     13 (few hunters, avg 18), 9 (middle, 23), 14 (many, 29). Seeds carry over for hunter numbers (r 0.2-0.7 between runs) but not for
+  //     die-outs or pick (r ~0). Every arm uses the same three seeds, so each compares with the baseline seed by seed.
+  //     3 seeds is a hint only: labels "better / same / worse than baseline in N of 3". No gated proofs (too small to gate on).
+  ["s3-base-glow", "BASELINE: glow, slow hunters, dose 0.75, seeds 13 / 9 / 14 x 100k [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=2"]],
+  ["s3-base-blind", "BASELINE: blind, same [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=0"]],
+  ["s3-idle-glow", "cheap waiting (hunterIdle 0.25), glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=2", "--hunterIdle=0.25"]],
+  ["s3-bite-glow", "the bite (hunterBite 1), glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=2", "--hunterBite=1"]],
+  ["s3-reallife-glow", "real-lifespan rule (hunterRealLife 1), glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=2", "--hunterRealLife=1"]],
+  ["s3-scent", "scent cue (hunterCue 4) in place of glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];

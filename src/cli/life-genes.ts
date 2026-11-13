@@ -17,7 +17,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 const opt = (k: string, d: string) => process.argv.find((x) => x.startsWith(`--${k}=`))?.split("=")[1] ?? d;
 const TICKS = Number(opt("ticks", "200000")), COST = Number(opt("cost", "0.0002"));
-const [s0, s1] = opt("seeds", "1-14").split("-").map(Number);
+// --seeds=1-14 (a range) or --seeds=13,9,14 (a picked list; Rey 2026-11-13: "can we pick the seed?")
+const SEEDS_ARG = opt("seeds", "1-14");
+const SEEDS: number[] = SEEDS_ARG.includes(",") ? SEEDS_ARG.split(",").map(Number)
+  : (() => { const [a, b] = SEEDS_ARG.split("-").map(Number); return Array.from({ length: (b ?? a) - a + 1 }, (_, i) => a + i); })();
+const [s0, s1] = [SEEDS[0], SEEDS[SEEDS.length - 1]];
 const OUT = opt("out", "eye4");
 const SENSES = ["control", "creature", "purple", "hunter"];
 const base = Object.fromEntries(Object.entries(ECO_BASE).map(([k, v]) => [k, v![0]])) as Partial<Rules>;
@@ -80,7 +84,7 @@ if (isMainThread) {
   const NORMAL = process.env.LAB_PRIORITY === "normal";
   if (!NORMAL) try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
   const js: Job[] = [];
-  for (let cond = 0; cond < CONDS.length; cond++) for (let seed = s0; seed <= (s1 ?? s0); seed++) js.push({ cond, seed });
+  for (let cond = 0; cond < CONDS.length; cond++) for (const seed of SEEDS) js.push({ cond, seed });
   console.error(`${js.length} runs of ${TICKS} ticks on ${threads} of ${availableParallelism()} threads, ${NORMAL ? "normal" : "low"} priority`);
   const t0 = performance.now(), res: Result[] = new Array(js.length);
   let next = 0, done = 0;
