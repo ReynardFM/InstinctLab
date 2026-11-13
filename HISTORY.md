@@ -423,3 +423,10 @@ CORRECTION: my one-seed try (year 8k, 16k ticks) said poison-only seasons keep p
 - Resistance in seasons does NOT build: end prey resistance 0.02 / 0.06 vs the no-poison control 0.19 / 0.24 (higher in 0 / 1 of 6). By season end it is 0.13 after clean seasons and 0.05 after poison seasons: each poison-season crash restarts the prey and wipes it.
 - Stomach and scattered farms (rule 6: each balancer alone + both at half seeds): no help; die-outs 37-45 vs 35-37 without. Parked.
 - Resistance with STEADY poison (seRflat, no seasons): works 5 / 5 of 6; prey resistance 0.46 / 0.51 vs no-poison control 0.19 / 0.24, higher in 5 / 5 of 6; hunters 0.31 / 0.13 at the end (rising: 0.03 -> 0.31 handed out). Passes the done-if of (2k); no proof was queued for it.
+
+## 2026-11-13: poison ramp built (rules.poisonRamp, poisonPeak), queued under --only=rmp
+- Rey: "make it a whole seed: normal, transition slowly to a fully poisoned environment, hold for 1/3 extra ticks to measure resistance growth" (premise: in the normal world prey and hunters have settled into the energy pyramid; checked: slow hunters at steady 0.3 work 13-14 of 14 with 1-2 die-outs, 19 hunters per 100 prey; calmer and closer to nature, still far more hunters than nature's ~1 per 100 by weight).
+- The poison share rises in a straight line from rules.poison to poisonPeak over poisonRamp ticks, then holds; plants re-typed every 1,000 ticks. Off: fingerprints identical; new test fails on the old code (the share stays 0.3); hunters tests pass.
+- "Fully poisoned" capped at 0.9: a poison pellet gives no energy, so at 1.0 every prey starves whatever its resistance.
+- Screen [seed 1, ramp 30k to 0.9 (too fast on purpose), 40k]: 14 die-out rounds by 20k (share 0.7), 35-37 by 40k; resistance 0.00-0.08.
+- Queued (6 x 200k = ramp 150k + hold 50k, glow, gene 0.3): rmp90G / rmp90N (peak 0.9, gene / no gene), rmp60G / rmp60N (peak 0.6), rmpFlat (steady 0.3, gene), gated proof rmpRef60 (reference shGS3 + ramp 0.6 + gene).

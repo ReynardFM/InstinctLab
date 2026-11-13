@@ -81,6 +81,9 @@ export interface Rules {
   // never above POTENCY_MAX). The dose a side takes is multiplied by its potency. 0 = off
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
+  poisonRamp: number; // ecosystem with spreading food (Rey 2026-11-13): ticks over which the poison share of the plants rises in a straight
+  // line from rules.poison to rules.poisonPeak, then holds (plants.ts). 0 = off: the share stays rules.poison
+  poisonPeak: number; // with poisonRamp: the poison share at the end of the ramp (below 1: prey get energy only from clean plants)
   seasonFarm: number; // with season: the NUMBER of farms in the farm seasons (3rd and 4th quarter: plants packed into farm zones). 2 =
   // the two big farms built 2026-11-09 (radius 110); more = scattered smaller farms with the same total area (8 = radius 55; Rey
   // 2026-11-11: "scattered farms", after nature's many small patches); 0 = no farm seasons, only the poison swings (clean / poison /
@@ -140,7 +143,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, digest: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterBrainNow: 0, hunterIdle: 0, resistGene: 0, potencyRise: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
   // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby

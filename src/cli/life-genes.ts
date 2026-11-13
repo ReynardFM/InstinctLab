@@ -39,10 +39,13 @@ const CONDS: [string, Partial<Rules>][] = [
 ];
 // With seasons (rules.season) the marks are the end of every season (a quarter of the year), so resistance and pick can be read per season.
 const QUARTER = (WORLD.season ?? 0) > 0 ? Math.round((WORLD.season as number) / 4) : 0;
+// With a poison ramp (rules.poisonRamp) the marks are every 20k ticks, so resistance can be read as the poison rises.
+const RAMPED = (WORLD.poisonRamp ?? 0) > 0;
 const MARKS = (QUARTER > 0 ? Array.from({ length: Math.floor(TICKS / QUARTER) }, (_, i) => (i + 1) * QUARTER).concat(TICKS)
+  : RAMPED ? Array.from({ length: Math.floor(TICKS / 20000) }, (_, i) => (i + 1) * 20000).concat(TICKS)
   : [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS]).filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
 interface Job { cond: number; seed: number }
-interface Mark { prey: number; hunters: number; hResist: number; pResist: number; potency: number[]; // potency: [prey side, hunter side]
+interface Mark { rounds: number; prey: number; hunters: number; hResist: number; pResist: number; potency: number[]; // potency: [prey side, hunter side]
   hDrift: number; depth: number; maxDepth: number; adopt: number[];
   sick: number[] } // running totals for pick per time window: [catches, sick catches, sum of sampled sick share, samples]
 interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number; restarts: number; remainsPer1k: number; dose: World["eco"]["dose"] }
@@ -50,6 +53,7 @@ interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number
 const mark = (w: World, genes: boolean): Mark => {
   const cs = w.creatures, n = Math.max(1, cs.length);
   return {
+    rounds: w.eco.rounds.length, // die-out rounds so far (to see when a ramp breaks the world)
     pResist: cs.reduce((a, c) => a + c.resist, 0) / n, potency: [w.eco.potency.prey, w.eco.potency.hunter],
     prey: cs.length, hunters: w.hunters.length, hResist: w.hunters.length ? w.hunters.reduce((a, h) => a + h.resist, 0) / w.hunters.length : 0,
     // learned change: mean |working - inborn| weight per hunter (0 without learning)
@@ -137,6 +141,7 @@ if (isMainThread) {
     const winPick = (r: Result, mi: number) => { const a = r.marks[mi].sick, b = mi ? r.marks[mi - 1].sick : [0, 0, 0, 0]; const c = a[0] - b[0], n = a[3] - b[3], sh = a[2] - b[2]; return c > 0 && n > 0 && sh > 0 ? (a[1] - b[1]) / c / (sh / n) : NaN; };
     if ((WORLD.resistGene ?? 0) > 0 || (WORLD.potencyRise ?? 0) > 0) {
       const at = (fn: (m: Mark) => number) => MARKS.map((_, mi) => f2(avg(R.map((r) => fn(r.marks[mi]))))).join(" / ");
+      if (RAMPED) console.log(`  ramp: poison share at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: ${MARKS.map((t) => f2((WORLD.poison ?? 0.3) + ((WORLD.poisonPeak ?? 0.9) - (WORLD.poison ?? 0.3)) * Math.min(1, t / (WORLD.poisonRamp as number)))).join(" / ")} | prey ${at((m) => m.prey)} | die-out rounds so far ${at((m) => m.rounds)}`);
       console.log(`  resistance at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: prey ${at((m) => m.pResist)}; hunters ${at((m) => m.hResist)} | potency: prey x${at((m) => m.potency[0])}; hunters x${at((m) => m.potency[1])}`);
     }
     console.log(`  pick by window (ending ${MARKS.map((t) => t / 1000 + "k").join(" / ")}): ${MARKS.map((_, mi) => f2(avg(fin(R.map((r) => winPick(r, mi)))))).join(" / ")}`);

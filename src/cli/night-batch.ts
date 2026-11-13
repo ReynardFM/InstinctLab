@@ -127,6 +127,22 @@ const TESTS: Test[] = [
   ["slow75b-blind-slow-hunters-dose0.75", "blind, hunters burn 1/4 and a meal gives 1/4, dose 0.75, cap 2 (same dose), 6 x 100k [long check]; pairs with slow75g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=0.75", "--hunterDoseCap=2"]],
   ["slow3g-glow-slow-hunters-dose3", "glow, hunters burn 1/4 and a meal gives 1/4, dose 3, cap 8 (dose x4 = the same energy cost per mistake as before), 6 x 100k [long check]", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=2", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=3", "--hunterDoseCap=8"]],
   ["slow3b-blind-slow-hunters-dose3", "blind, hunters burn 1/4 and a meal gives 1/4, dose 3, cap 8 (dose x4 = the same energy cost per mistake as before), 6 x 100k [long check]; pairs with slow3g", ["--seeds=1-6", "--ticks=100000", ...E, "--hunterCue=0", ...SAME, "--hunterHunger=0.000625", "--hunterMeal=0.125", "--poisonDose=3", "--hunterDoseCap=8"]],
+  // (2m) Rey 2026-11-13 ("make the whole run start normal, transition slowly to a fully poisoned environment, hold for 1/3 extra ticks
+  //     to measure resistance growth"). Run alone with: node src/cli/night-batch.ts --only=rmp. Poison share of the plants: 0.3 at tick 0,
+  //     a straight line up to the peak at 150k, held for 50k more (= 1/3 of the ramp). Peak 0.9 = "fully poisoned" (1.0 is impossible:
+  //     prey get energy only from clean plants, so at 1.0 every prey starves whatever its resistance); peak 0.6 = past the poison-season
+  //     level (0.5) that crashed the world. Twins added because the question needs them: no gene (does resistance let prey survive more
+  //     poison?) and steady 0.3 (does rising poison make resistance grow faster?).
+  //     Screen [seed 1, ramp 30k to 0.9, 40k; too fast on purpose]: 14 die-out rounds by 20k (share 0.7), resistance 0.03-0.08.
+  //     Prediction (low confidence): with the gene prey hold to a higher share than without (fewer die-out rounds at the same share), and
+  //     end resistance is above the steady control. Done: rmp60G works >= 5 of 6 AND end prey resistance above rmpFlat in >= 5 of 6.
+  //     Kill: die-out rounds with the gene are not below the no-gene twin.
+  ["rmp90G-glow-ramp0.9-resist", "glow, poison 0.3 -> 0.9 over 150k then held 50k, resistance gene, 6 x 200k [long check]", ["--seeds=1-6", "--ticks=200000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.9", "--resistGene=0.3"]],
+  ["rmp90N-glow-ramp0.9-nogene", "RULE-OFF TWIN: same ramp to 0.9, NO gene, 6 x 200k [long check]", ["--seeds=1-6", "--ticks=200000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.9"]],
+  ["rmp60G-glow-ramp0.6-resist", "glow, poison 0.3 -> 0.6 over 150k then held 50k, resistance gene, 6 x 200k [long check]", ["--seeds=1-6", "--ticks=200000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.6", "--resistGene=0.3"]],
+  ["rmp60N-glow-ramp0.6-nogene", "RULE-OFF TWIN: same ramp to 0.6, NO gene, 6 x 200k [long check]", ["--seeds=1-6", "--ticks=200000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.6"]],
+  ["rmpFlat-glow-steady-resist", "STEADY CONTROL: glow, poison 0.3 all run, resistance gene, 6 x 200k [long check]", ["--seeds=1-6", "--ticks=200000", ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3"]],
+  ["rmpRef60-glow-shGS3-ramp0.6-resist-proof", "REFERENCE COMPARISON (shGS3 + ramp to 0.6 + gene): glow, full poison, prey-like breeding, 14 x 200k [proof]; only if rmp60G works in >= 5 of 6", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonRamp=150000", "--poisonPeak=0.6", "--resistGene=0.3"], passGate("rmp60G-glow-ramp0.6-resist", 5)],
   // (2k) Rey 2026-11-11 23:00 ("add resistance gene, make it useful by incorporating season, hunter will default slow").
   //     Run alone with: node src/cli/night-batch.ts --only=se. Slow hunters are now the ENGINE default (no flag). resistGene is now a share
   //     of the body's burn (0.3 = +30% at full resistance; the same cost for prey as the old 0.0005, far lighter for slow hunters).
