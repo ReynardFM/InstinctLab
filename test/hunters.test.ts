@@ -694,17 +694,19 @@ test("seasonFarm 0: the poison swings with the seasons but the plants are never 
   assert.ok(share[1] > share[0] + 0.1 && share[3] > share[2] + 0.1, `poison plants swing: ${share.map((x) => x.toFixed(2)).join(" / ")}`);
 });
 
-// rules.poisonRamp / poisonPeak (Rey 2026-11-13): the poison share of the plants rises slowly from rules.poison to poisonPeak, then holds.
-import { rampFactor } from "../src/engine/plants.ts";
-test("poisonRamp: the poison share of the plants climbs to poisonPeak and holds; off = the share stays rules.poison", () => {
+// rules.poisonRamp / poisonPeak (Rey 2026-11-13): the poison share of the plants starts at the normal world's own share, rises slowly to
+// poisonPeak, then holds.
+import { baseShare, rampShare } from "../src/engine/plants.ts";
+test("poisonRamp: starts at the normal world's poison share, climbs to poisonPeak and holds; off = the steady world", () => {
   const R = { ...BOTH_EYES, poisonRamp: 4000, poisonPeak: 0.6 };
   const w = createWorld(2, R), off = createWorld(2, BOTH_EYES);
   const share = (x: typeof w) => { const p = x.food.filter((f) => !f.remains); return p.filter((f) => f.poison).length / p.length; };
-  runTicks(w, 2000); runTicks(off, 2000);
-  assert.ok(Math.abs(rampFactor(w) * R.poison - 0.45) < 1e-12, "half way: 0.3 -> 0.45");
-  const mid = share(w);
-  runTicks(w, 3000); runTicks(off, 3000);
-  assert.ok(Math.abs(share(w) - 0.6) < 0.08, `held at the peak: ${share(w).toFixed(2)} (half way ${mid.toFixed(2)})`);
-  assert.ok(Math.abs(share(off) - 0.3) < 0.1, `off: about rules.poison: ${share(off).toFixed(2)}`);
-  assert.equal(rampFactor(off), 1);
+  assert.ok(Math.abs(baseShare(w) - 54 / 234) < 1e-12, "the normal world: 54 poison of 234 plants");
+  runTicks(w, 1000); runTicks(off, 1000);
+  assert.ok(Math.abs(share(w) - share(off)) < 0.04, `starts normal: ${share(w).toFixed(2)} vs steady ${share(off).toFixed(2)}`);
+  runTicks(w, 1000);
+  assert.ok(Math.abs(rampShare(w) - (54 / 234 + (0.6 - 54 / 234) / 2)) < 1e-12, "half way: half the climb");
+  runTicks(w, 3000); runTicks(off, 4000);
+  assert.ok(Math.abs(share(w) - 0.6) < 0.06, `held at the peak: ${share(w).toFixed(2)}`);
+  assert.ok(Math.abs(share(off) - 54 / 234) < 0.06, `off: the steady share: ${share(off).toFixed(2)}`);
 });

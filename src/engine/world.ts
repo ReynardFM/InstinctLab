@@ -81,9 +81,9 @@ export interface Rules {
   // never above POTENCY_MAX). The dose a side takes is multiplied by its potency. 0 = off
   hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
   // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
-  poisonRamp: number; // ecosystem with spreading food (Rey 2026-11-13): ticks over which the poison share of the plants rises in a straight
-  // line from rules.poison to rules.poisonPeak, then holds (plants.ts). 0 = off: the share stays rules.poison
-  poisonPeak: number; // with poisonRamp: the poison share at the end of the ramp (below 1: prey get energy only from clean plants)
+  poisonRamp: number; // ecosystem with spreading food (Rey 2026-11-13): ticks over which the share of poison plants among all plants rises
+  // in a straight line from the normal world's own share (0.23 with poison 0.3, food 60) to rules.poisonPeak, then holds (plants.ts). 0 = off
+  poisonPeak: number; // with poisonRamp: the share of poison plants among ALL plants at the end of the ramp (below 1: prey get energy only from clean plants)
   seasonFarm: number; // with season: the NUMBER of farms in the farm seasons (3rd and 4th quarter: plants packed into farm zones). 2 =
   // the two big farms built 2026-11-09 (radius 110); more = scattered smaller farms with the same total area (8 = radius 55; Rey
   // 2026-11-11: "scattered farms", after nature's many small patches); 0 = no farm seasons, only the poison swings (clean / poison /
