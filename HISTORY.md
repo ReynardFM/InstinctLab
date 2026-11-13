@@ -453,3 +453,14 @@ Slow hunters (default), prey-like breeding, glow, dose 0.75 / cap 2, resistGene 
 - Verified [seed 1]: hung-over hunter sees prey 4.99 -> 1.79 (half reach), glow 4.99 -> 0.00 (cue off). Off: fingerprints identical; 2 new tests (fail to load on the old code); hunters 48 pass, all other files pass.
 - Design choice flagged: hunters clear poison with half-life 100 in these tests (high and hangover ~430 ticks each for a full dose); with 500 the high alone (~2,160 ticks) outlasts a hunter's life. Twin hangHL isolates that change.
 - Queued on the fixed 60% ramp + gene (6 x 200k; all together 3 seeds): hangSt (stomach), hangHL (half-life twin), hangG (early + glow off), hangR (early + short range), hangGR (early + both), hangAll, gated proof hangGRp. Baseline rmp2-60G (hunters ~3, 48-93 die-outs).
+
+## 2026-11-13 (12:01-12:20 local): early breeding + hangover on the 60% ramp read [long check, 6 x 200k; "all" 3 seeds; half threads, low priority]
+Slow hunters, prey-like breeding, glow, dose 0.75 / cap 2, resistGene 0.3, ramp 23% -> 60% over 150k + 50k hold. Hangover arms: hunterEarlyBreed 0.3, hunterPoisonHalfLife 100, hangover replaces the hunger harm. Baseline rmp2-60G: works 0 / 0 of 6, hunter die-outs 78 / 76, ~3 hunters from 40k. Handed out / evolved.
+- hangG (early + NO SIGHT OF GLOW): works 3 / 0 of 6; hunter die-outs 4.2 / 27.7; prey die-outs 2.0 / 46.5; hunters by mark 12/11/10/15/17/10/8/6/5/7 (handed out); prey resistance climbs to 0.96 (handed out; 0.36 evolved); hunter resistance 0.15-0.19 at the end. Best ramp result so far. Label: handed out "too slow to show" (half the seeds work); evolved "broke".
+- hangR (early + HALF EYE REACH): works 3 / 0; hunter die-outs 16.3 / 49.2; prey resistance 0.52 / 0.09. Handed out "too slow"; evolved "broke".
+- hangGR (early + both debuffs): works 1 / 1; hunter die-outs 29 / 27. Worse than either alone. "Broke". Gated proof skipped.
+- hangAll (stomach + early + both, 3 seeds): works 0 / 0; hunter die-outs 32 / 46. "Broke".
+- hangSt (stomach only): works 0 / 0; hunter die-outs 87 / 81: no help. "Broke".
+- hangHL (half-life 100 only, the twin): works 0 / 0; hunter die-outs 48 / 58: faster clearing alone gives part of the gain, not the main part.
+- Pick rose in every hangover arm: 0.86-1.16 (baseline 0.54 / 0.62; no blind twin here): the kill-if "pick above the baseline" is hit. Reading: with the hunger harm gone and early breeding on, hunters no longer avoid sick prey; glow-off hangover removes the cue half the time by design.
+- Balancer rule outcome: one balancer alone (early + glow-off hangover) does best; all together is worse; the stomach is parked again.
