@@ -61,6 +61,15 @@ const TESTS: Test[] = [
   ["s3-bite-glow", "the bite (hunterBite 1), glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=2", "--hunterBite=1"]],
   ["s3-reallife-glow", "real-lifespan rule (hunterRealLife 1), glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=2", "--hunterRealLife=1"]],
   ["s3-scent", "scent cue (hunterCue 4) in place of glow [small test]", ["--seeds=13,9,14", "--ticks=100000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterCue=4"]],
+  // (3b) Rey 2026-11-13 16:31 ("extend the life first, solo, at more seeds and longer, no ramp, just pure").
+  //     Run alone with: node src/cli/night-batch.ts --only=rl. The real-lifespan rule alone (hunterRealLife 1: a hunter's age resistance to
+  //     poison is measured against how old hunters really die, not the fixed 6,000), slow hunters, steady poison, dose 0.75, glow.
+  //     Same arguments, seeds and length as the reference on file sh75G (14 x 200k: works 14 / 13, hunters 22.7 / 18.6, hunter die-outs
+  //     1.3 / 2.3, poisoned share of hunter deaths 0.63), so it compares seed by seed with no rerun.
+  //     Hint so far [3 seeds x 100k]: hunters 20 / 19 / 25 vs 14 / 18 / 25, poisoned deaths lower in 2 of 3.
+  //     Prediction (low confidence): fewer poisoned hunter deaths and a few more hunters; "works" unchanged.
+  //     Done: poisoned share of hunter deaths lower in >= 10 of 14 AND works not below the reference. Kill: lower in under 8 of 14.
+  ["rl75G-glow-reallife-proof", "glow, slow hunters, dose 0.75, cap 2, hunterRealLife 1, 14 x 200k [proof]; pairs with sh75G on file", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--hunterRealLife=1"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
