@@ -484,3 +484,10 @@ Slow hunters (default), prey-like breeding, both eyes, dose 0.75 / cap 2, steady
 - Real-lifespan rule (hunterRealLife 1): hunters more in 3 / 1 (20 / 19 / 25), poisoned deaths lower in 2 / 1; small.
 - Scent cue in place of glow: about the same as glow (hunters more in 2 / 1, pick lower in 2 / 2).
 - Label for all four: "too slow to show / too small to tell" (3 seeds); none broke the world.
+
+## 2026-11-13 (16:31-19:28 local): real-lifespan rule alone [PROOF size, 14 x 200k, half threads, low priority, 25 min] vs sh75G on file
+Slow hunters, prey-like breeding, glow, dose 0.75 / cap 2, steady poison; hunterRealLife 1 vs off, same seeds. Handed out / evolved.
+- Poisoned share of hunter deaths: 0.57 vs 0.63, lower in 10 of 14 / 0.65 vs 0.63, lower in 4 of 14. Done-if (>= 10) met with senses handed out; under the kill line (8) with evolved senses.
+- Poison taken per catch: 0.118 vs 0.133 (-11%) / 0.140 vs 0.131 (+7%). Hunters 23.3 vs 22.7 (more in 9) / 18.8 vs 18.6 (9). Hunters per prey higher in 10 / 7.
+- Works 14 / 14 vs 14 / 13; hunter die-outs 1.3 / 1.4 vs 1.3 / 2.3; prey die-outs 0.6 / 1.1 vs 0.9 / 1.6. Pick 0.45 vs 0.49 (lower in 9) / 0.52 vs 0.51 (5).
+- Reading: a small effect in one condition, none in the other; harmless to the world. Label: not broke; small.
