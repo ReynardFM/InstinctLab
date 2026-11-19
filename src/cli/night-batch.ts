@@ -49,6 +49,15 @@ const sweetGate = (real: string, control: string) => (): string | null => {
   return best >= 5 ? null : `${real} beat ${control} on pick AND hunters in only ${best} of 6: proof not run`;
 };
 const TESTS: Test[] = [
+  // (4a) Rey 2026-11-19 ("judge poison by nature"): the nature bar (CLAUDE.md), one proof. Run alone with: node src/cli/night-batch.ts --only=nat.
+  //     Slow hunters (default), prey-like breeding, both eyes, dose 0.75 / cap 2, steady poison, resistance gene 0.3. Glow vs blind
+  //     (predator response by avoidance) and a no-poison control (prey and hunter resistance by drift alone). Same seeds 1-14 in all three.
+  //     Evidence so far [6 x 200k, rmpFlat]: works 6 / 6, prey resistance 0.60 / 0.48 vs drift 0.19 / 0.24, hunter resistance 0.35 / 0.19.
+  //     Prediction (low confidence): (1) and (2) pass; (3) passes by the resistance route, not by avoidance (slow hunters dodged in only
+  //     6-7 of 14 in sh75); (4) passes (hunters per prey ~0.2).
+  ["natG-glow-resist-proof", "NATURE BAR: glow, gene 0.3, 14 x 200k [proof]", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2"]],
+  ["natB-blind-resist-proof", "NATURE BAR: blind, same; pairs with natG [proof]", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0"]],
+  ["nat0-glow-resist-nopoison-proof", "NATURE BAR: drift control, glow, gene 0.3, NO poison plants [proof]", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poison=0"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
