@@ -73,8 +73,6 @@ export interface Rules {
   // The value is the upkeep as a SHARE of what the body burns (hunters: x hunterHunger; prey: x their top-speed burn 0.0017): 0.3 = a
   // fully resistant body burns 30% more. (Until 2026-11-11 23:00 it was a flat energy per tick; 0.0005 then = 0.3 now for prey, and it
   // was 80% of a slow hunter's hunger, which kept hunter resistance near 0.) 0 = off (no resistance)
-  hunterRealLife: number; // ecosystem (Rey 2026-11-10: "same rule for both"): 1 = a hunter's age resistance to poison is measured against how
-  // old hunters REALLY die (a running average, like prey), not the fixed hunterAge they almost never reach; 0 = the fixed age (as before)
   hunterEarlyBreed: number; // ecosystem (Rey 2026-11-13: "poison can help breed early but maybe die early"): a poisoned hunter has its baby
   // at lower energy: hunterBirth x (1 - this x harm), harm capped at 1. 0.3 = 30% lower at full poison. 0 = off
   hunterHangover: number; // ecosystem (Rey 2026-11-13: "debuff, like shutting off one sense after poison wears off"): above 0 = for
@@ -90,8 +88,8 @@ export interface Rules {
   season: number; // ecosystem with spreading food (Rey 2026-11-09): ticks in a year; 0 = no seasons. Four quarters: foraging (plants all over,
   // no poison plants), poison foraging (twice the poison), farm (plants packed into farm zones, no poison), poison farm (plants.ts)
   hunterCue: number; // ecosystem (Rey 2026-11-06; replaces hunterSeeSpeed): what hunters see of a prey's sickness. 0 blind; 1 speed (poison slows
-  // prey, but healthy prey also choose to go slow, so the cue drifts and can flip); 2 glow = min(poison, 1), a mark prey can't hide; 4 scent
-  // field that sick prey leave and that fades (memory in the world); 3 and 5 = shuffled controls of 2 and 4 (hunters.ts)
+  // prey, but healthy prey also choose to go slow, so the cue drifts and can flip); 2 glow = min(poison, 1), a mark prey can't hide
+  // (3 / 4 / 5 = shuffled glow, scent, shuffled scent: deleted 2026-11-19, HISTORY.md)
   foodSpread: number; // ecosystem: food spreads like plants: chance per tick that a pellet sprouts a new one nearby; 0 = off (plants.ts). With hunters: 0.0005 and food 60 (or food 120 without it)
   energyCost: number; // multiplies the energy cost of living and moving; 1 = normal
   mode: number; // 0 = generations (everyone replaced together); 1 = ecosystem (continuous births and deaths)
@@ -142,7 +140,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, hunterBite: 0, hunterRealLife: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, hunterBite: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
   // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby
@@ -206,7 +204,6 @@ export interface EcoStats {
   ageHist: number[]; // average age, same samples
   recentDeaths: { x: number; y: number; tick: number }[]; // for the page's death marks (last 200)
   farms: number[]; // rules.season: the farm zones' centres [x1, y1, x2, y2], drawn once when the first farm season starts; empty before
-  scent: number[]; // rules.hunterCue 4/5: the scent grid (hunters.ts, SCENT_CELL px cells); empty when off
   // hunters (rules.hunters > 0)
   huntersStarted: boolean;
   hunterPopHist: number[]; // hunters alive, same samples as popHist
@@ -227,7 +224,6 @@ export interface EcoStats {
   // MEASURE_WINDOW ticks; and per family (to see whether poison-eating families grow)
   m: { win: { nearEat: number; farEat: number; nearTicks: number; farTicks: number }[]; fam: Map<number, { eat: number; ticks: number; nearEat: number; nearTicks: number }> };
   preyLife: number; // average age prey die at (running average, toxin.ts); 0 before the first death
-  hunterLife: number; // rules.hunterRealLife: average age hunters die at (same running average); 0 before the first death
   toxin: { band: [number, number, number]; bandN: [number, number, number]; hunter: number; hunterN: number; hunterSick: number };
   // counting only (Rey 2026-11-02, "do small doses add up?"): catches and poison taken, by the caught prey's level
   // (bins: 0, <=0.02, <=0.05, <=SICK 0.1, <=0.3, more); hunter deaths and their hunger factor (1 + harm) at death
@@ -285,11 +281,10 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     failedBranches: 0,
     newcomerCount: 0,
     eco: {
-      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [], scent: [], farms: [],
+      births: 0, remainsEaten: 0, deaths: 0, oldAge: 0, rescues: 0, popHist: [], ageHist: [], recentDeaths: [], farms: [],
       huntersStarted: false, hunterPopHist: [], caught: 0, hunterBirths: 0, hunterDeaths: 0, hunterOldAge: 0,
       rounds: [], roundStart: 0, bestPrey: [], bestHunters: [],
       preyLife: 0,
-      hunterLife: 0,
       m: { win: [], fam: new Map() },
       resist: { prey: 0, preyN: 0, hunter: 0, hunterN: 0 },
       sick: { caught: 0, caughtSick: 0, sickShare: 0, samples: 0, poisonEaten: 0 },

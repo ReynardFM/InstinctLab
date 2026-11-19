@@ -491,3 +491,14 @@ Slow hunters, prey-like breeding, glow, dose 0.75 / cap 2, steady poison; hunter
 - Poison taken per catch: 0.118 vs 0.133 (-11%) / 0.140 vs 0.131 (+7%). Hunters 23.3 vs 22.7 (more in 9) / 18.8 vs 18.6 (9). Hunters per prey higher in 10 / 7.
 - Works 14 / 14 vs 14 / 13; hunter die-outs 1.3 / 1.4 vs 1.3 / 2.3; prey die-outs 0.6 / 1.1 vs 0.9 / 1.6. Pick 0.45 vs 0.49 (lower in 9) / 0.52 vs 0.51 (5).
 - Reading: a small effect in one condition, none in the other; harmless to the world. Label: not broke; small.
+
+## 2026-11-19: clean-up (Rey: "a": finish the clean-up)
+Archive: deleted settings (restore from commit d3faf1e):
+| setting | what it did | why deleted |
+|---|---|---|
+| hunterRealLife | a hunter's age resistance to poison measured against how old hunters really die (as for prey), not the fixed hunterAge 6000 | [proof size, 14 x 200k, slow hunters] poisoned share of hunter deaths 0.57 vs 0.63, lower in 10 of 14 with senses handed out, 4 of 14 with evolved senses; dose per catch -11% / +7%: small and unreliable |
+| hunterCue 3 (shuffled glow) | each prey showed another prey's glow (a control) | not a fair control: shuffled glow hurt hunters ~30%; blind (0) replaced it (Nov 8) |
+| hunterCue 4 (scent) | sick prey left a fading scent field the hunters smelled | [proof, fast hunters, Nov 6] worse than glow; [3-seed hint, slow hunters, Nov 13] about the same as glow: adds nothing glow does not give |
+| hunterCue 5 (shuffled scent) | the control for scent | its feature is gone |
+- Fingerprints: the "scent" line (2 of 26) is gone with the feature; the other 24 are identical: scripts/fingerprint-2026-11-19.txt (= the 11-11 file minus the scent lines). All test files pass (hunters 42, engine 40, grid 4, toxin 9, eco-lab 7, cli 11, split 5, stats 2). Web slider hunterCue now 0-2; scripts cue-check and dose-check updated. Finished tests removed from the batch queue (s3, rl).
+- KEPT: cheap waiting (hunterIdle) and the bite (hunterBite): the 3-seed hint with slow hunters showed effects (waiting: hunters ~2x, prey ~0.6x; bite refuses sick prey in reach 57% vs clean 39%); the stomach (digest) and seasons (seasonFarm): Rey's call of Nov 13 ("keep cheap waiting, stomach and seasons").

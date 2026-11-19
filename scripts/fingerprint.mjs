@@ -17,7 +17,6 @@ life("remains", { remains: 300 }, 3000);
 life("walls", { walls: 1 }, 3000);
 life("eye8", { eye: 8, hunterEye: 8 }, 2500);
 life("oldhunters-speed", { hunterEye: 0, hunterCue: 1 }, 3000);
-life("scent", { hunterCue: 4 }, 2500);
 life("harmless-default-stats", { poisonDose: 0, hunterMature: 1000, hunterBirth: 1.4, hunterBirthChance: 0.03 }, 3000);
 for (const [name, extra] of [["gens-eye", { eye: 4, genTicks: 400 }], ["gens-eye-swap-learn", { eye: 4, genTicks: 400, swapKinds: 1, poison: 0.5, learnRate: 0.005 }], ["gens-eye-hunters", { eye: 4, genTicks: 400, hunters: 6, hunterBrains: 1 }], ["gens-eye-regrow0-walls", { eye: 4, genTicks: 400, walls: 1, layouts: 2 }]]) {
   const w = createWorld(3, { ...DEFAULT_RULES, ...extra }); runGenerations(w, 3); console.log(`${name} ${fp(w)}`);

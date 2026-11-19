@@ -382,8 +382,7 @@ test("zero point (counting only): every catch with other prey around adds a sick
   assert.deepEqual(again.eco.dose.zero, z, "same seed, same counts");
 });
 
-// rules.hunterCue (Rey 2026-11-06): what a hunter sees of sickness. Glow, its shuffled control, and the scent field.
-import { glowShown, scentAt, updateScent, SHUFFLE_OFFSET, SCENT_HALF } from "../src/engine/hunters.ts";
+// rules.hunterCue (Rey 2026-11-06): what a hunter sees of sickness: speed or glow.
 
 test("hunterCue 2 (glow): the hunter eye's 2nd channel reads closeness x min(poison, 1), whatever the prey's speed; 1 still reads speed", () => {
   const read = (cue: number, toxin: number, speed: number) => {
@@ -407,44 +406,6 @@ test("hunterCue 2 (glow): the hunter eye's 2nd channel reads closeness x min(poi
   assert.ok(Math.abs(speed[4 + sl] - v * 0.5) < 1e-12, "hunterCue 1 still reads speed / 3");
   const blind = read(0, 0.5, 1.5);
   assert.equal(blind.slice(4, 8).reduce((a, b) => a + b, 0), 0, "hunterCue 0: the cue channel is empty");
-});
-
-test("hunterCue 3 (shuffled glow): each prey shows the glow of the prey SHUFFLE_OFFSET places on, not its own", () => {
-  const w = createWorld(3, { ...BOTH_EYES, hunterCue: 3 });
-  runTicks(w, 1);
-  const cs = w.creatures.slice(0, 12);
-  w.creatures = cs;
-  for (const c of cs) { c.toxin = 0; c.alive = true; }
-  cs[SHUFFLE_OFFSET].toxin = 0.8;
-  assert.ok(Math.abs(glowShown(w, 0) - 0.8) < 1e-12, "prey 0 shows prey 7's poison");
-  assert.equal(glowShown(w, SHUFFLE_OFFSET), 0, "the sick prey itself shows a clean partner");
-  w.rules.hunterCue = 2;
-  assert.equal(glowShown(w, 0), 0, "with the real glow prey 0 shows its own (none)");
-});
-
-test("hunterCue 4 (scent): a sick prey resting in place builds scent toward its glow; it halves SCENT_HALF ticks after it leaves", () => {
-  const w = createWorld(3, { ...BOTH_EYES, hunterCue: 4 });
-  runTicks(w, 1);
-  const c = w.creatures[0];
-  w.creatures = [c];
-  c.alive = true; c.toxin = 1; c.x = 405; c.y = 305;
-  for (let t = 0; t < 1000; t++) updateScent(w);
-  const full = scentAt(w, 405, 305, false);
-  assert.ok(full > 0.99 && full <= 1, `resting sick prey: ${full}`);
-  assert.equal(scentAt(w, 100, 100, false), 0, "nothing far away");
-  c.toxin = 0;
-  for (let t = 0; t < SCENT_HALF; t++) updateScent(w);
-  const half = scentAt(w, 405, 305, false);
-  assert.ok(Math.abs(half - full / 2) < 0.01, `after ${SCENT_HALF} ticks: ${half} vs ${full / 2}`);
-});
-
-test("hunterCue 2 and 4: same seed, same run; the scent grid stays empty unless the cue is scent", () => {
-  for (const cue of [2, 4, 5]) {
-    const a = createWorld(5, { ...BOTH_EYES, hunterCue: cue }), b = createWorld(5, { ...BOTH_EYES, hunterCue: cue });
-    runTicks(a, 3000); runTicks(b, 3000);
-    assert.deepEqual(a.eco.popHist, b.eco.popHist, `cue ${cue}`);
-    assert.equal(a.eco.scent.length > 0, cue >= 4, `cue ${cue}: scent grid ${a.eco.scent.length}`);
-  }
 });
 
 // rules.season (Rey 2026-11-09): four seasons: foraging, poison foraging, farm, poison farm. The number of plants does not change at a turn.
@@ -509,24 +470,6 @@ test("hunterBite: genome carries the bite weights; a hunter whose bite is always
   const off = createWorld(3, { ...BOTH_EYES, hunterCue: 2 });
   runTicks(off, 50);
   for (const h of off.hunters) assert.equal(h.brain!.g.length, len - R.hidden - 1, "bite off: the plain brain");
-});
-
-// rules.hunterRealLife (Rey 2026-11-10: "same rule for both"): hunters' age resistance follows how old hunters really die, like prey.
-import { resistance } from "../src/engine/toxin.ts";
-
-test("hunterRealLife: hunters' average lifespan is tracked from real deaths, and a hunter at half of it takes the plain dose", () => {
-  const R = { ...BOTH_EYES, hunterRealLife: 1 };
-  const w = createWorld(2, R);
-  runTicks(w, 4000);
-  assert.ok(w.eco.hunterDeaths > 0, "some hunters died");
-  assert.ok(w.eco.hunterLife > 0 && w.eco.hunterLife < R.hunterAge, `average hunter lifespan ${w.eco.hunterLife}`);
-  assert.ok(Math.abs(resistance(w.eco.hunterLife / 2, w.eco.hunterLife, R.poisonFrail) - 1) < 1e-12, "full resistance at half the real lifespan");
-  const off = createWorld(2, BOTH_EYES);
-  runTicks(off, 4000);
-  assert.equal(off.eco.hunterLife, 0, "off: nothing tracked (the fixed hunterAge is used)");
-  const a = createWorld(2, R), b = createWorld(2, R);
-  runTicks(a, 3000); runTicks(b, 3000);
-  assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
 });
 
 // rules.hunterPoisonHalfLife (Rey 2026-11-10: "bigger metabolism, faster poison degrade"): poison fades faster in hunters than in prey.

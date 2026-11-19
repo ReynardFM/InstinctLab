@@ -76,7 +76,7 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
 | mode, birth, birthEnergy, ageScale, ecoWarmup | 0, 0, 1.2, 3000, 20 | life (ecosystem) mode |
 | poisonDose, poisonHalfLife, poisonFrail | 1, 500, 0.25 | poison food chain |
 | hunters, hunterSpeed, hunterBrains, hunterPool, hunterFrom | 0, 2, 0, 12, 1 | hunters |
-| hunterHunger, hunterMeal, hunterBirth, hunterAge, hunterMature, hunterBirthChance | 0.000625, 0.125, 1.4, 6000, 1000, 0.03 | life-mode hunters. SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"; was 0.0025, 0.5): behaviour-changing default; fingerprints re-recorded in scripts/fingerprint-2026-11-11.txt (22 life-mode lines changed, 4 generations-mode lines the same); results before this date used the old values unless a test says SLOW |
+| hunterHunger, hunterMeal, hunterBirth, hunterAge, hunterMature, hunterBirthChance | 0.000625, 0.125, 1.4, 6000, 1000, 0.03 | life-mode hunters. SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"; was 0.0025, 0.5): behaviour-changing default; fingerprints re-recorded in scripts/fingerprint-2026-11-19.txt (22 life-mode lines changed, 4 generations-mode lines the same); results before this date used the old values unless a test says SLOW |
 | **hunterLearn** | **0.02 (changes behaviour)** | hunter taste aversion; raw version halves hunters (m4, m1) |
 | learnRate, inheritLearned, forget, relativeReward | 0, 0.75, 0.002, 1 | prey learning (m20 crashed hunters: unexplained) |
 | hunterEye | 0 | likely helps hunters [check: m14 vs m5 11/14, learning off] |
@@ -93,8 +93,7 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
 | poisonRamp, poisonPeak (NEW 2026-11-13, Rey: "start normal, transition slowly to fully poisoned, hold"; budget exception; under test) | 0, 0.9 | the poison share of the plants rises in a straight line from `poison` to `poisonPeak` over `poisonRamp` ticks, then holds |
 | seasonFarm (NEW 2026-11-11; budget exception; under test) | 2 | with season: the number of farms in the farm seasons. 2 = the two big farms as built; 8 = scattered small farms, same total area; 0 = no farm seasons, the poison swings only |
 | hunterIdle (NEW 2026-11-11, Rey asked; budget exception, nothing replaced yet; under test) | 0 | share of hunger a still hunter pays, rising to all of it at top speed; 0 = same hunger at any speed |
-| hunterRealLife (NEW 2026-11-10, Rey: a "same rule for both"; budget exception, nothing replaced yet) | 0 | 1 = hunters' age resistance to poison is measured against how old hunters really die (running average, like prey). [screen] dose per sick catch drops ~38% but a mistake is still deadly (97%). |
-| hunterCue (replaced hunterSeeSpeed 2026-11-06) | **1 (changes behaviour)** | what hunters see of sickness: 0 blind, 1 speed (drifts, can flip: cue-quality.mjs), 2 glow, 3 glow shuffled, 4 scent field, 5 scent shuffled. Same setting count. |
+| hunterCue (replaced hunterSeeSpeed 2026-11-06) | **1 (changes behaviour)** | what hunters see of sickness: 0 blind, 1 speed (drifts, can flip), 2 glow. Shuffled glow (3), scent (4), shuffled scent (5) deleted 2026-11-19 |
 | swapKinds | 0 | ASK: swap world (the only place learning paid); parked color/memory branch |
 | hunterResistGene, hunterResistSlow, genPreyToxin | 0, 0, 0 | ASK: resistance breeding works (game mechanic) |
 | thinkCost, learnCost, energyGate | 0, 0, 0 | ASK: Oct 19 learning options, no gain recorded |

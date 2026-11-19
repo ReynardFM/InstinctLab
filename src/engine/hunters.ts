@@ -23,9 +23,10 @@ import { cos, sin, tanh } from "./dmath.ts";
 import { EYE_R2, eyeSlice, eyeSlices, hunterEyeSlices, hunterInputCount, wallAhead, writeNothing, writeTowards } from "./senses.ts";
 import { H, W, offset } from "./space.ts";
 import { inEcosystem } from "./mode.ts";
-import { PREY_LIFE_RATE, SICK, babyResist, dose, fadeHunter, harm } from "./toxin.ts";
-// The lifespan a hunter's age resistance is measured against: the fixed hunterAge, or (rules.hunterRealLife) how old hunters really die
-const hunterLifeFor = (w: World): number => (w.rules.hunterRealLife > 0 ? w.eco.hunterLife : w.rules.hunterAge);
+import { SICK, babyResist, dose, fadeHunter, harm } from "./toxin.ts";
+// The lifespan a hunter's age resistance is measured against: the fixed hunterAge (rules.hunterRealLife, how old hunters really die, was
+// deleted 2026-11-19: HISTORY.md)
+const hunterLifeFor = (w: World): number => w.rules.hunterAge;
 
 export interface Hunter {
   x: number;
@@ -85,42 +86,11 @@ export const REST = 30; // ticks a hunter rests after a catch
 export const TURN = 0.2; // most a brain hunter turns per tick (radians), the same as prey
 
 // rules.hunterCue (Rey 2026-11-06): what a hunter can read of a prey's sickness. 1 = its speed (poison slows prey, but healthy prey also
-// choose to go slow, so the cue drifts and can flip: scripts/cue-quality.mjs); 2 = a glow, min(poison, 1), a mark the prey can't hide;
-// 4 = a scent field: sick prey leave scent that fades (half-life SCENT_HALF ticks), so the memory lives in the world, not in the hunter.
-// 3 and 5 = shuffled controls of 2 and 4: each prey shows the glow of the prey SHUFFLE_OFFSET places on in the creature list (same
-// spread, no link to its own state). 0 = blind.
-export const SHUFFLE_OFFSET = 7, SCENT_CELL = 20, SCENT_HALF = 100, SCENT_RING = 30;
-const SCENT_KEEP = 0.9930924954370359; // 0.5 ** (1 / SCENT_HALF), written out (no pow at run time)
-const SW = Math.ceil(W / SCENT_CELL), SH = Math.ceil(H / SCENT_CELL);
-const cellOf = (x: number, y: number) =>
-  Math.min(SH - 1, Math.max(0, Math.floor(y / SCENT_CELL))) * SW + Math.min(SW - 1, Math.max(0, Math.floor(x / SCENT_CELL)));
+// choose to go slow, so the cue drifts and can flip: scripts/cue-quality.mjs); 2 = a glow, min(poison, 1), a mark the prey can't hide.
+// 0 = blind. (3 shuffled glow, 4 scent, 5 shuffled scent were deleted 2026-11-19: HISTORY.md.)
 export function glowShown(w: World, i: number): number {
-  const cs = w.creatures, cue = w.rules.hunterCue;
-  const c = cue === 3 || cue === 5 ? cs[(i + SHUFFLE_OFFSET) % cs.length] : cs[i];
-  return Math.min(c.toxin, 1);
+  return Math.min(w.creatures[i].toxin, 1);
 }
-// Once per ecosystem tick (rules.hunterCue 4/5): every cell fades; each live prey adds (1 - keep) x its shown glow to its cell, so a sick
-// prey resting in one cell brings that cell toward its glow, and a passing one leaves a faint trail.
-export function updateScent(w: World): void {
-  const s = w.eco.scent;
-  if (s.length !== SW * SH) { s.length = 0; for (let k = 0; k < SW * SH; k++) s.push(0); }
-  for (let k = 0; k < s.length; k++) s[k] *= SCENT_KEEP;
-  const cs = w.creatures;
-  for (let i = 0; i < cs.length; i++) {
-    if (!cs[i].alive) continue;
-    const g = glowShown(w, i);
-    if (g > 0) s[cellOf(cs[i].x, cs[i].y)] += (1 - SCENT_KEEP) * g;
-  }
-}
-export function scentAt(w: World, x: number, y: number, walls: boolean): number {
-  const s = w.eco.scent;
-  if (!s.length) return 0;
-  const px = walls ? x : ((x % W) + W) % W, py = walls ? y : ((y % H) + H) % H;
-  return Math.min(s[cellOf(px, py)], 1);
-}
-// the scent sense: 16 points on a ring SCENT_RING px around the hunter, averaged per eye slice
-const RING = Array.from({ length: 16 }, (_, p) => [SCENT_RING * cos((p * Math.PI) / 8), SCENT_RING * sin((p * Math.PI) / 8)]);
-const ringSum = new Array(8).fill(0), ringN = new Array(8).fill(0);
 
 // Generations mode only: in ecosystem mode the hunters come in when the ecosystem starts (startEcoHunters),
 // not during its warm-up generations.
@@ -322,18 +292,9 @@ export function hunterEyeInto(w: World, h: Hunter, inputs: number[], cosH: numbe
     const v = 1 - d2 / EYE_R2;
     const sl = eyeSlice(dx, dy, cosH, sinH, K);
     inputs[sl] += v;
-    // the 2nd channel is the sickness cue (rules.hunterCue): speed (1), glow (2, 3); scent (4, 5) is read below; blind (0) stays 0
+    // the 2nd channel is the sickness cue (rules.hunterCue): speed (1), glow (2); blind (0) stays 0
     if (cue === 1) inputs[K + sl] += v * Math.min(c.speed / 3, 1);
-    else if (cue === 2 || cue === 3) inputs[K + sl] += v * glowShown(w, i);
-  }
-  if (cue >= 4) {
-    for (let sl = 0; sl < K; sl++) { ringSum[sl] = 0; ringN[sl] = 0; }
-    for (const [dx, dy] of RING) {
-      const sl = eyeSlice(dx, dy, cosH, sinH, K);
-      ringSum[sl] += scentAt(w, h.x + dx, h.y + dy, walls);
-      ringN[sl]++;
-    }
-    for (let sl = 0; sl < K; sl++) inputs[K + sl] = ringN[sl] ? ringSum[sl] / ringN[sl] : 0;
+    else if (cue === 2) inputs[K + sl] += v * glowShown(w, i);
   }
   for (const o of w.hunters) {
     if (o === h) continue;
@@ -397,10 +358,10 @@ function moveBrainHunters(w: World): void {
         // ecosystem: the prey's "poison" sense becomes the nearest prey's direction and speed (in place of distance):
         // a slow prey reads like poison close by, so a borrowed prey brain starts out avoiding slow (maybe sick) prey
         if (eco && r.hunterCue > 0) {
-          // rules.hunterCue: the nearest prey's speed (1), glow (2, 3) or the scent where it stands (4, 5), in place of its distance
+          // rules.hunterCue: the nearest prey's speed (1) or glow (2), in place of its distance
           const p = w.creatures[near.i1];
           k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
-          inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : r.hunterCue <= 3 ? glowShown(w, near.i1) : scentAt(w, p.x, p.y, walls);
+          inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowShown(w, near.i1);
         } else k = writeNothing(inputs, k);
       }
       if (r.hunterSense > 0) k = writeNothing(inputs, k); // prey have hunter inputs; for a hunter they read nothing
@@ -591,8 +552,6 @@ export function liveEcoHunters(w: World): void {
       continue;
     }
     w.eco.hunterDeaths++;
-    // rules.hunterRealLife: every death (starved or old) moves the hunters' average lifespan 1% of the way, as for prey (toxin.ts)
-    if (r.hunterRealLife > 0) w.eco.hunterLife = w.eco.hunterLife > 0 ? w.eco.hunterLife + PREY_LIFE_RATE * (h.age - w.eco.hunterLife) : h.age;
     const hm = harm(h.toxin, h.resist);
     w.eco.dose.deaths++;
     w.eco.dose.deathHarm += 1 + hm;
