@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instinct Lab: how it was built</title>
+<style>
+  @font-face { font-family: "Recursive"; src: url("assets/fonts/recursive.woff2") format("woff2"); font-weight: 300 1000; font-display: swap; }
+  :root {
+    --bench: #cdd6d2; --paper: #fbfcf7; --grid: rgba(43, 92, 158, 0.07); --ink: #1e2b30; --text: #1e2b30; --muted: #5d6c70;
+    --line: #c9d2cf; --panel: #fbfcf7; --field: #e7e2b6; --food: #fff8dc; --food-rim: #b9a24f; --poison: #6e2a5e;
+    --hunter: #34405e; --accent: #2b5c9e; --pos: #2b5c9e; --neg: #b23a48; --note: #8a5a00;
+    --prey: #3d7a5c; --sick: #8e3b7a; --glow: rgba(214, 120, 200, 0.45);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bench); color: var(--text); font: 16px/1.55 "Recursive", system-ui, sans-serif; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  header p { color: var(--muted); max-width: 66ch; margin: 6px 0 0; }
+  nav { margin: 24px 0 8px; background: var(--paper); border-radius: 6px; padding: 16px 20px; box-shadow: 0 0 0 1px rgba(30,43,48,0.08); }
+  nav ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; }
+  nav li { margin: 2px 0; }
+  nav a { color: var(--accent); }
+  nav .soon { color: var(--muted); }
+  section { margin-top: 36px; background: var(--paper); border-radius: 6px; padding: 24px 24px 28px;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 20px 20px; box-shadow: 0 0 0 1px rgba(30,43,48,0.08), 0 14px 30px -20px rgba(30,43,48,0.4); }
+  section.soon { background-image: none; color: var(--muted); padding: 14px 24px; }
+  section.soon h2 { font-size: 17px; margin: 0; }
+  h2 { font-size: 22px; margin: 0 0 4px; }
+  .kicker { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  p, li { max-width: 72ch; }
+  .like { border-left: 3px solid var(--note); padding: 2px 0 2px 12px; color: var(--note); font-style: italic; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--field); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  .single { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-top: 14px; align-items: start; }
+  @media (max-width: 760px) { .duo, .single { grid-template-columns: 1fr; } nav ol { columns: 1; } }
+  .cap { font-size: 14px; color: var(--muted); margin: 6px 2px 0; }
+  .stats { font-size: 14px; font-variant-numeric: tabular-nums; margin: 6px 2px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+  button { font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: white; border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  table { border-collapse: collapse; margin: 12px 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 700; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+  footer { margin-top: 40px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <h1>Instinct Lab: how it was built</h1>
+  <p>A small world where creatures with tiny brains evolve. No one tells them what to do: they are scored, the best have
+  children, and over time they get better at staying alive. This report walks through the project one step at a time,
+  from a single brain to a living food chain. Each finished chapter runs the real simulation in your browser.</p>
+  <p>By Rey Milson · work in progress, November 2026</p>
+</header>
+
+<nav>
+  <ol>
+    <li><a href="#ch1">One creature's brain</a></li>
+    <li class="soon">Evolution: scores and children</li>
+    <li class="soon">Which senses are worth having</li>
+    <li class="soon">Poison food, and learning during life</li>
+    <li class="soon">Hunters arrive</li>
+    <li class="soon">A living world: no generations</li>
+    <li class="soon">A real eye</li>
+    <li><a href="#ch8">Poison up the food chain</a></li>
+    <li class="soon">Making it natural</li>
+    <li class="soon">Resistance, judged by nature</li>
+  </ol>
+</nav>
+
+<section id="ch1">
+  <div class="kicker">Chapter 1</div>
+  <h2>One creature's brain</h2>
+  <p>Each creature has a tiny neural network. Every moment it reads four numbers about the world: where the nearest food is
+  (left or right, ahead or behind, how far) and how much energy it has left. Six middle neurons mix those numbers. Two
+  outputs decide what it does: how much to turn and how fast to move.</p>
+  <p>The brain is just 44 numbers: the strength of each connection. A creature is born with them and never changes them.
+  Nobody writes them by hand. At the start they are random, so creatures wander around blindly.</p>
+  <p class="like">Like a car with a steering wheel and a pedal, driven by a dice roll. Evolution keeps the drivers whose dice
+  happened to point at food.</p>
+  <div class="single">
+    <div>
+      <canvas id="c1-world" width="800" height="600"></canvas>
+      <p class="cap">40 creatures (green) and food (yellow beads). The ringed one is the best eater right now; its brain is on the right.</p>
+    </div>
+    <div>
+      <canvas id="c1-brain" width="520" height="380" style="background: var(--panel)"></canvas>
+      <p class="cap">Blue = positive, red = negative. Thicker lines are stronger connections. A filled circle is a neuron firing.</p>
+      <canvas id="c1-chart" width="520" height="140" style="background: var(--panel); margin-top: 10px"></canvas>
+    </div>
+  </div>
+  <div class="row">
+    <button id="c1-evolve">Evolve 20 generations</button>
+    <button id="c1-play">Pause</button>
+    <button id="c1-reset">Start over</button>
+  </div>
+  <p class="stats" id="c1-status"></p>
+  <p>Each generation, every creature plays three food maps. The ones that ate the most become parents. Their children get
+  the same 44 numbers with small random changes (mutations). Press "Evolve" and watch the line climb: after a few dozen
+  generations the creatures turn toward food on their own.</p>
+  <table>
+    <tr><th>Who drives</th><th>Food eaten per map</th></tr>
+    <tr><td>A brain written by hand: "turn to the nearest food, full speed"</td><td>24.3</td></tr>
+    <tr><td>Evolved brains, after 100 generations</td><td>42 to 47</td></tr>
+  </table>
+  <p class="cap">7 seeds each, measured October 18–19, 2026 (the default world then, which already had some poison food).
+  The evolved brains beat the obvious hand-made rule by almost double. One likely reason, not proven: going full speed burns
+  energy, and evolved brains learn when to slow down.</p>
+</section>
+
+<section class="soon"><h2>2–7 · coming next</h2><p>Evolution, senses, poison and learning, hunters, a living world, a real eye.</p></section>
+
+<section id="ch8">
+  <div class="kicker">Chapter 8</div>
+  <h2>Poison up the food chain</h2>
+  <p>Now the world runs on its own, with no generations: prey eat plants and have babies when they are full; hunters catch
+  prey and have babies too. Some plants are poisonous. A prey that eats one gets sick: everything costs it more energy, and
+  most die soon after. A hunter that catches a sick prey takes in all of its poison.</p>
+  <p>Can hunters learn to leave sick prey alone? Below are two copies of the same world, from the same start. The only
+  difference: on the left, hunters see a glow on sick prey. On the right, they are blind to it.</p>
+  <div class="legend">
+    <span><span class="dot" style="background: var(--prey)"></span>prey</span>
+    <span><span class="dot" style="background: var(--sick)"></span>sick prey</span>
+    <span><span class="dot" style="background: var(--glow)"></span>glow (only the left hunters see it)</span>
+    <span><span class="dot" style="background: var(--hunter); border-radius: 2px"></span>hunter</span>
+    <span><span class="dot" style="background: var(--food); box-shadow: 0 0 0 1px var(--food-rim)"></span>plant</span>
+    <span><span class="dot" style="background: var(--poison); border-radius: 1px"></span>poison plant</span>
+  </div>
+  <div class="duo">
+    <div><canvas id="c8-glow" width="800" height="600"></canvas><p class="cap"><b>Glow:</b> hunters can see who is sick</p><p class="stats" id="c8-g-stats"></p></div>
+    <div><canvas id="c8-blind" width="800" height="600"></canvas><p class="cap"><b>Blind:</b> hunters can't tell</p><p class="stats" id="c8-b-stats"></p></div>
+  </div>
+  <div class="row">
+    <span class="cap" style="margin: 0 6px 0 0">Speed</span>
+    <button data-c8speed="1">slow</button><button data-c8speed="2" class="on">normal</button><button data-c8speed="8">fast</button>
+    <button id="c8-skip">Skip 20,000 ticks</button>
+    <button id="c8-reset">Start over</button>
+    <span class="stats" id="c8-tick" style="margin-left: 8px"></span>
+  </div>
+  <p><b>"Pick"</b> measures how choosy hunters are. It is the share of sick prey among their catches, divided by the share of
+  sick prey alive. 1 means they catch sick prey exactly as often as chance. Below 1 means they avoid them. It needs a few
+  thousand ticks to settle.</p>
+  <p>What we found, over 14 different worlds of 200,000 ticks each:</p>
+  <table>
+    <tr><th></th><th>Glow</th><th>Blind</th><th>Glow better in</th></tr>
+    <tr><td>Pick (lower = avoids sick prey)</td><td>0.52</td><td>0.64</td><td>11 of 14 worlds</td></tr>
+    <tr><td>Hunters alive</td><td>27.8</td><td>27.5</td><td>7 of 14 worlds</td></tr>
+    <tr><td>Prey alive</td><td>81</td><td>86</td><td></td></tr>
+  </table>
+  <p class="cap">Measured November 8, 2026 (fast hunters, full poison). In a longer test (6 worlds, 400,000 ticks, twice the
+  food) the gap kept growing: 0.43 against 0.57 in the last stretch. The two live worlds above are just one of those 14, so
+  their numbers can differ a lot from these averages; that is why every result here uses 14 worlds.</p>
+  <p><b>So the hunters with glow learned to dodge. But they did not end up more numerous.</b> A better hunter eats more of
+  the healthy prey, so there are fewer prey left, so hunters go hungry again. The gain shows up as more hunters for each
+  prey, not as more hunters.</p>
+  <p class="like">Like a fisherman who learns to skip the bad fish. He catches more good ones, the lake empties faster, and
+  next year he eats about the same as before.</p>
+  <p>This puzzle drove the next chapters: why doesn't avoiding poison pay off, and what would nature do?</p>
+</section>
+
+<section class="soon"><h2>9–10 · coming next</h2><p>Making the world natural (the energy pyramid), and resistance: judging the poison challenge the way nature would.</p></section>
+
+<footer>Every number here comes from the project's test log. Each world is exactly repeatable: the same start gives the same
+result in any browser.</footer>
+</div>
+<script src="dist/report.js"></script>
+</body>
+</html>
