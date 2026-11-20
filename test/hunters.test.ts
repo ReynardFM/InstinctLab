@@ -661,3 +661,20 @@ test("safePrey: the safe kind never gets poisoned, its share stays near safePrey
   const off = createWorld(2, BOTH_EYES);
   assert.ok(off.creatures.every((c) => !c.safe), "off: no safe kind");
 });
+
+// rules.hunterSightTrade (Rey 2026-11-19): a trade-off between seeing poison and resisting it.
+import { glowSeen } from "../src/engine/hunters.ts";
+test("hunterSightTrade: low resistance sees faint glow sharply, high resistance sees it dimly; off = min(poison, 1) for everyone", () => {
+  const w = createWorld(3, { ...BOTH_EYES, hunterCue: 2, hunterSightTrade: 1 });
+  runTicks(w, 1);
+  const h = w.hunters[0], c = w.creatures[0];
+  c.toxin = 0.05;
+  h.resist = 0; assert.ok(Math.abs(glowSeen(w, h, 0) - 0.5) < 1e-12, "a pure dodger sees poison 0.05 as glow 0.5");
+  h.resist = 0.9; assert.ok(Math.abs(glowSeen(w, h, 0) - 0.05) < 1e-12, "resistance 0.9 sees today's glow");
+  h.resist = 1; assert.equal(glowSeen(w, h, 0), 0, "a pure resister sees no glow");
+  c.toxin = 3; h.resist = 0; assert.equal(glowSeen(w, h, 0), 1, "capped at 1");
+  const off = createWorld(3, { ...BOTH_EYES, hunterCue: 2 });
+  runTicks(off, 1);
+  off.creatures[0].toxin = 0.05; off.hunters[0].resist = 0;
+  assert.equal(glowSeen(off, off.hunters[0], 0), 0.05, "off: min(poison, 1)");
+});

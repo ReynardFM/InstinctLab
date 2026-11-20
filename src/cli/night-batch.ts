@@ -87,10 +87,21 @@ const TESTS: Test[] = [
   //     learn from mistakes they survive. Prediction (low confidence): no clear change (gentler poison never made hunters dodge before).
   //     (c) OTHER FOOD: half the prey are a safe kind that never eats poison plants (safePrey 0.5). Prediction: little change, since 85%
   //     of prey are clean already. Done (either): glow pick < blind in >= 5 of 6. Kill: <= 3 of 6.
-  ["whyCapG-glow-cap0.5", "(b) survivable lesson: glow, cap 0.5, gene 0.3, 6 x 200k [small test]", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=2", "--hunterDoseCap=0.5"]],
-  ["whyCapB-blind-cap0.5", "(b) survivable lesson: blind, same; pairs with whyCapG", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=0", "--hunterDoseCap=0.5"]],
-  ["whySafeG-glow-safe0.5", "(c) other food: glow, safePrey 0.5, cap 2, gene 0.3, 6 x 200k [small test]", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=2", "--hunterDoseCap=2", "--safePrey=0.5"]],
-  ["whySafeB-blind-safe0.5", "(c) other food: blind, same; pairs with whySafeG", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=0", "--hunterDoseCap=2", "--safePrey=0.5"]],
+  ["whyCapG-glow-cap0.5", "(b) survivable lesson: glow, cap 0.5, gene 0.3, 14 x 200k [proof size; Rey: all, overnight]", ["--seeds=1-14", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=2", "--hunterDoseCap=0.5"]],
+  ["whyCapB-blind-cap0.5", "(b) survivable lesson: blind, same; pairs with whyCapG", ["--seeds=1-14", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=0", "--hunterDoseCap=0.5"]],
+  ["whySafeG-glow-safe0.5", "(c) other food: glow, safePrey 0.5, cap 2, gene 0.3, 14 x 200k [proof size; Rey: all, overnight]", ["--seeds=1-14", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=2", "--hunterDoseCap=2", "--safePrey=0.5"]],
+  ["whySafeB-blind-safe0.5", "(c) other food: blind, same; pairs with whySafeG", ["--seeds=1-14", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=0", "--hunterDoseCap=2", "--safePrey=0.5"]],
+  // (4e) Rey 2026-11-20 ("all, this will be overnight"). The trade-off gene and the bigger hangover test join the batch.
+  //     TRADE-OFF (hunterSightTrade 1): a hunter's own resistance dims its glow sense (seen = min(1, poison x 10 x (1 - r))), so hunters
+  //     must lean to dodging or to resisting. Glow world of the nature proof; baseline natG on file (same seeds, 200k). Prediction (low
+  //     confidence): hunters split (many with resistance < 0.2, many > 0.6; the new "hunters by resistance" line) and poisoned share of
+  //     hunter deaths falls below natG. Done: lower in >= 5 of 6 and works >= 5 of 6 (then the gated 14-seed proof runs). Kill: works < 3.
+  ["trade6G-glow-sighttrade", "TRADE-OFF: glow, gene 0.3, hunterSightTrade 1, steady poison, 6 x 200k [small test]; baseline natG", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--hunterSightTrade=1"]],
+  ["trade14G-glow-sighttrade-proof", "TRADE-OFF: same, 14 x 200k [proof]; only if trade6G works in >= 5 of 6", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--hunterSightTrade=1"], passGate("trade6G-glow-sighttrade", 5)],
+  //     HANGOVER, bigger: the best ramp result (early breeding 0.3 + glow-off hangover, half-life 100, 60% ramp, gene) at 14 x 200k with a
+  //     blind twin. At 6 seeds: works 3 / 0 of 6, hunter die-outs 4.2 / 27.7 (no hangover: 78 / 76), pick 0.86 / 0.90.
+  ["hang14G-glow-ramp60-early-glowoff", "HANGOVER: glow, 60% ramp, early breeding + glow-off hangover, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.6", "--resistGene=0.3", "--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1"]],
+  ["hang14B-blind-ramp60-early-glowoff", "HANGOVER: blind twin, same, 14 x 200k [proof]; pairs with hang14G", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.6", "--resistGene=0.3", "--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
@@ -98,9 +109,9 @@ const TESTS: Test[] = [
 mkdirSync(DIR, { recursive: true });
 const t0 = performance.now();
 // --only=<start of a test name>: run just the tests whose name starts with it (Rey 2026-11-11: "just that"); the rest stay queued
-const ONLY = process.argv.find((a) => a.startsWith("--only="))?.slice(7) ?? "";
+const ONLY = (process.argv.find((a) => a.startsWith("--only="))?.slice(7) ?? "").split(",").filter(Boolean); // --only=path,why,... (Rey 2026-11-20)
 for (const [name, what, args, skipIf] of TESTS) {
-  if (ONLY && !name.startsWith(ONLY)) continue;
+  if (ONLY.length && !ONLY.some((o) => name.startsWith(o))) continue;
   const file = `${DIR}/${name}.txt`;
   if (existsSync(file)) { console.log(`skip ${name} (done)`); continue; }
   const why = skipIf?.();

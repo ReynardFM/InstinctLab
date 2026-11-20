@@ -534,3 +534,8 @@ Same world as natG / nat0 (slow hunters, prey-like breeding, glow, dose 0.75 / c
 - Arithmetic: a dose-2 sick catch costs ~0.9 energy (~7 meals of 0.125); skipping costs one more search gap (~0.04-0.07 energy). Skipping pays 10-20x, so the weak dodge is not about the price. Reading [not tested]: resistance is one gene; dodging needs the brain to wire glow to turning.
 - Built safePrey (share of a safe prey kind that never eats poison plants). First version inherited the kind: the safe kind replaced all other prey in 4,000 ticks [seed 2] (so avoiding poison is a huge advantage for PREY); now each baby is safe with chance safePrey (share stays put). Off: fingerprints identical; test fails on the old code.
 - Queued under --only=why: (b) hunterDoseCap 0.5, (c) safePrey 0.5; glow vs blind, 6 x 200k each.
+
+## 2026-11-20 01:45: overnight batch assembled (Rey: "all, this will be overnight")
+- Built hunterSightTrade (trade-off between seeing and resisting): a hunter sees glow as min(1, poison x 10 x (1 - its resistance)). Off: fingerprints identical; new test (fails to load on the old code); all hunters tests pass. life-genes now prints "hunters by resistance at the end (low < 0.2 / high > 0.6)".
+- night-batch --only takes a list: --only=path,why,trade,hang.
+- Queue: path (steady blind twin 14 x 400k; slow ramp 23% -> 40% glow / blind 6 x 400k), why (cap 0.5 and safePrey 0.5, glow / blind, now 14 x 200k), trade (6 x 200k + gated 14 x 200k proof), hang14 (early breeding + glow-off hangover on the 60% ramp, glow / blind, 14 x 200k). 3/4 threads, normal priority (Rey, 01:38).

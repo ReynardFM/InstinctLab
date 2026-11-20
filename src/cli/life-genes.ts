@@ -49,7 +49,7 @@ const MARKS = (QUARTER > 0 ? Array.from({ length: Math.floor(TICKS / QUARTER) },
   : RAMPED ? Array.from({ length: Math.floor(TICKS / 20000) }, (_, i) => (i + 1) * 20000).concat(TICKS)
   : [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS]).filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
 interface Job { cond: number; seed: number }
-interface Mark { rounds: number; prey: number; hunters: number; hResist: number; pResist: number;
+interface Mark { rounds: number; prey: number; hunters: number; hResist: number; pResist: number; hLow: number; hHigh: number; // hunters with resistance < 0.2 / > 0.6
   hDrift: number; depth: number; maxDepth: number; adopt: number[];
   sick: number[] } // running totals for pick per time window: [catches, sick catches, sum of sampled sick share, samples]
 interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number; restarts: number; remainsPer1k: number; dose: World["eco"]["dose"] }
@@ -57,6 +57,7 @@ interface Result extends Job { marks: Mark[]; m: EcoMetrics; caughtPer1k: number
 const mark = (w: World, genes: boolean): Mark => {
   const cs = w.creatures, n = Math.max(1, cs.length);
   return {
+    hLow: w.hunters.filter((h) => h.resist < 0.2).length, hHigh: w.hunters.filter((h) => h.resist > 0.6).length,
     rounds: w.eco.rounds.length, // die-out rounds so far (to see when a ramp breaks the world)
     pResist: cs.reduce((a, c) => a + c.resist, 0) / n,
     prey: cs.length, hunters: w.hunters.length, hResist: w.hunters.length ? w.hunters.reduce((a, h) => a + h.resist, 0) / w.hunters.length : 0,
@@ -146,6 +147,7 @@ if (isMainThread) {
     if ((WORLD.resistGene ?? 0) > 0 || RAMPED) {
       const at = (fn: (m: Mark) => number) => MARKS.map((_, mi) => f2(avg(R.map((r) => fn(r.marks[mi]))))).join(" / ");
       if (RAMPED) console.log(`  ramp: poison share at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: ${MARKS.map((t) => f2((WORLD.poison ?? 0.3) + ((WORLD.poisonPeak ?? 0.9) - (WORLD.poison ?? 0.3)) * Math.min(1, t / (WORLD.poisonRamp as number)))).join(" / ")} | prey ${at((m) => m.prey)} | die-out rounds so far ${at((m) => m.rounds)}`);
+      console.log(`  hunters by resistance at the end (low < 0.2 / high > 0.6, summed over seeds): ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hLow, 0)} / ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hHigh, 0)} of ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hunters, 0)}`);
       console.log(`  resistance at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: prey ${at((m) => m.pResist)}; hunters ${at((m) => m.hResist)}`);
     }
     console.log(`  pick by window (ending ${MARKS.map((t) => t / 1000 + "k").join(" / ")}): ${MARKS.map((_, mi) => f2(avg(fin(R.map((r) => winPick(r, mi)))))).join(" / ")}`);

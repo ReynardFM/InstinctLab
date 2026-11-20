@@ -73,6 +73,8 @@ export interface Rules {
   // The value is the upkeep as a SHARE of what the body burns (hunters: x hunterHunger; prey: x their top-speed burn 0.0017): 0.3 = a
   // fully resistant body burns 30% more. (Until 2026-11-11 23:00 it was a flat energy per tick; 0.0005 then = 0.3 now for prey, and it
   // was 80% of a slow hunter's hunger, which kept hunter resistance near 0.) 0 = off (no resistance)
+  hunterSightTrade: number; // ecosystem, with hunterCue 2 and resistGene (Rey 2026-11-19: a trade-off between seeing and resisting): 1 = a
+  // hunter sees a prey's glow as min(1, poison x 10 x (1 - its resistance)): low resistance = sharp eyes for poison, high = dim. 0 = off
   safePrey: number; // ecosystem (Rey 2026-11-20, a check: "other food" for hunters): the share of prey that are of a SAFE kind, which never
   // eats poison plants, so it is never sick. Each baby is safe with this chance (not inherited, so the share stays put, like a second
   // species); founders / restarts: the first ones in the list. 0 = off: one kind of prey (as before)
@@ -143,7 +145,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, safePrey: 0, hunterBite: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, safePrey: 0, hunterSightTrade: 0, hunterBite: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
   // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby

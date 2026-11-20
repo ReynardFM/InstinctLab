@@ -88,6 +88,11 @@ export const TURN = 0.2; // most a brain hunter turns per tick (radians), the sa
 // rules.hunterCue (Rey 2026-11-06): what a hunter can read of a prey's sickness. 1 = its speed (poison slows prey, but healthy prey also
 // choose to go slow, so the cue drifts and can flip: scripts/cue-quality.mjs); 2 = a glow, min(poison, 1), a mark the prey can't hide.
 // 0 = blind. (3 shuffled glow, 4 scent, 5 shuffled scent were deleted 2026-11-19: HISTORY.md.)
+// rules.hunterSightTrade (Rey 2026-11-19: "a trade-off gene: if dodge goes up, even low-poison prey glow, and vice versa"): the hunter's
+// own inborn resistance r sets how sharply it sees the glow: seen = min(1, poison x 10 x (1 - r)). r 0 = a pure dodger (poison 0.1 already
+// glows fully), r 0.9 = today's glow, r 1 = sees no glow (a pure resister). Off: every hunter sees min(poison, 1).
+export const glowSeen = (w: World, h: Hunter, i: number): number =>
+  w.rules.hunterSightTrade > 0 ? Math.min(1, w.creatures[i].toxin * 10 * (1 - h.resist)) : glowShown(w, i);
 export function glowShown(w: World, i: number): number {
   return Math.min(w.creatures[i].toxin, 1);
 }
@@ -294,7 +299,7 @@ export function hunterEyeInto(w: World, h: Hunter, inputs: number[], cosH: numbe
     inputs[sl] += v;
     // the 2nd channel is the sickness cue (rules.hunterCue): speed (1), glow (2); blind (0) stays 0
     if (cue === 1) inputs[K + sl] += v * Math.min(c.speed / 3, 1);
-    else if (cue === 2) inputs[K + sl] += v * glowShown(w, i);
+    else if (cue === 2) inputs[K + sl] += v * glowSeen(w, h, i);
   }
   for (const o of w.hunters) {
     if (o === h) continue;
@@ -361,7 +366,7 @@ function moveBrainHunters(w: World): void {
           // rules.hunterCue: the nearest prey's speed (1) or glow (2), in place of its distance
           const p = w.creatures[near.i1];
           k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
-          inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowShown(w, near.i1);
+          inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowSeen(w, h, near.i1);
         } else k = writeNothing(inputs, k);
       }
       if (r.hunterSense > 0) k = writeNothing(inputs, k); // prey have hunter inputs; for a hunter they read nothing
