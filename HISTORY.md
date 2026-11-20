@@ -502,3 +502,18 @@ Archive: deleted settings (restore from commit d3faf1e):
 | hunterCue 5 (shuffled scent) | the control for scent | its feature is gone |
 - Fingerprints: the "scent" line (2 of 26) is gone with the feature; the other 24 are identical: scripts/fingerprint-2026-11-19.txt (= the 11-11 file minus the scent lines). All test files pass (hunters 42, engine 40, grid 4, toxin 9, eco-lab 7, cli 11, split 5, stats 2). Web slider hunterCue now 0-2; scripts cue-check and dose-check updated. Finished tests removed from the batch queue (s3, rl).
 - KEPT: cheap waiting (hunterIdle) and the bite (hunterBite): the 3-seed hint with slow hunters showed effects (waiting: hunters ~2x, prey ~0.6x; bite refuses sick prey in reach 57% vs clean 39%); the stomach (digest) and seasons (seasonFarm): Rey's call of Nov 13 ("keep cheap waiting, stomach and seasons").
+
+## 2026-11-19 (17:38-~18:30 local): the NATURE BAR proof [14 x 200k, half threads, low priority]
+Slow hunters (default), prey-like breeding, both eyes, dose 0.75 / cap 2, steady poison, resistGene 0.3. natG (glow), natB (blind), nat0 (glow, no poison plants = drift control). Handed out / evolved. Bar (CLAUDE.md): (1) works >= 10 of 14; (2) prey resistance > control in >= 10; (3) glow pick < blind in >= 10 OR hunter resistance > control in >= 10; (4) hunters per prey < 0.5 in every seed.
+| point | glow world (natG) | blind world (natB) |
+|---|---|---|
+| (1) works | 13 / 11 of 14: pass | 14 / 12: pass |
+| (2) prey resistance > control | 0.54 vs 0.15, 11 of 14 / 0.48 vs 0.21, 9 of 14: pass / MISS by one | 0.48, 12 / 0.54, 11: pass |
+| (3a) avoidance: glow pick < blind | 0.55 vs 0.49, 5 of 14 / 0.55 vs 0.61, 10 of 14: fail / pass | n/a |
+| (3b) hunter resistance > control | 0.29 vs 0.11, 9 of 14 / 0.19 vs 0.07, 12 of 14: MISS by one / pass | 0.18, 12 / 0.28, 13: pass |
+| (4) hunters per prey, worst seed | 0.28 / 0.31: pass | 0.35 / 0.37: pass |
+- The BLIND world passes all four points in both conditions: hunters that cannot see poison evolve resistance (the snake route).
+- The GLOW world misses one point in each condition by one seed (9 of 14 where 10 are needed): handed out, neither avoidance (5) nor hunter resistance (9) is strong enough; evolved, prey resistance is 9.
+- Resistance still rising at 200k (glow prey 0.10 / 0.18 / 0.29 / 0.36 / 0.54 at 10k / 30k / 60k / 100k / 200k): "too slow to show" for the glow misses.
+- Reading [not tested]: avoidance and resistance substitute for each other: hunters that dodge need less resistance, so in the glow world each route is half-strength.
+- My prediction ("(3) passes by resistance, not by avoidance") held for the blind world and the evolved glow world, not for the handed-out glow world.
