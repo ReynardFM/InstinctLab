@@ -517,3 +517,12 @@ Slow hunters (default), prey-like breeding, both eyes, dose 0.75 / cap 2, steady
 - Resistance still rising at 200k (glow prey 0.10 / 0.18 / 0.29 / 0.36 / 0.54 at 10k / 30k / 60k / 100k / 200k): "too slow to show" for the glow misses.
 - Reading [not tested]: avoidance and resistance substitute for each other: hunters that dodge need less resistance, so in the glow world each route is half-strength.
 - My prediction ("(3) passes by resistance, not by avoidance") held for the blind world and the evolved glow world, not for the handed-out glow world.
+
+## 2026-11-20: NATURE BAR, longer [PROOF, 14 x 400k, half threads] -> POISON SOLVED (by the nature bar)
+Same world as natG / nat0 (slow hunters, prey-like breeding, glow, dose 0.75 / cap 2, steady poison, resistGene 0.3), 400k. Handed out / evolved.
+- Replay check: the 200k marks equal the 200k proof exactly (prey 0.54 vs 0.15, 11 of 14; hunters 0.29 vs 0.11, 9 of 14; evolved 0.48 / 9, 0.19 / 12).
+- At 400k, glow world: (1) works 14 / 12 of 14 (control 14 / 14); (2) prey resistance 0.63 vs 0.16, higher in 12 of 14 / 0.56 vs 0.16, 12 of 14; (3b) hunter resistance 0.43 vs 0.08, 12 of 14 / 0.31 vs 0.08, 13 of 14; (4) hunters per prey, worst seed 0.29 / 0.28. ALL FOUR POINTS HOLD in both conditions. The blind world passed at 200k.
+- The two 200k misses were "too slow to show" (rule 7), not "broke".
+- Prey resistance by mark (handed out): 0.10 / 0.18 / 0.29 / 0.36 / 0.54 / 0.63; hunters 0.03 / 0.07 / 0.11 / 0.19 / 0.29 / 0.43; control stays 0.08-0.21.
+- Hunter resistance splits by world: 0.96 / 0.98 / 0.96 in three seeds, 0.06-0.12 in four (handed out). Like the garter-snake "mosaic": some places resist fully, others barely (Reimche et al. 2020).
+- Other numbers: hunters 21.0 / 15.6, prey 107 / 110, pick 0.57 / 0.56, poisoned share of hunter deaths 0.56 / 0.64.
