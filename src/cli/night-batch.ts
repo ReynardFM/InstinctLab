@@ -58,6 +58,14 @@ const TESTS: Test[] = [
   ["natG-glow-resist-proof", "NATURE BAR: glow, gene 0.3, 14 x 200k [proof]", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2"]],
   ["natB-blind-resist-proof", "NATURE BAR: blind, same; pairs with natG [proof]", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0"]],
   ["nat0-glow-resist-nopoison-proof", "NATURE BAR: drift control, glow, gene 0.3, NO poison plants [proof]", [...PROOF, ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poison=0"]],
+  // (4b) Rey 2026-11-19 ("b": the longer glow test). Run alone with: node src/cli/night-batch.ts --only=nat4. The nature-bar glow world
+  //     and its no-poison control, same seeds, 400k instead of 200k (no new rule). At 200k the glow world missed by one seed twice:
+  //     hunter resistance > control 9 of 14 (handed out), prey resistance > control 9 of 14 (evolved), both still rising at the end
+  //     (rule 7: "too slow to show"). The blind twin is not rerun: avoidance (3a) was 5 of 14 handed out, far from 10.
+  //     Prediction (low confidence): both misses reach >= 10 of 14 at 400k. Done: all four nature points hold in the glow world in both
+  //     conditions (3 by either route). Kill: either miss stays <= 9 of 14 (then the glow world's split between routes is real, not slow).
+  ["nat4G-glow-resist-400k", "NATURE BAR, longer: glow, gene 0.3, 14 x 400k [proof]", ["--seeds=1-14", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2"]],
+  ["nat40-glow-resist-nopoison-400k", "NATURE BAR, longer: drift control, NO poison plants, 14 x 400k [proof]", ["--seeds=1-14", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poison=0"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
