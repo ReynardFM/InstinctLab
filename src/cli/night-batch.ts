@@ -77,6 +77,20 @@ const TESTS: Test[] = [
   ["path1B-blind-steady-400k", "PATH 1 (steady): blind twin of nat4G, gene 0.3, 14 x 400k [proof]", ["--seeds=1-14", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0"]],
   ["path2G-glow-ramp40-400k", "PATH 2 (stronger): glow, poison plants 23% -> 40% over 300k + 100k hold, gene 0.3, 6 x 400k [small test]", ["--seeds=1-6", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=300000", "--poisonPeak=0.4"]],
   ["path2B-blind-ramp40-400k", "PATH 2 (stronger): blind, same, 6 x 400k [small test]; pairs with path2G", ["--seeds=1-6", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=300000", "--poisonPeak=0.4"]],
+  // (4d) Rey 2026-11-20 ("all": why do real hunters dodge? two checks, both glow vs blind, 6 x 200k, baseline natG / natB seeds 1-6).
+  //     Run alone with: node src/cli/night-batch.ts --only=why. Measured first [seed 1, 30k, hunter log]: a sick catch carries the capped
+  //     dose 2 (median); 79% of hunters die within 1,000 ticks of one (39% after a clean catch). Arithmetic: dose 2 costs ~0.9 energy
+  //     (0.000625 x 2 x 721) = ~7 meals; skipping costs one more search gap (median 58, mean 113 ticks) = ~0.04-0.07 energy, half a meal.
+  //     So skipping pays 10-20x; the weak dodge is not about the price. Reading [not tested]: resistance is one dial and dodging needs
+  //     the brain to wire glow to turning, so evolution finds resistance first.
+  //     (b) SURVIVABLE LESSON: the most poison a hunter takes per catch 2 -> 0.5 (a sick catch ~1.8 meals, not ~7). Nature: predators
+  //     learn from mistakes they survive. Prediction (low confidence): no clear change (gentler poison never made hunters dodge before).
+  //     (c) OTHER FOOD: half the prey are a safe kind that never eats poison plants (safePrey 0.5). Prediction: little change, since 85%
+  //     of prey are clean already. Done (either): glow pick < blind in >= 5 of 6. Kill: <= 3 of 6.
+  ["whyCapG-glow-cap0.5", "(b) survivable lesson: glow, cap 0.5, gene 0.3, 6 x 200k [small test]", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=2", "--hunterDoseCap=0.5"]],
+  ["whyCapB-blind-cap0.5", "(b) survivable lesson: blind, same; pairs with whyCapG", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=0", "--hunterDoseCap=0.5"]],
+  ["whySafeG-glow-safe0.5", "(c) other food: glow, safePrey 0.5, cap 2, gene 0.3, 6 x 200k [small test]", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=2", "--hunterDoseCap=2", "--safePrey=0.5"]],
+  ["whySafeB-blind-safe0.5", "(c) other food: blind, same; pairs with whySafeG", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--resistGene=0.3", "--hunterCue=0", "--hunterDoseCap=2", "--safePrey=0.5"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];

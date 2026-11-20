@@ -646,3 +646,18 @@ test("hunterHangover: poison no longer raises hunger; after it wears off the han
   runTicks(a, 3000); runTicks(b, 3000);
   assert.deepEqual(a.eco.hunterPopHist, b.eco.hunterPopHist, "same seed, same run");
 });
+
+// rules.safePrey (Rey 2026-11-20, a check): a share of prey of a safe kind that never eats poison plants; the kind is inherited.
+test("safePrey: the safe kind never gets poisoned, its share stays near safePrey; off = one kind", () => {
+  const R = { ...BOTH_EYES, safePrey: 0.5 };
+  const w = createWorld(2, R);
+  assert.equal(w.creatures.filter((c) => c.safe).length, Math.round(0.5 * w.creatures.length), "half the founders are safe");
+  const ids = new Set(w.creatures.map((c) => c.id));
+  runTicks(w, 4000);
+  const safe = w.creatures.filter((c) => c.safe), share = safe.length / w.creatures.length;
+  assert.ok(safe.length > 0 && safe.every((c) => c.toxin === 0 && c.poisoned === 0), `safe prey alive: ${safe.length}, all clean`);
+  assert.ok(safe.some((c) => !ids.has(c.id)), "safe babies were born");
+  assert.ok(share > 0.25 && share < 0.75, `the share stays near half: ${share.toFixed(2)}`);
+  const off = createWorld(2, BOTH_EYES);
+  assert.ok(off.creatures.every((c) => !c.safe), "off: no safe kind");
+});

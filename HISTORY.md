@@ -526,3 +526,11 @@ Same world as natG / nat0 (slow hunters, prey-like breeding, glow, dose 0.75 / c
 - Prey resistance by mark (handed out): 0.10 / 0.18 / 0.29 / 0.36 / 0.54 / 0.63; hunters 0.03 / 0.07 / 0.11 / 0.19 / 0.29 / 0.43; control stays 0.08-0.21.
 - Hunter resistance splits by world: 0.96 / 0.98 / 0.96 in three seeds, 0.06-0.12 in four (handed out). Like the garter-snake "mosaic": some places resist fully, others barely (Reimche et al. 2020).
 - Other numbers: hunters 21.0 / 15.6, prey 107 / 110, pick 0.57 / 0.56, poisoned share of hunter deaths 0.56 / 0.64.
+
+## 2026-11-20 01:30: why do real hunters dodge? (Rey: "check why hunters dodge in the real world"; then "all")
+- Nature's reasons (sources in the chat): a survivable lesson to learn from (aposematism review, Mappes et al. 2005); inborn avoidance when the mistake kills (hand-reared motmots flee coral-snake rings); other food so skipping is cheap (hungry starlings eat toxic prey, Barnett 2007); a toxin budget, so dodging is partial (Skelhorn & Rowe 2007); a signal.
+- CORRECTION (mine): I first said our hunters have no other food; only ~15% of prey are sick (sick share 0.13-0.16), so 85% are clean food already.
+- Measured [seed 1, 30k, hunter log, nature-bar world]: 6.2% of catches sick; dose per sick catch median 2.0 (the cap); died within 500 / 1,000 / 2,000 ticks after a sick catch 49% / 79% / 92% vs 28% / 39% / 62% after a clean one; ticks between a hunter's catches median 58, mean 113.
+- Arithmetic: a dose-2 sick catch costs ~0.9 energy (~7 meals of 0.125); skipping costs one more search gap (~0.04-0.07 energy). Skipping pays 10-20x, so the weak dodge is not about the price. Reading [not tested]: resistance is one gene; dodging needs the brain to wire glow to turning.
+- Built safePrey (share of a safe prey kind that never eats poison plants). First version inherited the kind: the safe kind replaced all other prey in 4,000 ticks [seed 2] (so avoiding poison is a huge advantage for PREY); now each baby is safe with chance safePrey (share stays put). Off: fingerprints identical; test fails on the old code.
+- Queued under --only=why: (b) hunterDoseCap 0.5, (c) safePrey 0.5; glow vs blind, 6 x 200k each.

@@ -39,6 +39,7 @@ export interface Creature {
   poisoned: number; // poison eaten this generation
   resist: number; // ecosystem: poison resistance 0..1 (toxin.ts): trained by eating poison, partly inherited
   gut?: Gut; // rules.digest: its stomach (gut.ts), made on the first meal
+  safe?: boolean; // rules.safePrey: a prey of the "safe" kind, which never eats poison plants
   toxin: number; // ecosystem: poison level (toxin.ts): energy use x (1 + toxin), fading
   caught: number; // food maps on which a hunter caught it this generation
   alive: boolean;
@@ -128,4 +129,10 @@ export function hueDrift(id: number): number {
   h = Math.imul(h, 0xc2b2ae35);
   h ^= h >>> 16;
   return ((h >>> 0) / 4294967296) * 16 - 8;
+}
+
+// rules.safePrey: the first round(share x n) of a new group of prey are the safe kind (no random draw, so off changes nothing).
+export function markSafe(cs: Creature[], share: number): void {
+  const k = Math.round(share * cs.length);
+  for (let i = 0; i < cs.length; i++) cs[i].safe = i < k;
 }

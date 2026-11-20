@@ -12,7 +12,7 @@ export { inEcosystem } from "./mode.ts";
 export { POISON_HIT } from "./life.ts";
 import { H, W } from "./space.ts";
 import { prepareGrids, sense, type Grids } from "./senses.ts";
-import { genomeLength, newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
+import { markSafe, genomeLength, newCreature, newFood, newFoodLayout, type Creature, type Food } from "./creature.ts";
 import { SENSE_GENES } from "./genes.ts";
 import {
   addNewcomer, crownChampions, judgeBranches, maybeSplit, newFamily, protectNewcomers, recordFamilyStats,
@@ -73,6 +73,9 @@ export interface Rules {
   // The value is the upkeep as a SHARE of what the body burns (hunters: x hunterHunger; prey: x their top-speed burn 0.0017): 0.3 = a
   // fully resistant body burns 30% more. (Until 2026-11-11 23:00 it was a flat energy per tick; 0.0005 then = 0.3 now for prey, and it
   // was 80% of a slow hunter's hunger, which kept hunter resistance near 0.) 0 = off (no resistance)
+  safePrey: number; // ecosystem (Rey 2026-11-20, a check: "other food" for hunters): the share of prey that are of a SAFE kind, which never
+  // eats poison plants, so it is never sick. Each baby is safe with this chance (not inherited, so the share stays put, like a second
+  // species); founders / restarts: the first ones in the list. 0 = off: one kind of prey (as before)
   hunterEarlyBreed: number; // ecosystem (Rey 2026-11-13: "poison can help breed early but maybe die early"): a poisoned hunter has its baby
   // at lower energy: hunterBirth x (1 - this x harm), harm capped at 1. 0.3 = 30% lower at full poison. 0 = off
   hunterHangover: number; // ecosystem (Rey 2026-11-13: "debuff, like shutting off one sense after poison wears off"): above 0 = for
@@ -140,7 +143,7 @@ export const DEFAULT_RULES: Rules = {
   learnRate: 0, inheritLearned: 0.75, thinkCost: 0, learnCost: 0,
   forget: 0.002, relativeReward: 1, energyGate: 0, swapKinds: 0,
   hunters: 0, hunterSense: 1, hunterSpeed: 2, hunterBrains: 0, hunterPool: 12, hunterFrom: 1,
-  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, hunterBite: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
+  poisonDose: 1, poisonHalfLife: 500, poisonFrail: 0.25, hunterCue: 1, season: 0, seasonFarm: 2, poisonRamp: 0, poisonPeak: 0.9, hunterEarlyBreed: 0, hunterHangover: 0, safePrey: 0, hunterBite: 0, hunterPoisonHalfLife: 0, hunterIdle: 0, resistGene: 0, digest: 0, hunterLearn: 0.02,
   hunterDoseCap: 0, hunterResistGene: 0, hunterResistSlow: 0, genPreyToxin: 0, // off: no prey defence emerged (README 2026-10-26)
   // SLOW hunters are the default since 2026-11-11 (Rey: "hunter will default slow"): hunterHunger 0.000625 and hunterMeal 0.125, a quarter
   // of the old 0.0025 / 0.5 (tuned with food 120, README 2026-10-23). Same needed catch rate, a body's store lasts 4x longer, a baby
@@ -299,6 +302,7 @@ export function createWorld(seed: number, rules: Rules, start?: Genome | Genome[
     w.creatures.push(newCreature(w, genome, i, false, null));
     w.families.set(i, newFamily(i, genome, null, 1));
   }
+  if (rules.safePrey > 0) markSafe(w.creatures, rules.safePrey); // rules.safePrey: the first ones are the safe kind
   startLayout(w);
   return w;
 }

@@ -3,7 +3,7 @@
 import type { World } from "./world.ts"; // types only, no import at run time
 import type { Creature } from "./creature.ts";
 import type { Genome } from "./brain.ts";
-import { genomeLength, newCreature } from "./creature.ts";
+import { genomeLength, markSafe, newCreature } from "./creature.ts";
 import { inherited, mutate } from "./breed.ts";
 import { maybeSplit, newFamily, retire } from "./lineage.ts";
 import { live } from "./life.ts";
@@ -134,6 +134,9 @@ function makeChild(w: World, parent: Creature, genome: Genome, energy: number): 
   child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
   child.energy = energy;
   child.depth = parent.depth + 1;
+  // rules.safePrey: each baby is of the safe kind with chance safePrey, NOT inherited (inherited, the safe kind took over the whole prey
+  // population in 4,000 ticks [seed 2] and left nothing sick to dodge). So the share stays put, like a second prey species.
+  if (w.rules.safePrey > 0) child.safe = w.env.next() < w.rules.safePrey;
   if (w.rules.resistGene > 0) child.resist = babyResist(parent.resist, w.env.gauss()); // inborn resistance (toxin.ts)
   parent.children++;
   maybeSplit(w, child, true); // no branch trials here: there are no generations to judge them in
@@ -150,6 +153,7 @@ function rescue(w: World): void {
     w.families.set(id, newFamily(id, genome, null, w.tick, true));
     w.creatures.push(newCreature(w, genome, id, false, null));
   }
+  if (rules.safePrey > 0) markSafe(w.creatures.slice(-RESCUE), rules.safePrey); // rules.safePrey
   w.eco.rescues++;
 }
 
@@ -172,6 +176,7 @@ function restartPrey(w: World): void {
     c.depth = (best[k].depth ?? 0) + (i < best.length ? 0 : 1); // stats only: a restart doesn't reset the count
     w.creatures.push(c);
   }
+  if (rules.safePrey > 0) markSafe(w.creatures.slice(-RESCUE), rules.safePrey); // rules.safePrey
   w.eco.rescues++;
 }
 

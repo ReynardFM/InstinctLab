@@ -64,7 +64,7 @@ export function live(w: World, c: Creature, costFactor: number): void {
     w.eco.remainsEaten++;
     seen.food.readyAt = Infinity;
     eyeFoodChanged(w, seen.idx);
-  } else if (room && seen.food && seen.foodDist < 6) {
+  } else if (room && seen.food && seen.foodDist < 6 && !(c.safe && seen.food.poison)) { // rules.safePrey: the safe kind walks past poison
     reward = seen.food.poison ? -1 : 1;
     if (seen.food.poison) {
       c.poisoned++;
