@@ -11,6 +11,7 @@ import { ECO_BASE } from "./eco-lab.ts";
 import { ecoResultOf } from "./job.ts";
 import { ecoMetrics, WORKS_QUIET, type EcoMetrics } from "./eco-metrics.ts";
 import { margin } from "./stats.ts";
+import { baseShare } from "../engine/plants.ts";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { availableParallelism, setPriority, constants } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -146,7 +147,8 @@ if (isMainThread) {
     const winPick = (r: Result, mi: number) => { const a = r.marks[mi].sick, b = mi ? r.marks[mi - 1].sick : [0, 0, 0, 0]; const c = a[0] - b[0], n = a[3] - b[3], sh = a[2] - b[2]; return c > 0 && n > 0 && sh > 0 ? (a[1] - b[1]) / c / (sh / n) : NaN; };
     if ((WORLD.resistGene ?? 0) > 0 || RAMPED) {
       const at = (fn: (m: Mark) => number) => MARKS.map((_, mi) => f2(avg(R.map((r) => fn(r.marks[mi]))))).join(" / ");
-      if (RAMPED) console.log(`  ramp: poison share at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: ${MARKS.map((t) => f2((WORLD.poison ?? 0.3) + ((WORLD.poisonPeak ?? 0.9) - (WORLD.poison ?? 0.3)) * Math.min(1, t / (WORLD.poisonRamp as number)))).join(" / ")} | prey ${at((m) => m.prey)} | die-out rounds so far ${at((m) => m.rounds)}`);
+      const B0 = baseShare(createWorld(1, { ...DEFAULT_RULES, ...WORLD } as Rules)); // the ramp starts at the normal world's share (0.23), as plants.ts does (FIX 2026-11-20: the print started at rules.poison 0.30; the engine was right)
+      if (RAMPED) console.log(`  ramp: poison share at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: ${MARKS.map((t) => f2(B0 + ((WORLD.poisonPeak ?? 0.9) - B0) * Math.min(1, t / (WORLD.poisonRamp as number)))).join(" / ")} | prey ${at((m) => m.prey)} | die-out rounds so far ${at((m) => m.rounds)}`);
       console.log(`  hunters by resistance at the end (low < 0.2 / high > 0.6, summed over seeds): ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hLow, 0)} / ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hHigh, 0)} of ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hunters, 0)}`);
       console.log(`  resistance at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: prey ${at((m) => m.pResist)}; hunters ${at((m) => m.hResist)}`);
     }

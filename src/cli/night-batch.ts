@@ -7,8 +7,8 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-process.env.LAB_PRIORITY = "normal"; // Rey 2026-11-20 01:38: "c" = 3/4 threads, normal priority for the --only=why batch. Testing rule: ask Rey before every batch
-const W = `--workers=${Math.max(1, Math.floor((availableParallelism() * 3) / 4))}`; // this batch (--only=why): 3/4 of the threads (Rey 2026-11-20 01:38)
+// Default: half the threads, low priority (LAB_PRIORITY unset). Testing rule 4: ask Rey before every batch. (Reset 2026-11-20 after the overnight --only=path,why,trade,hang batch, which ran at 3/4 threads, normal priority.)
+const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`;
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
 // DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
