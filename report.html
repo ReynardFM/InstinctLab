@@ -11,10 +11,11 @@
     --line: #c9d2cf; --panel: #fbfcf7; --field: #e7e2b6; --food: #fff8dc; --food-rim: #b9a24f; --poison: #6e2a5e;
     --hunter: #34405e; --accent: #2b5c9e; --pos: #2b5c9e; --neg: #b23a48; --note: #8a5a00;
     --prey: #3d7a5c; --sick: #8e3b7a; --glow: rgba(214, 120, 200, 0.45);
+    --kept-bg: #dbe8dd; --kept: #2d5e44; --drop-bg: #f1dcdc; --mixed-bg: #f2e6c9;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bench); color: var(--text); font: 16px/1.55 "Recursive", system-ui, sans-serif; }
-  .page { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
   header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
   header p { color: var(--muted); max-width: 66ch; margin: 6px 0 0; }
   nav { margin: 24px 0 8px; background: var(--paper); border-radius: 6px; padding: 16px 20px; box-shadow: 0 0 0 1px rgba(30,43,48,0.08); }
@@ -25,16 +26,31 @@
   section { margin-top: 36px; background: var(--paper); border-radius: 6px; padding: 24px 24px 28px;
     background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 20px 20px; box-shadow: 0 0 0 1px rgba(30,43,48,0.08), 0 14px 30px -20px rgba(30,43,48,0.4); }
-  section.soon { background-image: none; color: var(--muted); padding: 14px 24px; }
-  section.soon h2 { font-size: 17px; margin: 0; }
-  h2 { font-size: 22px; margin: 0 0 4px; }
+  section.soon { background-image: none; color: var(--muted); padding: 16px 24px; }
+  section.soon h2 { font-size: 19px; margin: 0; color: var(--text); }
+  h2 { font-size: 24px; margin: 0 0 4px; }
+  h3 { font-size: 17px; margin: 22px 0 4px; }
   .kicker { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
   p, li { max-width: 72ch; }
   .like { border-left: 3px solid var(--note); padding: 2px 0 2px 12px; color: var(--note); font-style: italic; }
+  /* the chapter template: what we saw, Rey's call, what was built ... kept or dropped */
+  .story { display: grid; grid-template-columns: 140px 1fr; gap: 8px 18px; margin: 16px 0 0; }
+  .story dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 4px; }
+  .story dd { margin: 0; }
+  .story dd p { margin: 0 0 6px; }
+  .said { font-style: italic; }
+  .verdict { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; margin-right: 6px; }
+  .kept { background: var(--kept-bg); color: var(--kept); }
+  .dropped { background: var(--drop-bg); color: var(--neg); }
+  .mixed { background: var(--mixed-bg); color: var(--note); }
+  .side { border: 1px dashed var(--line); border-radius: 6px; padding: 10px 16px; margin-top: 16px; background: rgba(255,255,255,0.55); }
+  .side h4 { margin: 0 0 4px; font-size: 15px; }
+  .side p { margin: 4px 0; font-size: 15px; }
+  .fix { border-left: 3px solid var(--neg); padding: 2px 0 2px 12px; font-size: 15px; }
   canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--field); }
   .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
   .single { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-top: 14px; align-items: start; }
-  @media (max-width: 760px) { .duo, .single { grid-template-columns: 1fr; } nav ol { columns: 1; } }
+  @media (max-width: 760px) { .duo, .single { grid-template-columns: 1fr; } nav ol { columns: 1; } .story { grid-template-columns: 1fr; gap: 2px; } .story dd { margin-bottom: 8px; } section { padding: 18px 16px 22px; } }
   .cap { font-size: 14px; color: var(--muted); margin: 6px 2px 0; }
   .stats { font-size: 14px; font-variant-numeric: tabular-nums; margin: 6px 2px 0; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
@@ -43,9 +59,15 @@
   button:hover { border-color: var(--accent); }
   button.on { background: var(--accent); color: white; border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
+  .switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-right: 8px; }
+  .switch button { border: 0; border-radius: 0; padding: 6px 14px; }
+  .switch button + button { border-left: 1px solid var(--line); }
+  .wrap { overflow-x: auto; }
   table { border-collapse: collapse; margin: 12px 0; font-size: 15px; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 700; }
+  .timeline td:first-child, .timeline th:first-child { color: var(--muted); }
+  .timeline td { font-size: 14px; }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; color: var(--muted); margin-top: 8px; }
   .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
   footer { margin-top: 40px; color: var(--muted); font-size: 14px; }
@@ -55,37 +77,51 @@
 <div class="page">
 <header>
   <h1>Instinct Lab: how it was built</h1>
-  <p>A small world where creatures with tiny brains evolve. No one tells them what to do: they are scored, the best have
-  children, and over time they get better at staying alive. This report walks through the project one step at a time,
-  from a single brain to a living food chain. Each finished chapter runs the real simulation in your browser.</p>
+  <p>A small world where creatures with tiny brains evolve. No one tells them what to do. The ones that do well have
+  children, and over time they get better at staying alive. This report follows the project's major changes in order,
+  from a single brain to a food chain that adapts to poison. Each chapter says what we saw, what Rey decided, what was
+  built, how it was tested, and whether it stayed. The worlds on this page run the real simulation in your browser.</p>
   <p>By Rey Milson · work in progress, November 2026</p>
 </header>
 
 <nav>
   <ol>
-    <li><a href="#ch1">One creature's brain</a></li>
-    <li class="soon">Evolution: scores and children</li>
-    <li class="soon">Which senses are worth having</li>
-    <li class="soon">Poison food, and learning during life</li>
-    <li class="soon">Hunters arrive</li>
-    <li class="soon">A living world: no generations</li>
-    <li class="soon">A real eye</li>
-    <li><a href="#ch8">Poison up the food chain</a></li>
-    <li class="soon">Making it natural</li>
-    <li class="soon">Resistance, judged by nature</li>
+    <li><a href="#ch1">A brain that evolves</a></li>
+    <li><a href="#ch2">Hunters, and a world that runs itself</a></li>
+    <li><a href="#ch3">Poison, and a real eye</a></li>
+    <li><a href="#ch4">Hunters learn to dodge, but it doesn't pay</a></li>
+    <li><a href="#ch5">Making it natural</a></li>
+    <li class="soon">When poison keeps rising (coming)</li>
+    <li class="soon">Judged by nature (coming)</li>
+    <li><a href="#timeline">All 15 changes, in order</a></li>
   </ol>
 </nav>
 
+<!-- ============================================================ chapter 1 -->
 <section id="ch1">
-  <div class="kicker">Chapter 1</div>
-  <h2>One creature's brain</h2>
-  <p>Each creature has a tiny neural network. Every moment it reads four numbers about the world: where the nearest food is
-  (left or right, ahead or behind, how far) and how much energy it has left. Six middle neurons mix those numbers. Two
-  outputs decide what it does: how much to turn and how fast to move.</p>
-  <p>The brain is just 44 numbers: the strength of each connection. A creature is born with them and never changes them.
-  Nobody writes them by hand. At the start they are random, so creatures wander around blindly.</p>
+  <div class="kicker">Chapter 1 · October 16–18 · changes 1–4</div>
+  <h2>A brain that evolves</h2>
+  <dl class="story">
+    <dt>What we saw</dt>
+    <dd><p>The starting question: can a tiny brain learn to find food if no one writes the rules? Early on, a second problem
+    showed up: the scores were mostly luck. A creature's score on one food map agreed only 0.28 with its score on another
+    (1 would be a perfect match). In 500 generations, the best creature never stayed on top 5 generations in a row.</p></dd>
+    <dt>Rey's call</dt>
+    <dd><p>Build a world to watch evolution happen. Score every creature on three food maps, not one. And make every run
+    exactly repeatable: the same start must give the same world on any computer.</p></dd>
+    <dt>What was built</dt>
+    <dd><p>Each creature has a tiny neural network. It reads four numbers: where the nearest food is (left or right, ahead
+    or behind, how far) and how much energy it has left. Six middle neurons mix them. Two outputs decide how much to turn
+    and how fast to move. The whole brain is 44 numbers, the strength of each connection.</p>
+    <p>Evolution: the creatures that ate the most become parents. Their children get the same 44 numbers with small random
+    changes. The project also got its own math library, so every browser computes exactly the same bits.</p></dd>
+  </dl>
   <p class="like">Like a car with a steering wheel and a pedal, driven by a dice roll. Evolution keeps the drivers whose dice
-  happened to point at food.</p>
+  happened to point at food, and lets their children roll again.</p>
+  <div class="row">
+    <span class="switch" id="c1-switch"><button data-v="0" class="on">Before: random brains</button><button data-v="1">After: 20 generations of evolution</button></span>
+    <button id="c1-play">Pause</button>
+  </div>
   <div class="single">
     <div>
       <canvas id="c1-world" width="800" height="600"></canvas>
@@ -97,35 +133,165 @@
       <canvas id="c1-chart" width="520" height="140" style="background: var(--panel); margin-top: 10px"></canvas>
     </div>
   </div>
-  <div class="row">
-    <button id="c1-evolve">Evolve 20 generations</button>
-    <button id="c1-play">Pause</button>
-    <button id="c1-reset">Start over</button>
-  </div>
   <p class="stats" id="c1-status"></p>
-  <p>Each generation, every creature plays three food maps. The ones that ate the most become parents. Their children get
-  the same 44 numbers with small random changes (mutations). Press "Evolve" and watch the line climb: after a few dozen
-  generations the creatures turn toward food on their own.</p>
-  <table>
-    <tr><th>Who drives</th><th>Food eaten per map</th></tr>
-    <tr><td>A brain written by hand: "turn to the nearest food, full speed"</td><td>24.3</td></tr>
-    <tr><td>Evolved brains, after 100 generations</td><td>42 to 47</td></tr>
-  </table>
-  <p class="cap">7 seeds each, measured October 18–19, 2026 (the default world then, which already had some poison food).
-  The evolved brains beat the obvious hand-made rule by almost double. One likely reason, not proven: going full speed burns
-  energy, and evolved brains learn when to slow down.</p>
+  <dl class="story">
+    <dt>The test</dt>
+    <dd><p>Evolved brains against the obvious rule written by hand: "turn to the nearest food, full speed".</p>
+    <div class="wrap"><table>
+      <tr><th>Who drives</th><th>Food eaten per map</th></tr>
+      <tr><td>The rule written by hand</td><td>24.3</td></tr>
+      <tr><td>Evolved brains, after 100 generations</td><td>42 to 47</td></tr>
+    </table></div>
+    <p class="cap">7 worlds each, October 18–19, in the default world of the time (it already had some poison food).</p></dd>
+    <dt>What happened</dt>
+    <dd><p>Evolution beat the hand-written rule by almost double. One likely reason, not proven: full speed burns energy,
+    and evolved brains learn when to slow down. With three maps per generation, the best brains now stay on top long
+    enough to pass on what they have.</p></dd>
+    <dt>Kept or dropped</dt>
+    <dd><span class="verdict kept">Kept</span> All four are still the base of every later chapter.</dd>
+  </dl>
 </section>
 
-<section class="soon"><h2>2–7 · coming next</h2><p>Evolution, senses, poison and learning, hunters, a living world, a real eye.</p></section>
+<!-- ============================================================ chapter 2 -->
+<section id="ch2">
+  <div class="kicker">Chapter 2 · October 21–23 · changes 6–7</div>
+  <h2>Hunters, and a world that runs itself</h2>
+  <dl class="story">
+    <dt>What we saw</dt>
+    <dd><p>The prey had nothing to run from. Then, once hunters arrived, a deeper mismatch: in "generations", a judge ends
+    every round, scores everyone, and picks the parents. Nobody gets hungry and nobody has babies on their own. Rey had
+    pictured something else: a world like the game WorldBox, that runs by itself, where you watch the numbers of each
+    animal rise and fall.</p></dd>
+    <dt>Rey's call</dt>
+    <dd><p>First, hunters with brains, starting at 4, with a bigger gene pool (12 hunter brains instead of 4). Then, a
+    world with no judge.</p></dd>
+    <dt>What was built</dt>
+    <dd><p>The "living world": no generations. Every animal burns energy each moment. Eating refills it. A full animal has a
+    baby with a slightly changed brain. An empty or old animal dies. Plants have roots: an eaten plant grows back in the
+    same place. If one side dies out, it comes back from its best brains so far.</p></dd>
+  </dl>
+  <div class="row">
+    <span class="switch" id="c2-switch"><button data-v="0" class="on">Before: generations (a judge)</button><button data-v="1">After: a living world</button></span>
+  </div>
+  <div class="single">
+    <div><canvas id="c2-world" width="800" height="600"></canvas>
+      <p class="cap">Green = prey, navy arrows = hunters, yellow beads = plants.</p></div>
+    <div><canvas id="c2-chart" width="520" height="300" style="background: var(--panel)"></canvas>
+      <p class="stats" id="c2-stats"></p></div>
+  </div>
+  <div class="row">
+    <span class="cap" style="margin: 0 6px 0 0">Speed</span>
+    <button data-speed="c2" data-v="1">slow</button><button data-speed="c2" data-v="2" class="on">normal</button><button data-speed="c2" data-v="8">fast</button>
+    <button id="c2-skip">Skip 20,000 ticks</button><button id="c2-reset">Start over</button>
+    <span class="stats" id="c2-tick" style="margin-left: 8px"></span>
+  </div>
+  <dl class="story">
+    <dt>The test</dt>
+    <dd><p><b>Do both sides really evolve?</b> Brains frozen at generation 11 (early) and 131 (late) were played against each
+    other, in 14 worlds, 15 maps each.</p>
+    <div class="wrap"><table>
+      <tr><th></th><th>Against early prey</th><th>Against late prey</th></tr>
+      <tr><td>Early hunters catch</td><td>41%</td><td>–</td></tr>
+      <tr><td>Late hunters catch</td><td>87%</td><td>56%</td></tr>
+    </table></div>
+    <p><b>Does the living world last?</b> Plants that vanish when eaten: the world collapsed in every one of 14 (the prey
+    eat everything; no single prey gains by holding back). Plants with roots: 10 of 14 worlds kept going. Hunters and prey
+    both alive for a stretch of 20,000 ticks: 11 of 14 worlds, and 12 of 14 on 14 fresh ones.</p></dd>
+    <dt>What happened</dt>
+    <dd><p>An arms race. Late hunters are much better against early prey, and late prey are much better against early hunters.
+    The catch rate looked flat over time only because both sides improved together.</p>
+    <p class="like">Like locks and lock-pickers: both get better every year, so the number of break-ins stays about the same.</p></dd>
+    <dt>Kept or dropped</dt>
+    <dd><span class="verdict kept">Kept</span> The living world became the main world. Generations stay as a measuring tool.</dd>
+  </dl>
+</section>
 
-<section id="ch8">
-  <div class="kicker">Chapter 8</div>
-  <h2>Poison up the food chain</h2>
-  <p>Now the world runs on its own, with no generations: prey eat plants and have babies when they are full; hunters catch
-  prey and have babies too. Some plants are poisonous. A prey that eats one gets sick: everything costs it more energy, and
-  most die soon after. A hunter that catches a sick prey takes in all of its poison.</p>
-  <p>Can hunters learn to leave sick prey alone? Below are two copies of the same world, from the same start. The only
-  difference: on the left, hunters see a glow on sick prey. On the right, they are blind to it.</p>
+<!-- ============================================================ chapter 3 -->
+<section id="ch3">
+  <div class="kicker">Chapter 3 · October 19–31 · changes 5, 8, 10</div>
+  <h2>Poison, and a real eye</h2>
+  <dl class="story">
+    <dt>What we saw</dt>
+    <dd><p>Poison plants were a flat energy cost: eat one, lose a bit, move on. Rey wanted a real food chain, where poison
+    moves from plants to prey to hunters, and the young and old suffer most. Later, a second problem: the creatures'
+    senses were written by hand ("where is the nearest poison").</p></dd>
+    <dt>Rey's call</dt>
+    <dd><p>Poison that builds up in the body. Then the eye: <span class="said">"raw sense so they evolve their own smart sense"</span>.</p></dd>
+    <dt>What was built</dt>
+    <dd><p>A poison level in each body. It makes everything cost more energy and fades slowly (half every 500 ticks). A
+    hunter that catches a sick prey takes in all of its poison.</p>
+    <p>An all-around eye with four slices: ahead, right, behind, left. Each slice reports how much plant, poison plant,
+    other prey and hunter it sees; closer things count more. Each kind of seeing is switched on by a gene that costs a
+    little energy, so evolution decides which senses are worth having.</p></dd>
+  </dl>
+  <div class="row">
+    <span class="switch" id="c3-switch"><button data-v="0">Before: no poison</button><button data-v="1" class="on">After: poison</button></span>
+  </div>
+  <div class="single">
+    <div><canvas id="c3-world" width="800" height="600"></canvas>
+      <p class="cap">The ringed prey's eye is drawn as four slices. Purple squares are poison plants; purple prey are sick.</p></div>
+    <div><canvas id="c3-eye" width="520" height="240" style="background: var(--panel)"></canvas>
+      <p class="cap">What the ringed prey's eye reads right now. Darker = more of it, closer.</p>
+      <p class="stats" id="c3-stats"></p></div>
+  </div>
+  <div class="row">
+    <span class="cap" style="margin: 0 6px 0 0">Speed</span>
+    <button data-speed="c3" data-v="1">slow</button><button data-speed="c3" data-v="2" class="on">normal</button><button data-speed="c3" data-v="8">fast</button>
+    <button id="c3-skip">Skip 20,000 ticks</button><button id="c3-reset">Start over</button>
+    <span class="stats" id="c3-tick" style="margin-left: 8px"></span>
+  </div>
+  <dl class="story">
+    <dt>The test</dt>
+    <dd><p><b>Poison against no poison</b> (October 24): with poison, hunters died out 19 to 46 times per run; without it,
+    3 times. Hunters made immune to poison: balanced again. So the poison inside the hunters was the cause.</p>
+    <p><b>Which senses did evolution keep?</b> 14 worlds × 130 generations. The control is a gene that switches on nothing.</p>
+    <div class="wrap"><table>
+      <tr><th>Sense</th><th>Creatures with it on, at the end</th><th>Beat the control by a lot</th></tr>
+      <tr><td>Poison plants</td><td>92%</td><td>13 of 14 worlds</td></tr>
+      <tr><td>Hunters</td><td>84%</td><td>12 of 14 worlds</td></tr>
+      <tr><td>Other prey</td><td>2%</td><td>–</td></tr>
+      <tr><td>Control (does nothing)</td><td>38%</td><td>–</td></tr>
+    </table></div>
+    <p class="cap">"A lot" = more than 20 points above the control. In the living world (200,000 ticks) the same genes were
+    slower: poison 7 of 14 and still rising, hunters 3 of 14.</p></dd>
+    <dt>What happened</dt>
+    <dd><p>Poison tipped the balance to the prey. The top of the food chain got the whole dose, again and again.</p>
+    <p class="like">Like DDT and eagles: the insects get a little, the fish more, the eagle the most.</p>
+    <p>Evolution kept the senses that tell something new <em>and</em> have a move to go with it: see poison, steer away;
+    see a hunter, run. It dropped the sense with no move attached.</p></dd>
+    <dt>Kept or dropped</dt>
+    <dd><span class="verdict kept">Kept</span> Poison and the eye. <span class="verdict dropped">Dropped</span> Resistance
+    trained by eating poison: it stayed near zero (0.00 to 0.06), so it was switched off.</dd>
+  </dl>
+  <div class="side">
+    <h4>Side box: learning during life (October 19)</h4>
+    <p>Could brains also learn while they live, not only between generations? At first learning made scores worse: the
+    connections kept growing. Rey asked for "both fixes", plus "learn less when hungry". Forgetting fixed the harm, but
+    learning still gave no gain. <span class="verdict mixed">Kept, off</span></p>
+  </div>
+  <div class="side">
+    <h4>Side box: a game (October 26–30)</h4>
+    <p>The project tried a play page with cards and terrain. Rey's verdict: <span class="said">"the logic is there but not the
+    fun"</span>. It was dropped on October 30 and the work went back to the lab. <span class="verdict dropped">Dropped</span></p>
+  </div>
+</section>
+
+<!-- ============================================================ chapter 4 -->
+<section id="ch4">
+  <div class="kicker">Chapter 4 · November 3–11 · changes 11–12</div>
+  <h2>Hunters learn to dodge, but it doesn't pay</h2>
+  <dl class="story">
+    <dt>What we saw</dt>
+    <dd><p>Hunters were dying of poison. They could only tell a sick prey by its speed (poison slows prey down), and that clue
+    was weak: in some worlds healthy prey moved just as slowly by choice. There was also no clear way to say whether
+    hunters had "adapted".</p></dd>
+    <dt>Rey's call</dt>
+    <dd><p>A fair bar: compare against a control, over 14 worlds. Hunters must catch fewer sick prey <em>and</em> end up more
+    numerous, in at least 10 of 14. Then a clearer clue: <span class="said">"glow then scent"</span>.</p></dd>
+    <dt>What was built</dt>
+    <dd><p>A glow: sick prey glow, and the hunters' eye can see it. The control is the same world with blind hunters.
+    (Scent was built too; it did worse and was later deleted.)</p></dd>
+  </dl>
   <div class="legend">
     <span><span class="dot" style="background: var(--prey)"></span>prey</span>
     <span><span class="dot" style="background: var(--sick)"></span>sick prey</span>
@@ -135,41 +301,144 @@
     <span><span class="dot" style="background: var(--poison); border-radius: 1px"></span>poison plant</span>
   </div>
   <div class="duo">
-    <div><canvas id="c8-glow" width="800" height="600"></canvas><p class="cap"><b>Glow:</b> hunters can see who is sick</p><p class="stats" id="c8-g-stats"></p></div>
-    <div><canvas id="c8-blind" width="800" height="600"></canvas><p class="cap"><b>Blind:</b> hunters can't tell</p><p class="stats" id="c8-b-stats"></p></div>
+    <div><canvas id="c4-glow" width="800" height="600"></canvas><p class="cap"><b>After · glow:</b> hunters can see who is sick</p><p class="stats" id="c4-g-stats"></p></div>
+    <div><canvas id="c4-blind" width="800" height="600"></canvas><p class="cap"><b>Before · blind:</b> hunters can't tell</p><p class="stats" id="c4-b-stats"></p></div>
   </div>
   <div class="row">
     <span class="cap" style="margin: 0 6px 0 0">Speed</span>
-    <button data-c8speed="1">slow</button><button data-c8speed="2" class="on">normal</button><button data-c8speed="8">fast</button>
-    <button id="c8-skip">Skip 20,000 ticks</button>
-    <button id="c8-reset">Start over</button>
-    <span class="stats" id="c8-tick" style="margin-left: 8px"></span>
+    <button data-speed="c4" data-v="1">slow</button><button data-speed="c4" data-v="2" class="on">normal</button><button data-speed="c4" data-v="8">fast</button>
+    <button id="c4-skip">Skip 20,000 ticks</button><button id="c4-reset">Start over</button>
+    <span class="stats" id="c4-tick" style="margin-left: 8px"></span>
   </div>
-  <p><b>"Pick"</b> measures how choosy hunters are. It is the share of sick prey among their catches, divided by the share of
-  sick prey alive. 1 means they catch sick prey exactly as often as chance. Below 1 means they avoid them. It needs a few
+  <p><b>"Pick"</b> measures how choosy hunters are: the share of sick prey among their catches, divided by the share of sick
+  prey alive. 1 means they catch sick prey exactly as often as chance. Below 1 means they avoid them. It needs a few
   thousand ticks to settle.</p>
-  <p>What we found, over 14 different worlds of 200,000 ticks each:</p>
-  <table>
-    <tr><th></th><th>Glow</th><th>Blind</th><th>Glow better in</th></tr>
-    <tr><td>Pick (lower = avoids sick prey)</td><td>0.52</td><td>0.64</td><td>11 of 14 worlds</td></tr>
-    <tr><td>Hunters alive</td><td>27.8</td><td>27.5</td><td>7 of 14 worlds</td></tr>
-    <tr><td>Prey alive</td><td>81</td><td>86</td><td></td></tr>
-  </table>
-  <p class="cap">Measured November 8, 2026 (fast hunters, full poison). In a longer test (6 worlds, 400,000 ticks, twice the
-  food) the gap kept growing: 0.43 against 0.57 in the last stretch. The two live worlds above are just one of those 14, so
-  their numbers can differ a lot from these averages; that is why every result here uses 14 worlds.</p>
-  <p><b>So the hunters with glow learned to dodge. But they did not end up more numerous.</b> A better hunter eats more of
-  the healthy prey, so there are fewer prey left, so hunters go hungry again. The gain shows up as more hunters for each
-  prey, not as more hunters.</p>
-  <p class="like">Like a fisherman who learns to skip the bad fish. He catches more good ones, the lake empties faster, and
-  next year he eats about the same as before.</p>
-  <p>This puzzle drove the next chapters: why doesn't avoiding poison pay off, and what would nature do?</p>
+  <dl class="story">
+    <dt>The test</dt>
+    <dd><p>Glow against blind, 14 worlds of 200,000 ticks each:</p>
+    <div class="wrap"><table>
+      <tr><th></th><th>Glow</th><th>Blind</th><th>Glow better in</th></tr>
+      <tr><td>Pick (lower = avoids sick prey)</td><td>0.52</td><td>0.64</td><td>11 of 14 worlds</td></tr>
+      <tr><td>Hunters alive</td><td>27.8</td><td>27.5</td><td>7 of 14 worlds</td></tr>
+      <tr><td>Prey alive</td><td>81</td><td>86</td><td></td></tr>
+    </table></div>
+    <p class="cap">November 8, 2026. In a longer test (6 worlds, 400,000 ticks, twice the food) the gap kept growing: 0.43
+    against 0.57 in the last stretch. The two live worlds above are one of the 14, so their numbers can differ a lot from
+    these averages.</p></dd>
+    <dt>What happened</dt>
+    <dd><p>Hunters with glow learned to dodge sick prey, in 11 of 14 worlds, every time it was tested. But they did not end
+    up more numerous: the bar was never met (best: 9 of 14). A better hunter eats more of the healthy prey, so fewer prey
+    are left, so hunters go hungry again.</p>
+    <p class="like">Like a fisherman who learns to skip the bad fish. He catches more good ones, the lake empties faster, and
+    next year he eats about the same as before.</p></dd>
+    <dt>Kept or dropped</dt>
+    <dd><span class="verdict kept">Kept</span> The glow, as the clue for every later test. The bar itself was replaced in chapter 7.</dd>
+  </dl>
+  <div class="side">
+    <h4>Side box: the balancers (November 9–11)</h4>
+    <p>If dodging doesn't pay, maybe the world needs a nudge. Each idea was tested against blind hunters on the same worlds:</p>
+    <div class="wrap"><table>
+      <tr><th>Idea</th><th>Result</th></tr>
+      <tr><td>Seasons with "extreme swings" of poison</td><td>The world broke: works in 0 of 14</td></tr>
+      <tr><td>A weaker or stronger poison ("find the sweet spot")</td><td>No dose fixes it</td></tr>
+      <tr><td>Cheap waiting (resting hunters burn less)</td><td>Passed the small test, failed the proof</td></tr>
+      <tr><td>A brain that learns during life</td><td>Failed</td></tr>
+      <tr><td>A stomach (food digests slowly)</td><td>A small effect</td></tr>
+    </table></div>
+    <p><span class="verdict dropped">Mostly dropped</span> None passed the bar.</p>
+  </div>
 </section>
 
-<section class="soon"><h2>9–10 · coming next</h2><p>Making the world natural (the energy pyramid), and resistance: judging the poison challenge the way nature would.</p></section>
+<!-- ============================================================ chapter 5 -->
+<section id="ch5">
+  <div class="kicker">Chapter 5 · November 11 · change 13</div>
+  <h2>Making it natural</h2>
+  <dl class="story">
+    <dt>What we saw</dt>
+    <dd><p>Rey: <span class="said">"creatures die too fast"</span>. Measured: a hunter caught 2 prey in its whole life (the
+    middle value) and died after about 400 ticks. A prey lived about 380 ticks and ate 2 meals. Life was short and jumpy,
+    and hunters often died out.</p></dd>
+    <dt>Rey's call</dt>
+    <dd><p>Slow down how fast bodies use energy, and check the world against nature's food pyramid. Then:
+    <span class="said">"hunter will default slow"</span>.</p></dd>
+    <dt>What was built</dt>
+    <dd><p>Slow hunters: they burn energy 4 times slower, and each catch gives 4 times less. They need the same number of
+    catches over time, but a full body now lasts 4 times longer.</p></dd>
+  </dl>
+  <div class="duo">
+    <div><canvas id="c5-fast" width="800" height="600"></canvas><p class="cap"><b>Before · fast hunters</b></p><p class="stats" id="c5-f-stats"></p></div>
+    <div><canvas id="c5-slow" width="800" height="600"></canvas><p class="cap"><b>After · slow hunters</b></p><p class="stats" id="c5-s-stats"></p></div>
+  </div>
+  <div class="row">
+    <span class="cap" style="margin: 0 6px 0 0">Speed</span>
+    <button data-speed="c5" data-v="1">slow</button><button data-speed="c5" data-v="2" class="on">normal</button><button data-speed="c5" data-v="8">fast</button>
+    <button id="c5-skip">Skip 20,000 ticks</button><button id="c5-reset">Start over</button>
+    <span class="stats" id="c5-tick" style="margin-left: 8px"></span>
+  </div>
+  <p class="cap">Both worlds: hunters see the glow, poison is on, same start. "Die-outs" counts how often the hunters all died.</p>
+  <dl class="story">
+    <dt>The test</dt>
+    <dd><p>The old proofs rerun with slow hunters, same 14 worlds, 200,000 ticks each:</p>
+    <div class="wrap"><table>
+      <tr><th></th><th>Fast hunters</th><th>Slow hunters</th></tr>
+      <tr><td>Hunter die-outs per run</td><td>5.7</td><td>1.6</td></tr>
+      <tr><td>Hunters per prey</td><td>0.36</td><td>0.19</td></tr>
+      <tr><td>Prey alive</td><td>81</td><td>119</td></tr>
+      <tr><td>World works (no die-out at the end)</td><td>14 of 14</td><td>13 of 14</td></tr>
+      <tr><td>Hunter deaths with poison in them</td><td>32%</td><td>69%</td></tr>
+    </table></div>
+    <p class="cap">Glow, full poison, senses handed out. With senses left to evolve the die-outs fell more: 14.5 to 3.1.</p>
+    <p><b>Against nature:</b> about 10% of the energy in one level of a food chain reaches the next, and big meat-eaters
+    need about 111 kg of prey per kg of their own body (Carbone &amp; Gittleman, <i>Science</i>, 2002).
+    The world went from 36 to 19 hunters per 100 prey: closer to nature, still far above it.</p></dd>
+    <dt>What happened</dt>
+    <dd><p>Hunter die-outs fell 3 to 7 times. The pyramid got a narrower top. Long-lived hunters collect more poison over a
+    lifetime, so more of them die with poison inside.</p>
+    <p class="like">Like a bear and a shrew. The shrew must eat every few hours or die; the bear eats big and can wait. Bears'
+    numbers swing much less.</p>
+    <p class="fix"><b>A correction.</b> We first read the results as "slow hunters dodge better". Wrong: blind slow hunters'
+    pick fell too (0.47 against 0.64), and blind hunters cannot see sickness. With fewer hunters per prey, a sick prey more
+    often dies by itself before anyone catches it. Only glow against blind counts, and with slow hunters that gap got
+    smaller (glow lower in 6 of 14).</p></dd>
+    <dt>Kept or dropped</dt>
+    <dd><span class="verdict kept">Kept</span> Slow hunters are the default since November 11.
+    <span class="verdict dropped">Dropped</span> Slow prey: prey lives in 12,000 ticks fell from 1,282 to 59 and the
+    hunters starved.</dd>
+  </dl>
+</section>
 
-<footer>Every number here comes from the project's test log. Each world is exactly repeatable: the same start gives the same
-result in any browser.</footer>
+<section class="soon"><div class="kicker">Chapter 6 · November 11–13 · change 14</div><h2>When poison keeps rising</h2>
+  <p>Resistance as a gene, poison that rises over time, and a hangover for hunters. Coming after tonight's results.</p></section>
+<section class="soon"><div class="kicker">Chapter 7 · November 19–20 · change 15</div><h2>Judged by nature</h2>
+  <p>A new bar, taken from how nature adapts to poison, and the final test at 400,000 ticks. Coming after tonight's results.</p></section>
+
+<!-- ============================================================ timeline -->
+<section id="timeline">
+  <div class="kicker">Timeline</div>
+  <h2>All 15 changes, in order</h2>
+  <div class="wrap"><table class="timeline">
+    <tr><th>#</th><th>Date</th><th>Change</th><th>What we saw</th><th>What happened</th><th>Kept?</th></tr>
+    <tr><td>1</td><td>Oct 16</td><td>A world to watch</td><td>Start: tiny brains in a browser</td><td>Creatures learn to find food by evolution alone</td><td>Kept</td></tr>
+    <tr><td>2</td><td>Oct 17</td><td>Fair scoring: 3 food maps per generation</td><td>Scores were mostly luck (one map agreed only 0.28 with another)</td><td>Three maps per generation became the default</td><td>Kept</td></tr>
+    <tr><td>3</td><td>Oct 17</td><td>Senses and families</td><td>Which senses help?</td><td>Neighbour sense on by default; families split by brain difference</td><td>Kept</td></tr>
+    <tr><td>4</td><td>Oct 18</td><td>Exact replay</td><td>The same start must give the same world anywhere</td><td>Every browser replays a run exactly</td><td>Kept</td></tr>
+    <tr><td>5</td><td>Oct 19</td><td>Poison food, learning during life</td><td>Learning made scores worse</td><td>Forgetting fixed the harm; learning still gave no gain</td><td>Kept, off</td></tr>
+    <tr><td>6</td><td>Oct 21–23</td><td>Hunters</td><td>Prey had nothing to flee</td><td>An arms race: late hunters caught 87% of early prey, 56% of late prey</td><td>Kept</td></tr>
+    <tr><td>7</td><td>Oct 23</td><td>A world that runs by itself</td><td>Generations were a judge, not a world</td><td>The living world; plants need roots</td><td>Kept</td></tr>
+    <tr><td>8</td><td>Oct 24–26</td><td>Poison up the food chain</td><td>"They just forget about poison"</td><td>Poison tipped the balance to prey; trained resistance never built up</td><td>Poison kept</td></tr>
+    <tr><td>9</td><td>Oct 26–30</td><td>Side trip: a game</td><td>"The logic is there but not the fun"</td><td>Back to the lab</td><td>Dropped</td></tr>
+    <tr><td>10</td><td>Oct 31</td><td>A raw eye</td><td>Senses written by hand</td><td>Evolution kept the poison and hunter senses</td><td>Kept</td></tr>
+    <tr><td>11</td><td>Nov 3–8</td><td>A fair bar, and the glow</td><td>No clear way to judge "adapted"</td><td>Glow hunters dodge (11 of 14) but don't end up more numerous</td><td>Kept</td></tr>
+    <tr><td>12</td><td>Nov 9–11</td><td>Balancers</td><td>Dodging doesn't pay</td><td>None passed; seasons broke the world</td><td>Mostly dropped</td></tr>
+    <tr><td>13</td><td>Nov 11</td><td>Slow hunters</td><td>"Creatures die too fast"</td><td>Die-outs 3–7× fewer; hunters per prey 0.36 to 0.19</td><td>New default</td></tr>
+    <tr><td>14</td><td>Nov 11–13</td><td>Resistance; rising poison; hangover</td><td>Poison kills before anyone adapts</td><td>Coming in chapter 6</td><td>Resistance kept</td></tr>
+    <tr><td>15</td><td>Nov 19–20</td><td>Judged by nature</td><td>The bar asked for more hunters; nature doesn't work that way</td><td>Coming in chapter 7</td><td>Poison solved</td></tr>
+  </table></div>
+</section>
+
+<footer>Every number here comes from the project's test log. Unless a chapter says otherwise, "14 worlds" means 14
+different starting seeds, each compared with its own control on the same seed. Rey's words in quotes are copied from the
+log. Each world is exactly repeatable: the same start gives the same result in any browser.</footer>
 </div>
 <script src="dist/report.js"></script>
 </body>

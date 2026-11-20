@@ -1,9 +1,11 @@
-// The project report (Rey 2026-11-19: "make it progressive: a report of how we did it, from the brain's activity to the end").
-// One page, one chapter per step of the project; each built chapter runs the real engine live in the browser. It reads the
-// worlds and never changes how they evolve. Built chapters so far: 1 (one creature's brain) and 8 (poison up the food chain).
+// The project report (Rey 2026-11-19: "make it progressive: a report of how we did it, from the brain's activity to the end";
+// 2026-11-20: one chapter per major change, short version of 7 chapters + the 15-change timeline). One page; each built chapter
+// runs the real engine live in the browser with a before / after switch for that chapter's change. It reads the worlds and never
+// changes how they evolve. Built: chapters 1-5. Chapters 6-7 wait for the overnight results (2026-11-20).
+// Each chapter runs the rules of its time (results before 2026-11-11 used fast hunters), so its live world matches its numbers.
 import { createWorld, step, DEFAULT_RULES, W, H, type Creature, type Rules, type World } from "../engine/world.ts";
 import { OUT } from "../engine/brain.ts";
-import { inputLabels } from "../engine/senses.ts";
+import { inputLabels, EYE_R } from "../engine/senses.ts";
 import { SICK } from "../engine/toxin.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -15,6 +17,14 @@ const C = {
 };
 const FONT = '"Recursive", system-ui, sans-serif';
 const fmt = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "–");
+
+// The rules of each era. FAST = the hunter energy rules before 2026-11-11 (now the slow ones are the engine default).
+const FAST = { hunterHunger: 0.0025, hunterMeal: 0.5 };
+const SLOW = { hunterHunger: 0.000625, hunterMeal: 0.125 };
+// The living world (ecosystem mode) as tested: plants with roots, 4 hunters to start.
+const LIFE: Partial<Rules> = { mode: 1, hunters: 4, food: 60, foodSpread: 0.0005, regrow: 100, ecoWarmup: 0, birth: 0, senseFood2: 1, senseCreature: 1 };
+// The poison proofs from 2026-11-08 on: both eyes, hunters breed like prey, full poison.
+const PROOF: Partial<Rules> = { ...LIFE, poison: 0.3, eye: 4, hunterEye: 4, eyeMotion: 1, hunterMature: 0, hunterBirth: 1.2, hunterBirthChance: 1 };
 
 // --- drawing a world -------------------------------------------------------------------------------------------------
 function drawWorld(cx: CanvasRenderingContext2D, w: World, opts: { glow: boolean; follow?: Creature | null }): void {
@@ -89,8 +99,65 @@ function whenVisible(el: HTMLElement, on: (v: boolean) => void): void {
   }
 }
 
-// --- chapter 1: one creature's brain ---------------------------------------------------------------------------------
-// Generations mode, the basic world: 40 creatures, food only, 4 senses, 6 middle neurons, 2 outputs.
+// A before / after switch: buttons with data-v inside #id; calls back with the chosen value.
+function switcher(id: string, on: (v: number) => void): void {
+  const bs = $(id).querySelectorAll<HTMLButtonElement>("button");
+  bs.forEach((b) => (b.onclick = () => {
+    bs.forEach((x) => x.classList.toggle("on", x === b));
+    on(Number(b.dataset.v));
+  }));
+}
+
+const hunterDieOuts = (w: World) => w.eco.rounds.filter((r) => r.died !== "prey").length;
+const alivePrey = (w: World) => { let n = 0; for (const c of w.creatures) if (c.alive) n++; return n; };
+const sickShare = (w: World) => { let n = 0, s = 0; for (const c of w.creatures) if (c.alive) { n++; if (c.toxin > SICK) s++; } return n ? s / n : 0; };
+const pickSoFar = (w: World) => {
+  const k = w.eco.sick;
+  return k.caught && k.samples ? (k.caughtSick / k.caught) / (k.sickShare / k.samples) : NaN;
+};
+
+// --- a live chapter with one or more worlds ---------------------------------------------------------------------------
+// Controls by convention: [data-speed=p] buttons, #p-skip, #p-reset, #p-tick. All worlds start from seed 1 and step together.
+interface SideSpec { rules: Rules; canvas: string; glow: boolean; stats?: string; text?: (w: World) => string }
+interface Side extends SideSpec { w: World; cx: CanvasRenderingContext2D }
+function live(section: string, p: string, build: () => SideSpec[], after?: (sides: Side[]) => void): { restart: () => void } {
+  let sides: Side[] = [];
+  let speed = 2, visible = false, skipTo = 0;
+  const restart = () => {
+    sides = build().map((s) => ({ ...s, w: createWorld(1, s.rules), cx: $<HTMLCanvasElement>(s.canvas).getContext("2d")! }));
+    skipTo = 0;
+  };
+  restart();
+  const speedBtns = document.querySelectorAll<HTMLButtonElement>(`[data-speed="${p}"]`);
+  speedBtns.forEach((b) => (b.onclick = () => {
+    speed = Number(b.dataset.v);
+    speedBtns.forEach((x) => x.classList.toggle("on", x === b));
+  }));
+  $<HTMLButtonElement>(`${p}-skip`).onclick = () => { if (!skipTo) skipTo = sides[0].w.tick + 20000; };
+  $<HTMLButtonElement>(`${p}-reset`).onclick = restart;
+  whenVisible($(section), (v) => (visible = v));
+  const frame = () => {
+    requestAnimationFrame(frame);
+    if (!visible) return;
+    if (skipTo) {
+      const t0 = performance.now();
+      while (performance.now() - t0 < 16 && sides[0].w.tick < skipTo) for (const s of sides) step(s.w);
+      if (sides[0].w.tick >= skipTo) skipTo = 0;
+    } else for (let i = 0; i < speed; i++) for (const s of sides) step(s.w);
+    for (const s of sides) {
+      drawWorld(s.cx, s.w, { glow: s.glow });
+      if (s.stats && s.text) $(s.stats).textContent = s.text(s.w);
+    }
+    after?.(sides);
+    $(`${p}-tick`).textContent = skipTo ? `Skipping ahead… tick ${sides[0].w.tick} of ${skipTo}` : `Tick ${sides[0].w.tick}`;
+  };
+  requestAnimationFrame(frame);
+  return { restart };
+}
+
+// --- chapter 1: a brain that evolves ---------------------------------------------------------------------------------
+// Generations mode, the basic world: 40 creatures, food only, 4 senses, 6 middle neurons, 2 outputs (44 weights), 3 maps.
+// Switch: before = random brains (generation 0); after = 20 generations of evolution, run fast, then watched.
 function chapterBrain(): void {
   const rules: Rules = { ...DEFAULT_RULES, poison: 0, senseCreature: 0, senseFood2: 0, hunters: 0 };
   const wcx = $<HTMLCanvasElement>("c1-world").getContext("2d")!;
@@ -105,10 +172,9 @@ function chapterBrain(): void {
     for (const c of w.creatures) if (c.alive && (!best || c.eaten > best.eaten)) best = c;
     return best;
   };
-  const evolveBtn = $<HTMLButtonElement>("c1-evolve"), playBtn = $<HTMLButtonElement>("c1-play"), status = $("c1-status");
-  evolveBtn.onclick = () => { if (!evolveLeft) evolveLeft = 20; };
+  const playBtn = $<HTMLButtonElement>("c1-play"), status = $("c1-status");
+  switcher("c1-switch", (v) => { w = createWorld(1, rules); follow = null; evolveLeft = v ? 20 : 0; });
   playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? "Pause" : "Play"; };
-  $<HTMLButtonElement>("c1-reset").onclick = () => { w = createWorld(1, rules); follow = null; evolveLeft = 0; };
   whenVisible($("ch1"), (v) => (visible = v));
 
   const frame = () => {
@@ -133,8 +199,7 @@ function chapterBrain(): void {
     status.textContent = evolveLeft > 0
       ? `Evolving… generation ${w.generation} (${evolveLeft} to go)`
       : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${w.tick} of ${rules.genTicks}` +
-        (w.avgHist.length ? ` · last generation ate ${fmt(last, 1)} pellets per map on average` : "");
-    evolveBtn.disabled = evolveLeft > 0;
+        (w.avgHist.length ? ` · last generation ate ${fmt(last, 1)} pellets per map on average` : " · random brains, no evolution yet");
   };
   requestAnimationFrame(frame);
 }
@@ -150,7 +215,6 @@ function drawBrain(cx: CanvasRenderingContext2D, c: Creature | null, labels: str
   const g = c.w;
   const col = (x: number) => [150, BW / 2, BW - 110][x];
   const yOf = (i: number, k: number) => 30 + ((BH - 60) * (i + 0.5)) / k;
-  // connections
   let k = 0;
   for (let h = 0; h < nh; h++) {
     for (let i = 0; i < n; i++) line(col(0), yOf(i, n), col(1), yOf(h, nh), g[k++]);
@@ -210,7 +274,7 @@ function drawBrain(cx: CanvasRenderingContext2D, c: Creature | null, labels: str
 }
 
 // Food eaten per map, average of each generation.
-function drawScores(cx: CanvasRenderingContext2D, w: World): void {
+function drawScores(cx: CanvasRenderingContext2D, w: World, title = "food eaten per map, average of each generation"): void {
   const CW = cx.canvas.width, CH = cx.canvas.height;
   cx.fillStyle = C.panel;
   cx.fillRect(0, 0, CW, CH);
@@ -219,7 +283,7 @@ function drawScores(cx: CanvasRenderingContext2D, w: World): void {
   cx.fillStyle = C.muted;
   cx.textAlign = "left";
   cx.textBaseline = "top";
-  cx.fillText("food eaten per map, average of each generation", 8, 6);
+  cx.fillText(title, 8, 6);
   if (ys.length < 2) return;
   const top = Math.max(10, ...ys) * 1.1;
   cx.beginPath();
@@ -235,53 +299,175 @@ function drawScores(cx: CanvasRenderingContext2D, w: World): void {
   cx.fillText(fmt(ys[ys.length - 1], 1), CW - 8, 6);
 }
 
-// --- chapter 8: poison up the food chain -----------------------------------------------------------------------------
-// Two life worlds, same seed, one difference: hunters see a glow on sick prey (left) or see nothing (right). The rules are
-// the proof of 2026-11-08 (gS3 / bS3): fast hunters (hunger 0.0025, meal 0.5, the defaults then), prey-like hunter breeding,
-// both eyes, full poison (dose 1).
-function chapterPoison(): void {
-  const base: Rules = {
-    ...DEFAULT_RULES, mode: 1, hunters: 4, food: 60, foodSpread: 0.0005, regrow: 100, poison: 0.3, eye: 4, ecoWarmup: 0, birth: 0,
-    senseFood2: 1, senseCreature: 1, hunterEye: 4, eyeMotion: 1, hunterMature: 0, hunterBirth: 1.2, hunterBirthChance: 1,
-    hunterHunger: 0.0025, hunterMeal: 0.5,
+// Prey and hunters alive over time (the last 30,000 ticks of samples), one shared scale.
+function drawPops(cx: CanvasRenderingContext2D, w: World): void {
+  const CW = cx.canvas.width, CH = cx.canvas.height;
+  cx.fillStyle = C.panel;
+  cx.fillRect(0, 0, CW, CH);
+  const N = 300;
+  const prey = w.eco.popHist.slice(-N), hunt = w.eco.hunterPopHist.slice(-N);
+  cx.font = `12px ${FONT}`;
+  cx.textAlign = "left";
+  cx.textBaseline = "top";
+  cx.fillStyle = C.muted;
+  cx.fillText("animals alive over time (last 30,000 ticks)", 8, 6);
+  if (prey.length < 2) return;
+  const top = Math.max(10, ...prey, ...hunt) * 1.1;
+  const plot = (ys: number[], col: string) => {
+    cx.beginPath();
+    ys.forEach((y, i) => {
+      const x = 8 + ((CW - 16) * i) / (N - 1), yy = CH - 10 - ((CH - 40) * y) / top;
+      if (i) cx.lineTo(x, yy); else cx.moveTo(x, yy);
+    });
+    cx.strokeStyle = col;
+    cx.lineWidth = 2;
+    cx.stroke();
   };
-  const sides = [
-    { id: "g", cue: 2, cx: $<HTMLCanvasElement>("c8-glow").getContext("2d")!, w: null as World | null },
-    { id: "b", cue: 0, cx: $<HTMLCanvasElement>("c8-blind").getContext("2d")!, w: null as World | null },
-  ];
-  const reset = () => { for (const s of sides) s.w = createWorld(1, { ...base, hunterCue: s.cue }); };
-  reset();
-  let speed = 2, visible = false, skipTo = 0;
-  const speedBtns = document.querySelectorAll<HTMLButtonElement>("[data-c8speed]");
-  speedBtns.forEach((b) => (b.onclick = () => {
-    speed = Number(b.dataset.c8speed);
-    speedBtns.forEach((x) => x.classList.toggle("on", x === b));
-  }));
-  $<HTMLButtonElement>("c8-skip").onclick = () => { if (!skipTo) skipTo = sides[0].w!.tick + 20000; };
-  $<HTMLButtonElement>("c8-reset").onclick = () => { reset(); skipTo = 0; };
-  whenVisible($("ch8"), (v) => (visible = v));
-  const frame = () => {
-    requestAnimationFrame(frame);
-    if (!visible) return;
-    if (skipTo) {
-      const t0 = performance.now();
-      while (performance.now() - t0 < 16 && sides[0].w!.tick < skipTo) for (const s of sides) step(s.w!);
-      if (sides[0].w!.tick >= skipTo) skipTo = 0;
-    } else for (let i = 0; i < speed; i++) for (const s of sides) step(s.w!);
-    for (const s of sides) {
-      const w = s.w!;
-      drawWorld(s.cx, w, { glow: s.cue === 2 });
-      const k = w.eco.sick;
-      const sickNow = w.creatures.length ? w.creatures.filter((c) => c.alive && c.toxin > SICK).length / w.creatures.length : 0;
-      const pick = k.caught && k.samples ? (k.caughtSick / k.caught) / (k.sickShare / k.samples) : NaN;
-      $(`c8-${s.id}-stats`).textContent =
-        `prey ${w.creatures.length} · hunters ${w.hunters.length} · sick now ${Math.round(sickNow * 100)}% · ` +
-        `catches ${k.caught} · pick so far ${fmt(pick)}`;
+  plot(prey, C.prey);
+  plot(hunt, C.hunter);
+  cx.textAlign = "right";
+  cx.fillStyle = C.prey;
+  cx.fillText(`prey ${prey[prey.length - 1]}`, CW - 90, 6);
+  cx.fillStyle = C.hunter;
+  cx.fillText(`hunters ${hunt[hunt.length - 1] ?? 0}`, CW - 8, 6);
+}
+
+// --- chapter 2: hunters, and a world that runs itself ----------------------------------------------------------------
+// Before: generations mode with 4 evolving hunters (a judge ends each round); no poison. After: the living world as built on
+// 2026-10-23 (fast hunters, engine breeding, plants with roots), no poison.
+function chapterLife(): void {
+  let mode = 0;
+  const gens: Rules = { ...DEFAULT_RULES, poison: 0, hunters: 4, hunterBrains: 1 };
+  const life: Rules = { ...DEFAULT_RULES, ...LIFE, poison: 0, ...FAST };
+  const chart = $<HTMLCanvasElement>("c2-chart").getContext("2d")!;
+  const r = live("ch2", "c2", () => [{
+    rules: mode ? life : gens, canvas: "c2-world", glow: false, stats: "c2-stats",
+    text: (w) => mode
+      ? `prey ${alivePrey(w)} · hunters ${w.hunters.length} · hunter babies ${w.eco.hunterBirths} · hunter deaths ${w.eco.hunterDeaths} · hunters died out ${hunterDieOuts(w)}×`
+      : `generation ${w.generation}, round ${w.layout + 1} of ${gens.layouts}, tick ${w.tick} of ${gens.genTicks} · ` +
+        `hunters ${w.hunters.length}, always: they never get hungry and never have babies`,
+  }], (sides) => {
+    if (mode) drawPops(chart, sides[0].w);
+    else drawScores(chart, sides[0].w, "prey: food eaten per map, each generation (the judge's score)");
+  });
+  switcher("c2-switch", (v) => { mode = v; r.restart(); });
+}
+
+// --- chapter 3: poison, and a real eye --------------------------------------------------------------------------------
+// The living world of late October: fast hunters, engine breeding, hunters see prey speed (hunterCue 1, their old senses); prey
+// have the 4-slice eye. Switch: poison 0 vs 0.3. The ringed prey's eye slices are drawn on the world and read out in a grid.
+function chapterEye(): void {
+  let mode = 1;
+  const base: Rules = { ...DEFAULT_RULES, ...LIFE, eye: 4, ...FAST };
+  const eye = $<HTMLCanvasElement>("c3-eye").getContext("2d")!;
+  let follow: Creature | null = null;
+  const r = live("ch3", "c3", () => [{
+    rules: { ...base, poison: mode ? 0.3 : 0 }, canvas: "c3-world", glow: false, stats: "c3-stats",
+    text: (w) => `prey ${alivePrey(w)} · sick now ${Math.round(sickShare(w) * 100)}% · hunters ${w.hunters.length} · hunters died out ${hunterDieOuts(w)}×`,
+  }], (sides) => {
+    const s = sides[0];
+    if (!follow || !follow.alive || !s.w.creatures.includes(follow)) {
+      follow = null;
+      let best = Infinity;
+      for (const c of s.w.creatures) {
+        if (!c.alive) continue;
+        const d = (c.x - W / 2) ** 2 + (c.y - H / 2) ** 2;
+        if (d < best) { best = d; follow = c; }
+      }
     }
-    $("c8-tick").textContent = skipTo ? `Skipping ahead… tick ${sides[0].w!.tick} of ${skipTo}` : `Tick ${sides[0].w!.tick}`;
+    drawEye(s.cx, eye, follow);
+  });
+  switcher("c3-switch", (v) => { mode = v; follow = null; r.restart(); });
+}
+
+// Slice order in the engine's 4-slice eye (senses.ts eyeInto): 0 = right of the heading, 1 = behind, 2 = left, 3 = ahead.
+// Channels (EYE_CHANNELS): green, purple, creature, hunter; input index = channel x 4 + slice.
+const SLICE_ANGLE = [Math.PI / 2, Math.PI, -Math.PI / 2, 0];
+function drawEye(wcx: CanvasRenderingContext2D, cx: CanvasRenderingContext2D, c: Creature | null): void {
+  const CW = cx.canvas.width, CH = cx.canvas.height;
+  cx.fillStyle = C.panel;
+  cx.fillRect(0, 0, CW, CH);
+  if (!c || !c.alive) return;
+  const v = (ch: number, sl: number) => c.inputs[ch * 4 + sl] ?? 0;
+  // on the world: four wedges, tinted by how much poison each slice sees
+  for (let sl = 0; sl < 4; sl++) {
+    const mid = c.a + SLICE_ANGLE[sl];
+    wcx.beginPath();
+    wcx.moveTo(c.x, c.y);
+    wcx.arc(c.x, c.y, EYE_R, mid - Math.PI / 4, mid + Math.PI / 4);
+    wcx.closePath();
+    wcx.fillStyle = C.poison;
+    wcx.globalAlpha = 0.03 + Math.min(1, Math.sqrt(v(1, sl) / 10)) * 0.3; // sums run 0 to ~20: square root keeps small ones visible
+    wcx.fill();
+    wcx.globalAlpha = 0.5;
+    wcx.strokeStyle = C.accent;
+    wcx.lineWidth = 1;
+    wcx.stroke();
+    wcx.globalAlpha = 1;
+  }
+  wcx.beginPath();
+  wcx.arc(c.x, c.y, 14, 0, Math.PI * 2);
+  wcx.strokeStyle = C.accent;
+  wcx.lineWidth = 2.5;
+  wcx.stroke();
+  // the read-out grid: rows = what, columns = where
+  const rows = [["plants", C.rim], ["poison plants", C.poison], ["other prey", C.prey], ["hunters", C.hunter]];
+  const cols: [string, number][] = [["ahead", 3], ["right", 0], ["behind", 1], ["left", 2]];
+  const x0 = 130, y0 = 34, cw = (CW - x0 - 10) / 4, rh = (CH - y0 - 8) / 4;
+  cx.font = `13px ${FONT}`;
+  cx.textBaseline = "middle";
+  cx.textAlign = "center";
+  cx.fillStyle = C.muted;
+  cols.forEach(([name], j) => cx.fillText(name, x0 + cw * (j + 0.5), 16));
+  rows.forEach(([name, col], i) => {
+    cx.textAlign = "right";
+    cx.fillStyle = C.text;
+    cx.fillText(name, x0 - 10, y0 + rh * (i + 0.5));
+    cols.forEach(([, sl], j) => {
+      const val = v(i, sl);
+      const x = x0 + cw * j + 3, y = y0 + rh * i + 3;
+      cx.fillStyle = col;
+      const al = 0.06 + Math.min(1, Math.sqrt(val / 10)) * 0.84;
+      cx.globalAlpha = al;
+      cx.fillRect(x, y, cw - 6, rh - 6);
+      cx.globalAlpha = 1;
+      cx.textAlign = "center";
+      cx.fillStyle = al > 0.55 ? "#fff" : C.text;
+      cx.fillText(fmt(val, 1), x + (cw - 6) / 2, y + (rh - 6) / 2);
+    });
+  });
+}
+
+// --- chapter 4: hunters learn to dodge ---------------------------------------------------------------------------------
+// Two worlds, same seed, one difference: hunters see a glow on sick prey (left) or nothing (right). The proof of 2026-11-08
+// (gS3 / bS3): fast hunters, prey-like hunter breeding, both eyes, full poison (dose 1).
+function chapterGlow(): void {
+  const base: Rules = { ...DEFAULT_RULES, ...PROOF, ...FAST };
+  const text = (w: World) => `prey ${alivePrey(w)} · hunters ${w.hunters.length} · sick now ${Math.round(sickShare(w) * 100)}% · ` +
+    `catches ${w.eco.sick.caught} · pick so far ${fmt(pickSoFar(w))}`;
+  live("ch4", "c4", () => [
+    { rules: { ...base, hunterCue: 2 }, canvas: "c4-glow", glow: true, stats: "c4-g-stats", text },
+    { rules: { ...base, hunterCue: 0 }, canvas: "c4-blind", glow: false, stats: "c4-b-stats", text },
+  ]);
+}
+
+// --- chapter 5: making it natural --------------------------------------------------------------------------------------
+// The same glow world with fast (before 2026-11-11) and slow hunters (the default since), side by side.
+function chapterSlow(): void {
+  const base: Rules = { ...DEFAULT_RULES, ...PROOF, hunterCue: 2 };
+  const text = (w: World) => {
+    const prey = alivePrey(w);
+    return `prey ${prey} · hunters ${w.hunters.length} · hunters per 100 prey ${prey ? Math.round((100 * w.hunters.length) / prey) : "–"} · ` +
+      `hunters died out ${hunterDieOuts(w)}×`;
   };
-  requestAnimationFrame(frame);
+  live("ch5", "c5", () => [
+    { rules: { ...base, ...FAST }, canvas: "c5-fast", glow: true, stats: "c5-f-stats", text },
+    { rules: { ...base, ...SLOW }, canvas: "c5-slow", glow: true, stats: "c5-s-stats", text },
+  ]);
 }
 
 chapterBrain();
-chapterPoison();
+chapterLife();
+chapterEye();
+chapterGlow();
+chapterSlow();

@@ -857,6 +857,10 @@
     h ^= h >>> 16;
     return (h >>> 0) / 4294967296 * 16 - 8;
   }
+  function markSafe(cs, share) {
+    const k = Math.round(share * cs.length);
+    for (let i = 0; i < cs.length; i++) cs[i].safe = i < k;
+  }
 
   // src/engine/mode.ts
   function inEcosystem(w) {
@@ -1227,7 +1231,7 @@
       w.eco.remainsEaten++;
       seen.food.readyAt = Infinity;
       eyeFoodChanged(w, seen.idx);
-    } else if (room && seen.food && seen.foodDist < 6) {
+    } else if (room && seen.food && seen.foodDist < 6 && !(c.safe && seen.food.poison)) {
       reward = seen.food.poison ? -1 : 1;
       if (seen.food.poison) {
         c.poisoned++;
@@ -1335,6 +1339,7 @@
   var CATCH = 6;
   var REST = 30;
   var TURN = 0.2;
+  var glowSeen = (w, h, i) => w.rules.hunterSightTrade > 0 ? Math.min(1, w.creatures[i].toxin * 10 * (1 - h.resist)) : glowShown(w, i);
   function glowShown(w, i) {
     return Math.min(w.creatures[i].toxin, 1);
   }
@@ -1521,7 +1526,7 @@
       const sl = eyeSlice(dx, dy, cosH, sinH, K);
       inputs[sl] += v;
       if (cue === 1) inputs[K + sl] += v * Math.min(c.speed / 3, 1);
-      else if (cue === 2) inputs[K + sl] += v * glowShown(w, i);
+      else if (cue === 2) inputs[K + sl] += v * glowSeen(w, h, i);
     }
     for (const o of w.hunters) {
       if (o === h) continue;
@@ -1588,7 +1593,7 @@
           if (eco && r.hunterCue > 0) {
             const p = w.creatures[near.i1];
             k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
-            inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowShown(w, near.i1);
+            inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowSeen(w, h, near.i1);
           } else k = writeNothing(inputs, k);
         }
         if (r.hunterSense > 0) k = writeNothing(inputs, k);
@@ -1924,6 +1929,7 @@
     child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
     child.energy = energy;
     child.depth = parent.depth + 1;
+    if (w.rules.safePrey > 0) child.safe = w.env.next() < w.rules.safePrey;
     if (w.rules.resistGene > 0) child.resist = babyResist(parent.resist, w.env.gauss());
     parent.children++;
     maybeSplit(w, child, true);
@@ -1938,6 +1944,7 @@
       w.families.set(id, newFamily(id, genome, null, w.tick, true));
       w.creatures.push(newCreature(w, genome, id, false, null));
     }
+    if (rules.safePrey > 0) markSafe(w.creatures.slice(-RESCUE), rules.safePrey);
     w.eco.rescues++;
   }
   function restartPrey(w) {
@@ -1957,6 +1964,7 @@
       c.depth = (best[k].depth ?? 0) + (i < best.length ? 0 : 1);
       w.creatures.push(c);
     }
+    if (rules.safePrey > 0) markSafe(w.creatures.slice(-RESCUE), rules.safePrey);
     w.eco.rescues++;
   }
   function sample(w) {
@@ -2053,6 +2061,8 @@
     poisonPeak: 0.9,
     hunterEarlyBreed: 0,
     hunterHangover: 0,
+    safePrey: 0,
+    hunterSightTrade: 0,
     hunterBite: 0,
     hunterPoisonHalfLife: 0,
     hunterIdle: 0,
@@ -2152,6 +2162,7 @@
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
+    if (rules.safePrey > 0) markSafe(w.creatures, rules.safePrey);
     startLayout(w);
     return w;
   }
@@ -2277,6 +2288,10 @@
   };
   var FONT = '"Recursive", system-ui, sans-serif';
   var fmt = (x, d = 2) => Number.isFinite(x) ? x.toFixed(d) : "\u2013";
+  var FAST = { hunterHunger: 25e-4, hunterMeal: 0.5 };
+  var SLOW = { hunterHunger: 625e-6, hunterMeal: 0.125 };
+  var LIFE = { mode: 1, hunters: 4, food: 60, foodSpread: 5e-4, regrow: 100, ecoWarmup: 0, birth: 0, senseFood2: 1, senseCreature: 1 };
+  var PROOF = { ...LIFE, poison: 0.3, eye: 4, hunterEye: 4, eyeMotion: 1, hunterMature: 0, hunterBirth: 1.2, hunterBirthChance: 1 };
   function drawWorld(cx, w, opts) {
     cx.fillStyle = C.field;
     cx.fillRect(0, 0, W, H);
@@ -2346,6 +2361,67 @@
       on(true);
     }
   }
+  function switcher(id, on) {
+    const bs = $(id).querySelectorAll("button");
+    bs.forEach((b) => b.onclick = () => {
+      bs.forEach((x) => x.classList.toggle("on", x === b));
+      on(Number(b.dataset.v));
+    });
+  }
+  var hunterDieOuts = (w) => w.eco.rounds.filter((r) => r.died !== "prey").length;
+  var alivePrey = (w) => {
+    let n = 0;
+    for (const c of w.creatures) if (c.alive) n++;
+    return n;
+  };
+  var sickShare = (w) => {
+    let n = 0, s = 0;
+    for (const c of w.creatures) if (c.alive) {
+      n++;
+      if (c.toxin > SICK) s++;
+    }
+    return n ? s / n : 0;
+  };
+  var pickSoFar = (w) => {
+    const k = w.eco.sick;
+    return k.caught && k.samples ? k.caughtSick / k.caught / (k.sickShare / k.samples) : NaN;
+  };
+  function live2(section, p, build, after) {
+    let sides = [];
+    let speed = 2, visible = false, skipTo = 0;
+    const restart = () => {
+      sides = build().map((s) => ({ ...s, w: createWorld(1, s.rules), cx: $(s.canvas).getContext("2d") }));
+      skipTo = 0;
+    };
+    restart();
+    const speedBtns = document.querySelectorAll(`[data-speed="${p}"]`);
+    speedBtns.forEach((b) => b.onclick = () => {
+      speed = Number(b.dataset.v);
+      speedBtns.forEach((x) => x.classList.toggle("on", x === b));
+    });
+    $(`${p}-skip`).onclick = () => {
+      if (!skipTo) skipTo = sides[0].w.tick + 2e4;
+    };
+    $(`${p}-reset`).onclick = restart;
+    whenVisible($(section), (v) => visible = v);
+    const frame = () => {
+      requestAnimationFrame(frame);
+      if (!visible) return;
+      if (skipTo) {
+        const t0 = performance.now();
+        while (performance.now() - t0 < 16 && sides[0].w.tick < skipTo) for (const s of sides) step(s.w);
+        if (sides[0].w.tick >= skipTo) skipTo = 0;
+      } else for (let i = 0; i < speed; i++) for (const s of sides) step(s.w);
+      for (const s of sides) {
+        drawWorld(s.cx, s.w, { glow: s.glow });
+        if (s.stats && s.text) $(s.stats).textContent = s.text(s.w);
+      }
+      after?.(sides);
+      $(`${p}-tick`).textContent = skipTo ? `Skipping ahead\u2026 tick ${sides[0].w.tick} of ${skipTo}` : `Tick ${sides[0].w.tick}`;
+    };
+    requestAnimationFrame(frame);
+    return { restart };
+  }
   function chapterBrain() {
     const rules = { ...DEFAULT_RULES, poison: 0, senseCreature: 0, senseFood2: 0, hunters: 0 };
     const wcx = $("c1-world").getContext("2d");
@@ -2360,18 +2436,15 @@
       for (const c of w.creatures) if (c.alive && (!best || c.eaten > best.eaten)) best = c;
       return best;
     };
-    const evolveBtn = $("c1-evolve"), playBtn = $("c1-play"), status = $("c1-status");
-    evolveBtn.onclick = () => {
-      if (!evolveLeft) evolveLeft = 20;
-    };
+    const playBtn = $("c1-play"), status = $("c1-status");
+    switcher("c1-switch", (v) => {
+      w = createWorld(1, rules);
+      follow = null;
+      evolveLeft = v ? 20 : 0;
+    });
     playBtn.onclick = () => {
       playing = !playing;
       playBtn.textContent = playing ? "Pause" : "Play";
-    };
-    $("c1-reset").onclick = () => {
-      w = createWorld(1, rules);
-      follow = null;
-      evolveLeft = 0;
     };
     whenVisible($("ch1"), (v) => visible = v);
     const frame = () => {
@@ -2396,8 +2469,7 @@
       drawBrain(bcx, follow, labels);
       drawScores(ccx, w);
       const last = w.avgHist.length ? w.avgHist[w.avgHist.length - 1] : NaN;
-      status.textContent = evolveLeft > 0 ? `Evolving\u2026 generation ${w.generation} (${evolveLeft} to go)` : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${w.tick} of ${rules.genTicks}` + (w.avgHist.length ? ` \xB7 last generation ate ${fmt(last, 1)} pellets per map on average` : "");
-      evolveBtn.disabled = evolveLeft > 0;
+      status.textContent = evolveLeft > 0 ? `Evolving\u2026 generation ${w.generation} (${evolveLeft} to go)` : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${w.tick} of ${rules.genTicks}` + (w.avgHist.length ? ` \xB7 last generation ate ${fmt(last, 1)} pellets per map on average` : " \xB7 random brains, no evolution yet");
     };
     requestAnimationFrame(frame);
   }
@@ -2467,7 +2539,7 @@
     cx.fillText("middle neurons", col(1), 14);
     cx.fillText("actions", col(2), 14);
   }
-  function drawScores(cx, w) {
+  function drawScores(cx, w, title = "food eaten per map, average of each generation") {
     const CW = cx.canvas.width, CH = cx.canvas.height;
     cx.fillStyle = C.panel;
     cx.fillRect(0, 0, CW, CH);
@@ -2476,7 +2548,7 @@
     cx.fillStyle = C.muted;
     cx.textAlign = "left";
     cx.textBaseline = "top";
-    cx.fillText("food eaten per map, average of each generation", 8, 6);
+    cx.fillText(title, 8, 6);
     if (ys.length < 2) return;
     const top = Math.max(10, ...ys) * 1.1;
     cx.beginPath();
@@ -2492,70 +2564,166 @@
     cx.fillStyle = C.text;
     cx.fillText(fmt(ys[ys.length - 1], 1), CW - 8, 6);
   }
-  function chapterPoison() {
-    const base = {
-      ...DEFAULT_RULES,
-      mode: 1,
-      hunters: 4,
-      food: 60,
-      foodSpread: 5e-4,
-      regrow: 100,
-      poison: 0.3,
-      eye: 4,
-      ecoWarmup: 0,
-      birth: 0,
-      senseFood2: 1,
-      senseCreature: 1,
-      hunterEye: 4,
-      eyeMotion: 1,
-      hunterMature: 0,
-      hunterBirth: 1.2,
-      hunterBirthChance: 1,
-      hunterHunger: 25e-4,
-      hunterMeal: 0.5
+  function drawPops(cx, w) {
+    const CW = cx.canvas.width, CH = cx.canvas.height;
+    cx.fillStyle = C.panel;
+    cx.fillRect(0, 0, CW, CH);
+    const N = 300;
+    const prey = w.eco.popHist.slice(-N), hunt = w.eco.hunterPopHist.slice(-N);
+    cx.font = `12px ${FONT}`;
+    cx.textAlign = "left";
+    cx.textBaseline = "top";
+    cx.fillStyle = C.muted;
+    cx.fillText("animals alive over time (last 30,000 ticks)", 8, 6);
+    if (prey.length < 2) return;
+    const top = Math.max(10, ...prey, ...hunt) * 1.1;
+    const plot = (ys, col) => {
+      cx.beginPath();
+      ys.forEach((y, i) => {
+        const x = 8 + (CW - 16) * i / (N - 1), yy = CH - 10 - (CH - 40) * y / top;
+        if (i) cx.lineTo(x, yy);
+        else cx.moveTo(x, yy);
+      });
+      cx.strokeStyle = col;
+      cx.lineWidth = 2;
+      cx.stroke();
     };
-    const sides = [
-      { id: "g", cue: 2, cx: $("c8-glow").getContext("2d"), w: null },
-      { id: "b", cue: 0, cx: $("c8-blind").getContext("2d"), w: null }
-    ];
-    const reset = () => {
-      for (const s of sides) s.w = createWorld(1, { ...base, hunterCue: s.cue });
-    };
-    reset();
-    let speed = 2, visible = false, skipTo = 0;
-    const speedBtns = document.querySelectorAll("[data-c8speed]");
-    speedBtns.forEach((b) => b.onclick = () => {
-      speed = Number(b.dataset.c8speed);
-      speedBtns.forEach((x) => x.classList.toggle("on", x === b));
+    plot(prey, C.prey);
+    plot(hunt, C.hunter);
+    cx.textAlign = "right";
+    cx.fillStyle = C.prey;
+    cx.fillText(`prey ${prey[prey.length - 1]}`, CW - 90, 6);
+    cx.fillStyle = C.hunter;
+    cx.fillText(`hunters ${hunt[hunt.length - 1] ?? 0}`, CW - 8, 6);
+  }
+  function chapterLife() {
+    let mode = 0;
+    const gens = { ...DEFAULT_RULES, poison: 0, hunters: 4, hunterBrains: 1 };
+    const life = { ...DEFAULT_RULES, ...LIFE, poison: 0, ...FAST };
+    const chart = $("c2-chart").getContext("2d");
+    const r = live2("ch2", "c2", () => [{
+      rules: mode ? life : gens,
+      canvas: "c2-world",
+      glow: false,
+      stats: "c2-stats",
+      text: (w) => mode ? `prey ${alivePrey(w)} \xB7 hunters ${w.hunters.length} \xB7 hunter babies ${w.eco.hunterBirths} \xB7 hunter deaths ${w.eco.hunterDeaths} \xB7 hunters died out ${hunterDieOuts(w)}\xD7` : `generation ${w.generation}, round ${w.layout + 1} of ${gens.layouts}, tick ${w.tick} of ${gens.genTicks} \xB7 hunters ${w.hunters.length}, always: they never get hungry and never have babies`
+    }], (sides) => {
+      if (mode) drawPops(chart, sides[0].w);
+      else drawScores(chart, sides[0].w, "prey: food eaten per map, each generation (the judge's score)");
     });
-    $("c8-skip").onclick = () => {
-      if (!skipTo) skipTo = sides[0].w.tick + 2e4;
-    };
-    $("c8-reset").onclick = () => {
-      reset();
-      skipTo = 0;
-    };
-    whenVisible($("ch8"), (v) => visible = v);
-    const frame = () => {
-      requestAnimationFrame(frame);
-      if (!visible) return;
-      if (skipTo) {
-        const t0 = performance.now();
-        while (performance.now() - t0 < 16 && sides[0].w.tick < skipTo) for (const s of sides) step(s.w);
-        if (sides[0].w.tick >= skipTo) skipTo = 0;
-      } else for (let i = 0; i < speed; i++) for (const s of sides) step(s.w);
-      for (const s of sides) {
-        const w = s.w;
-        drawWorld(s.cx, w, { glow: s.cue === 2 });
-        const k = w.eco.sick;
-        const sickNow = w.creatures.length ? w.creatures.filter((c) => c.alive && c.toxin > SICK).length / w.creatures.length : 0;
-        const pick = k.caught && k.samples ? k.caughtSick / k.caught / (k.sickShare / k.samples) : NaN;
-        $(`c8-${s.id}-stats`).textContent = `prey ${w.creatures.length} \xB7 hunters ${w.hunters.length} \xB7 sick now ${Math.round(sickNow * 100)}% \xB7 catches ${k.caught} \xB7 pick so far ${fmt(pick)}`;
+    switcher("c2-switch", (v) => {
+      mode = v;
+      r.restart();
+    });
+  }
+  function chapterEye() {
+    let mode = 1;
+    const base = { ...DEFAULT_RULES, ...LIFE, eye: 4, ...FAST };
+    const eye = $("c3-eye").getContext("2d");
+    let follow = null;
+    const r = live2("ch3", "c3", () => [{
+      rules: { ...base, poison: mode ? 0.3 : 0 },
+      canvas: "c3-world",
+      glow: false,
+      stats: "c3-stats",
+      text: (w) => `prey ${alivePrey(w)} \xB7 sick now ${Math.round(sickShare(w) * 100)}% \xB7 hunters ${w.hunters.length} \xB7 hunters died out ${hunterDieOuts(w)}\xD7`
+    }], (sides) => {
+      const s = sides[0];
+      if (!follow || !follow.alive || !s.w.creatures.includes(follow)) {
+        follow = null;
+        let best = Infinity;
+        for (const c of s.w.creatures) {
+          if (!c.alive) continue;
+          const d = (c.x - W / 2) ** 2 + (c.y - H / 2) ** 2;
+          if (d < best) {
+            best = d;
+            follow = c;
+          }
+        }
       }
-      $("c8-tick").textContent = skipTo ? `Skipping ahead\u2026 tick ${sides[0].w.tick} of ${skipTo}` : `Tick ${sides[0].w.tick}`;
+      drawEye(s.cx, eye, follow);
+    });
+    switcher("c3-switch", (v) => {
+      mode = v;
+      follow = null;
+      r.restart();
+    });
+  }
+  var SLICE_ANGLE = [Math.PI / 2, Math.PI, -Math.PI / 2, 0];
+  function drawEye(wcx, cx, c) {
+    const CW = cx.canvas.width, CH = cx.canvas.height;
+    cx.fillStyle = C.panel;
+    cx.fillRect(0, 0, CW, CH);
+    if (!c || !c.alive) return;
+    const v = (ch, sl) => c.inputs[ch * 4 + sl] ?? 0;
+    for (let sl = 0; sl < 4; sl++) {
+      const mid = c.a + SLICE_ANGLE[sl];
+      wcx.beginPath();
+      wcx.moveTo(c.x, c.y);
+      wcx.arc(c.x, c.y, EYE_R, mid - Math.PI / 4, mid + Math.PI / 4);
+      wcx.closePath();
+      wcx.fillStyle = C.poison;
+      wcx.globalAlpha = 0.03 + Math.min(1, Math.sqrt(v(1, sl) / 10)) * 0.3;
+      wcx.fill();
+      wcx.globalAlpha = 0.5;
+      wcx.strokeStyle = C.accent;
+      wcx.lineWidth = 1;
+      wcx.stroke();
+      wcx.globalAlpha = 1;
+    }
+    wcx.beginPath();
+    wcx.arc(c.x, c.y, 14, 0, Math.PI * 2);
+    wcx.strokeStyle = C.accent;
+    wcx.lineWidth = 2.5;
+    wcx.stroke();
+    const rows = [["plants", C.rim], ["poison plants", C.poison], ["other prey", C.prey], ["hunters", C.hunter]];
+    const cols = [["ahead", 3], ["right", 0], ["behind", 1], ["left", 2]];
+    const x0 = 130, y0 = 34, cw = (CW - x0 - 10) / 4, rh = (CH - y0 - 8) / 4;
+    cx.font = `13px ${FONT}`;
+    cx.textBaseline = "middle";
+    cx.textAlign = "center";
+    cx.fillStyle = C.muted;
+    cols.forEach(([name], j) => cx.fillText(name, x0 + cw * (j + 0.5), 16));
+    rows.forEach(([name, col], i) => {
+      cx.textAlign = "right";
+      cx.fillStyle = C.text;
+      cx.fillText(name, x0 - 10, y0 + rh * (i + 0.5));
+      cols.forEach(([, sl], j) => {
+        const val = v(i, sl);
+        const x = x0 + cw * j + 3, y = y0 + rh * i + 3;
+        cx.fillStyle = col;
+        const al = 0.06 + Math.min(1, Math.sqrt(val / 10)) * 0.84;
+        cx.globalAlpha = al;
+        cx.fillRect(x, y, cw - 6, rh - 6);
+        cx.globalAlpha = 1;
+        cx.textAlign = "center";
+        cx.fillStyle = al > 0.55 ? "#fff" : C.text;
+        cx.fillText(fmt(val, 1), x + (cw - 6) / 2, y + (rh - 6) / 2);
+      });
+    });
+  }
+  function chapterGlow() {
+    const base = { ...DEFAULT_RULES, ...PROOF, ...FAST };
+    const text = (w) => `prey ${alivePrey(w)} \xB7 hunters ${w.hunters.length} \xB7 sick now ${Math.round(sickShare(w) * 100)}% \xB7 catches ${w.eco.sick.caught} \xB7 pick so far ${fmt(pickSoFar(w))}`;
+    live2("ch4", "c4", () => [
+      { rules: { ...base, hunterCue: 2 }, canvas: "c4-glow", glow: true, stats: "c4-g-stats", text },
+      { rules: { ...base, hunterCue: 0 }, canvas: "c4-blind", glow: false, stats: "c4-b-stats", text }
+    ]);
+  }
+  function chapterSlow() {
+    const base = { ...DEFAULT_RULES, ...PROOF, hunterCue: 2 };
+    const text = (w) => {
+      const prey = alivePrey(w);
+      return `prey ${prey} \xB7 hunters ${w.hunters.length} \xB7 hunters per 100 prey ${prey ? Math.round(100 * w.hunters.length / prey) : "\u2013"} \xB7 hunters died out ${hunterDieOuts(w)}\xD7`;
     };
-    requestAnimationFrame(frame);
+    live2("ch5", "c5", () => [
+      { rules: { ...base, ...FAST }, canvas: "c5-fast", glow: true, stats: "c5-f-stats", text },
+      { rules: { ...base, ...SLOW }, canvas: "c5-slow", glow: true, stats: "c5-s-stats", text }
+    ]);
   }
   chapterBrain();
-  chapterPoison();
+  chapterLife();
+  chapterEye();
+  chapterGlow();
+  chapterSlow();
 })();

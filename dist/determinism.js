@@ -844,6 +844,10 @@
     h ^= h >>> 16;
     return (h >>> 0) / 4294967296 * 16 - 8;
   }
+  function markSafe(cs, share) {
+    const k = Math.round(share * cs.length);
+    for (let i = 0; i < cs.length; i++) cs[i].safe = i < k;
+  }
 
   // src/engine/mode.ts
   function inEcosystem(w) {
@@ -1214,7 +1218,7 @@
       w.eco.remainsEaten++;
       seen.food.readyAt = Infinity;
       eyeFoodChanged(w, seen.idx);
-    } else if (room && seen.food && seen.foodDist < 6) {
+    } else if (room && seen.food && seen.foodDist < 6 && !(c.safe && seen.food.poison)) {
       reward = seen.food.poison ? -1 : 1;
       if (seen.food.poison) {
         c.poisoned++;
@@ -1322,6 +1326,7 @@
   var CATCH = 6;
   var REST = 30;
   var TURN = 0.2;
+  var glowSeen = (w, h, i) => w.rules.hunterSightTrade > 0 ? Math.min(1, w.creatures[i].toxin * 10 * (1 - h.resist)) : glowShown(w, i);
   function glowShown(w, i) {
     return Math.min(w.creatures[i].toxin, 1);
   }
@@ -1508,7 +1513,7 @@
       const sl = eyeSlice(dx, dy, cosH, sinH, K);
       inputs[sl] += v;
       if (cue === 1) inputs[K + sl] += v * Math.min(c.speed / 3, 1);
-      else if (cue === 2) inputs[K + sl] += v * glowShown(w, i);
+      else if (cue === 2) inputs[K + sl] += v * glowSeen(w, h, i);
     }
     for (const o of w.hunters) {
       if (o === h) continue;
@@ -1575,7 +1580,7 @@
           if (eco && r.hunterCue > 0) {
             const p = w.creatures[near.i1];
             k = writeTowards(inputs, k, near.dx1, near.dy1, near.d21, cosH, sinH);
-            inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowShown(w, near.i1);
+            inputs[k - 1] = r.hunterCue === 1 ? Math.min(p.speed / 3, 1) : glowSeen(w, h, near.i1);
           } else k = writeNothing(inputs, k);
         }
         if (r.hunterSense > 0) k = writeNothing(inputs, k);
@@ -1911,6 +1916,7 @@
     child.y = place(parent.y + (w.env.next() - 0.5) * 10, H);
     child.energy = energy;
     child.depth = parent.depth + 1;
+    if (w.rules.safePrey > 0) child.safe = w.env.next() < w.rules.safePrey;
     if (w.rules.resistGene > 0) child.resist = babyResist(parent.resist, w.env.gauss());
     parent.children++;
     maybeSplit(w, child, true);
@@ -1925,6 +1931,7 @@
       w.families.set(id, newFamily(id, genome, null, w.tick, true));
       w.creatures.push(newCreature(w, genome, id, false, null));
     }
+    if (rules.safePrey > 0) markSafe(w.creatures.slice(-RESCUE), rules.safePrey);
     w.eco.rescues++;
   }
   function restartPrey(w) {
@@ -1944,6 +1951,7 @@
       c.depth = (best[k].depth ?? 0) + (i < best.length ? 0 : 1);
       w.creatures.push(c);
     }
+    if (rules.safePrey > 0) markSafe(w.creatures.slice(-RESCUE), rules.safePrey);
     w.eco.rescues++;
   }
   function sample(w) {
@@ -2040,6 +2048,8 @@
     poisonPeak: 0.9,
     hunterEarlyBreed: 0,
     hunterHangover: 0,
+    safePrey: 0,
+    hunterSightTrade: 0,
     hunterBite: 0,
     hunterPoisonHalfLife: 0,
     hunterIdle: 0,
@@ -2139,6 +2149,7 @@
       w.creatures.push(newCreature(w, genome, i, false, null));
       w.families.set(i, newFamily(i, genome, null, 1));
     }
+    if (rules.safePrey > 0) markSafe(w.creatures, rules.safePrey);
     startLayout(w);
     return w;
   }
