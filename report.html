@@ -5,86 +5,154 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Instinct Lab: how it was built</title>
 <style>
+  /* Instinct Lab design system (tokens.json v1): Brightfield by default, Darkfield in dark mode. Stains have one job each. */
   @font-face { font-family: "Recursive"; src: url("assets/fonts/recursive.woff2") format("woff2"); font-weight: 300 1000; font-display: swap; }
   :root {
-    --bench: #cdd6d2; --paper: #fbfcf7; --grid: rgba(43, 92, 158, 0.07); --ink: #1e2b30; --text: #1e2b30; --muted: #5d6c70;
-    --line: #c9d2cf; --panel: #fbfcf7; --field: #e7e2b6; --food: #fff8dc; --food-rim: #b9a24f; --poison: #6e2a5e;
-    --hunter: #34405e; --accent: #2b5c9e; --pos: #2b5c9e; --neg: #b23a48; --note: #8a5a00;
-    --prey: #3d7a5c; --sick: #8e3b7a; --glow: rgba(214, 120, 200, 0.45);
-    --kept-bg: #dbe8dd; --kept: #2d5e44; --drop-bg: #f1dcdc; --mixed-bg: #f2e6c9;
+    --bench: #cdd6d2; --bench-light: #dde4e0; --paper: #fbfcf7; --grid: rgba(43,92,158,0.07); --line: #c9d2cf; --agar: #e7e2b6;
+    --ink: #1e2b30; --ink-muted: #5d6c70; --methylene: #2b5c9e; --on-methylene: #ffffff; --safranin: #b23a48; --on-safranin: #ffffff;
+    --iodine: #8a5a00; --nigrosin: #34405e; --fuchsin: #6e2a5e; --malachite: #368658; --eosin: #c94a80; --yeast: #fff8dc; --yeast-rim: #b9a24f;
+    --shadow-page: 0 0 0 1px rgba(30,43,48,0.08), 0 14px 30px -20px rgba(30,43,48,0.4);
+    --shadow-dish: inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(30,43,48,0.12), 0 22px 40px -18px rgba(30,43,48,0.45);
+    --glass: rgba(255,255,255,0.55);
+    /* roles */
+    --accent: var(--methylene); --focus: var(--methylene); --prey: var(--malachite); --prey-sick: var(--fuchsin); --glow: var(--eosin);
+    --hunter: var(--nigrosin); --poison: var(--fuchsin); --food: var(--yeast); --food-rim: var(--yeast-rim); --weight-pos: var(--methylene);
+    --weight-neg: var(--safranin); --rey: var(--iodine); --control: var(--ink-muted);
+    --space-1: 4px; --space-1-5: 6px; --space-2: 8px; --space-3: 12px; --space-5: 20px; --space-6: 24px; --space-7: 28px; --space-10: 40px;
+    --radius-xs: 4px; --radius-page: 6px; --radius-control: 8px; --radius-agar: 24px; --radius-dish: 34px; --radius-pill: 999px;
+    --font: "Recursive", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bench: #0e1416; --bench-light: #141c1f; --paper: #162024; --grid: rgba(140,190,255,0.06); --line: #2e3c40; --agar: #22241a;
+      --ink: #e6ece6; --ink-muted: #9aaaac; --methylene: #7fb0ee; --on-methylene: #0e1416; --safranin: #f08a94; --on-safranin: #0e1416;
+      --iodine: #e2b35c; --nigrosin: #a9b8e0; --fuchsin: #b46aa6; --malachite: #62d394; --eosin: #ff9cc2; --yeast: #f3e7b0; --yeast-rim: #c9b35a;
+      --shadow-page: 0 0 0 1px rgba(230,236,230,0.08), 0 14px 30px -20px rgba(0,0,0,0.7);
+      --shadow-dish: inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(230,236,230,0.14), 0 22px 40px -18px rgba(0,0,0,0.8);
+      --glass: rgba(255,255,255,0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bench: #0e1416; --bench-light: #141c1f; --paper: #162024; --grid: rgba(140,190,255,0.06); --line: #2e3c40; --agar: #22241a;
+    --ink: #e6ece6; --ink-muted: #9aaaac; --methylene: #7fb0ee; --on-methylene: #0e1416; --safranin: #f08a94; --on-safranin: #0e1416;
+    --iodine: #e2b35c; --nigrosin: #a9b8e0; --fuchsin: #b46aa6; --malachite: #62d394; --eosin: #ff9cc2; --yeast: #f3e7b0; --yeast-rim: #c9b35a;
+    --shadow-page: 0 0 0 1px rgba(230,236,230,0.08), 0 14px 30px -20px rgba(0,0,0,0.7);
+    --shadow-dish: inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(230,236,230,0.14), 0 22px 40px -18px rgba(0,0,0,0.8);
+    --glass: rgba(255,255,255,0.06);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bench); color: var(--text); font: 16px/1.55 "Recursive", system-ui, sans-serif; }
-  .page { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
-  header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  header p { color: var(--muted); max-width: 66ch; margin: 6px 0 0; }
-  nav { margin: 24px 0 8px; background: var(--paper); border-radius: 6px; padding: 16px 20px; box-shadow: 0 0 0 1px rgba(30,43,48,0.08); }
-  nav ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; }
+  body { margin: 0; color: var(--ink); background: var(--bench) radial-gradient(ellipse at 50% 0%, var(--bench-light), var(--bench) 70%) no-repeat;
+    font: 400 15px/22px var(--font); font-variation-settings: "CASL" 0; font-variant-numeric: tabular-nums; }
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--space-7) 16px 64px; }
+  p, li, dd { max-width: 62ch; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+  /* type: two voices */
+  .lab-label, .tag, .story dt.caps { font-size: 12.5px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .hand { font-variation-settings: "CASL" 1; }
+  .rey { color: var(--rey); font-variation-settings: "CASL" 1; font-size: 16px; line-height: 24px; font-weight: 500; }
+  /* title page */
+  .masthead { padding: var(--space-5) 0 var(--space-3); }
+  .masthead h1 { font-size: 56px; line-height: 58px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .masthead p { margin: var(--space-3) 0 0; }
+  .masthead .by { font-size: 14px; }
+  nav { margin: var(--space-5) 0 0; background: var(--paper); border-radius: var(--radius-page); padding: var(--space-5) var(--space-6); box-shadow: var(--shadow-page); }
+  nav ol { margin: var(--space-2) 0 0; padding-left: 22px; columns: 2; column-gap: 40px; }
   nav li { margin: 2px 0; }
-  nav a { color: var(--accent); }
-  nav .soon { color: var(--muted); }
-  section { margin-top: 36px; background: var(--paper); border-radius: 6px; padding: 24px 24px 28px;
-    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-    background-size: 20px 20px; box-shadow: 0 0 0 1px rgba(30,43,48,0.08), 0 14px 30px -20px rgba(30,43,48,0.4); }
-  section.soon { background-image: none; color: var(--muted); padding: 16px 24px; }
-  section.soon h2 { font-size: 19px; margin: 0; color: var(--text); }
-  h2 { font-size: 24px; margin: 0 0 4px; }
-  h3 { font-size: 17px; margin: 22px 0 4px; }
-  .kicker { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-  p, li { max-width: 72ch; }
-  .like { border-left: 3px solid var(--note); padding: 2px 0 2px 12px; color: var(--note); font-style: italic; }
-  /* the chapter template: what we saw, Rey's call, what was built ... kept or dropped */
-  .story { display: grid; grid-template-columns: 140px 1fr; gap: 8px 18px; margin: 16px 0 0; }
-  .story dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 4px; }
-  .story dd { margin: 0; }
-  .story dd p { margin: 0 0 6px; }
-  .said { font-style: italic; }
-  .verdict { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; margin-right: 6px; }
-  .kept { background: var(--kept-bg); color: var(--kept); }
-  .dropped { background: var(--drop-bg); color: var(--neg); }
-  .mixed { background: var(--mixed-bg); color: var(--note); }
-  .side { border: 1px dashed var(--line); border-radius: 6px; padding: 10px 16px; margin-top: 16px; background: rgba(255,255,255,0.55); }
-  .side h4 { margin: 0 0 4px; font-size: 15px; }
-  .side p { margin: 4px 0; font-size: 15px; }
-  .fix { border-left: 3px solid var(--neg); padding: 2px 0 2px 12px; font-size: 15px; }
-  canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--field); }
-  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
-  .single { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-top: 14px; align-items: start; }
-  @media (max-width: 760px) { .duo, .single { grid-template-columns: 1fr; } nav ol { columns: 1; } .story { grid-template-columns: 1fr; gap: 2px; } .story dd { margin-bottom: 8px; } section { padding: 18px 16px 22px; } }
-  .cap { font-size: 14px; color: var(--muted); margin: 6px 2px 0; }
-  .stats { font-size: 14px; font-variant-numeric: tabular-nums; margin: 6px 2px 0; }
-  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
-  button { font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line);
-    border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  nav .soon { color: var(--ink-muted); }
+  /* a plate = one chapter = one notebook page */
+  .plate { margin-top: var(--space-10); background: var(--paper); border-radius: var(--radius-page); padding: var(--space-6); box-shadow: var(--shadow-page);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 20px 20px; }
+  .plate-head { display: flex; gap: var(--space-5); align-items: flex-end; margin-bottom: var(--space-2); }
+  .plate-no { font-variation-settings: "CASL" 1; font-size: 96px; line-height: 86px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink-muted); }
+  .plate-head .tag { color: var(--ink-muted); }
+  .plate h2 { font-size: 26px; line-height: 30px; font-weight: 800; letter-spacing: -0.015em; margin: var(--space-1) 0 0; }
+  .plate.soon { background-image: none; }
+  .plate.soon .plate-no { font-size: 56px; line-height: 52px; }
+  /* the chapter template */
+  .story { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--space-3) var(--space-5); margin: var(--space-5) 0 0; }
+  .story dt { font-size: 15px; line-height: 22px; font-weight: 700; }
+  .story dd { margin: 0; min-width: 0; }
+  .story dd p { margin: 0 0 var(--space-2); }
+  .like { border-left: 3px solid var(--line); padding: 2px 0 2px var(--space-3); font-style: italic; }
+  .cap { font-size: 14px; line-height: 20px; color: var(--ink-muted); margin: var(--space-2) 0 0; }
+  .stats { font-size: 14px; line-height: 20px; margin: var(--space-1) 0 0; }
+  /* stamps: a status is always a word */
+  .stamp { display: inline-block; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 8px; border: 1.5px solid currentColor; border-radius: var(--radius-control); margin-right: var(--space-1-5); transform: rotate(-2deg); }
+  .stamp.kept { color: var(--methylene); }
+  .stamp.dropped { color: var(--safranin); }
+  .stamp.mixed { color: var(--ink-muted); }
+  /* dead ends and corrections */
+  .deadend { border: 1px dashed var(--line); border-radius: var(--radius-page); padding: var(--space-3) var(--space-5); margin-top: var(--space-5); background: var(--paper); }
+  .deadend h4 { font-variation-settings: "CASL" 1; font-size: 14px; line-height: 20px; font-weight: 700; margin: 0 0 var(--space-1); }
+  .deadend p { margin: var(--space-1) 0; }
+  /* the dish: every live world sits in glass */
+  .dish { padding: var(--space-3); border-radius: var(--radius-dish); background: var(--glass); box-shadow: var(--shadow-dish); }
+  .dish.control { background: repeating-linear-gradient(-45deg, var(--glass) 0 6px, color-mix(in srgb, var(--control) 22%, transparent) 6px 8px); }
+  .dish canvas { display: block; width: 100%; height: auto; border-radius: var(--radius-agar); background: var(--agar); }
+  .chart { display: block; width: 100%; height: auto; border-radius: var(--radius-xs); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+  figure { margin: 0; }
+  figcaption { margin-top: var(--space-2); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: var(--paper); }
+  .tag.control { background: repeating-linear-gradient(-45deg, var(--paper) 0 5px, color-mix(in srgb, var(--control) 30%, transparent) 5px 7px); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-top: var(--space-5); }
+  .single { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-7); margin-top: var(--space-5); align-items: start; }
+  /* controls */
+  .row { display: flex; flex-wrap: wrap; gap: var(--space-1-5); align-items: center; margin-top: var(--space-3); }
+  button { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--paper); border: 1px solid var(--line);
+    border-radius: var(--radius-control); padding: 5px 12px; cursor: pointer; font-variation-settings: "CASL" 0; }
   button:hover { border-color: var(--accent); }
-  button.on { background: var(--accent); color: white; border-color: var(--accent); }
+  button.on { background: var(--methylene); color: var(--on-methylene); border-color: var(--methylene); }
   button:disabled { opacity: 0.5; cursor: default; }
-  .switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-right: 8px; }
+  .switch { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; margin-right: var(--space-2); }
   .switch button { border: 0; border-radius: 0; padding: 6px 14px; }
   .switch button + button { border-left: 1px solid var(--line); }
+  .counter { font-variation-settings: "CASL" 1; font-size: 22px; line-height: 26px; font-weight: 750; margin-left: var(--space-2); }
+  /* world key: shape first, colour second */
+  .key { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); font-size: 14px; color: var(--ink-muted); margin-top: var(--space-3); }
+  .key span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+  .key svg { width: 16px; height: 16px; }
+  /* N of 14 */
+  .n14 { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .n14 i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-pill); border: 1.5px solid var(--control); }
+  .n14 i.p { background: var(--methylene); border-color: var(--methylene); }
+  .n14 b { font-weight: 400; margin-left: 6px; }
+  /* tables */
   .wrap { overflow-x: auto; }
-  table { border-collapse: collapse; margin: 12px 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+  table { border-collapse: collapse; margin: var(--space-3) 0; font-size: 15px; }
   th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 700; }
-  .timeline td:first-child, .timeline th:first-child { color: var(--muted); }
+  th.ctl span { padding: 0 4px; border-radius: var(--radius-xs); background: repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in srgb, var(--control) 30%, transparent) 5px 7px); }
+  .story td:first-child, .deadend td:first-child { min-width: 11em; }
   .timeline td { font-size: 14px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; color: var(--muted); margin-top: 8px; }
-  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
-  footer { margin-top: 40px; color: var(--muted); font-size: 14px; }
+  .timeline td:first-child { color: var(--ink-muted); }
+  .timeline .stamp { transform: none; font-size: 11px; padding: 1px 6px; }
+  footer { margin-top: var(--space-10); font-size: 14px; }
+  @media (max-width: 760px) {
+    .duo, .single { grid-template-columns: minmax(0, 1fr); } nav ol { columns: 1; }
+    .story { grid-template-columns: minmax(0, 1fr); gap: 2px; } .story dd { margin-bottom: var(--space-3); }
+    .plate { padding: var(--space-5) 16px; } .plate-no { font-size: 64px; line-height: 58px; }
+    .masthead h1 { font-size: 38px; line-height: 42px; }
+    .dish { padding: 8px; border-radius: 30px; } .dish canvas { border-radius: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .stamp { transform: none; } }
 </style>
 </head>
 <body>
 <div class="page">
-<header>
-  <h1>Instinct Lab: how it was built</h1>
+<header class="masthead">
+  <div class="tag">Instinct Lab · report</div>
+  <h1>How it was built</h1>
   <p>A small world where creatures with tiny brains evolve. No one tells them what to do. The ones that do well have
   children, and over time they get better at staying alive. This report follows the project's major changes in order,
-  from a single brain to a food chain that adapts to poison. Each chapter says what we saw, what Rey decided, what was
-  built, how it was tested, and whether it stayed. The worlds on this page run the real simulation in your browser.</p>
-  <p>By Rey Milson · work in progress, November 2026</p>
+  from a single brain to a food chain that adapts to poison. Each plate says what we saw, what Rey decided, what was built,
+  how it was tested, and whether it stayed. The worlds in the dishes run the real simulation in your browser.</p>
+  <p class="by">By Rey Milson · work in progress, Nov 2026</p>
 </header>
 
 <nav>
+  <div class="lab-label" style="color: var(--ink-muted)">Plates</div>
   <ol>
     <li><a href="#ch1">A brain that evolves</a></li>
     <li><a href="#ch2">Hunters, and a world that runs itself</a></li>
@@ -97,10 +165,9 @@
   </ol>
 </nav>
 
-<!-- ============================================================ chapter 1 -->
-<section id="ch1">
-  <div class="kicker">Chapter 1 · October 16–18 · changes 1–4</div>
-  <h2>A brain that evolves</h2>
+<!-- ============================================================ plate 1 -->
+<section class="plate" id="ch1">
+  <div class="plate-head"><span class="plate-no">01</span><div><div class="tag">Plate 01 · Oct 16–18 · changes 1–4</div><h2>A brain that evolves</h2></div></div>
   <dl class="story">
     <dt>What we saw</dt>
     <dd><p>The starting question: can a tiny brain learn to find food if no one writes the rules? Early on, a second problem
@@ -123,14 +190,15 @@
     <button id="c1-play">Pause</button>
   </div>
   <div class="single">
+    <figure>
+      <div class="dish control" id="c1-dish"><canvas id="c1-world" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag control" id="c1-tag">Before · random brains · seed 1</span>
+      <p class="cap">40 creatures and food beads. The ringed one is the best eater right now; its brain is on the right.</p></figcaption>
+    </figure>
     <div>
-      <canvas id="c1-world" width="800" height="600"></canvas>
-      <p class="cap">40 creatures (green) and food (yellow beads). The ringed one is the best eater right now; its brain is on the right.</p>
-    </div>
-    <div>
-      <canvas id="c1-brain" width="520" height="380" style="background: var(--panel)"></canvas>
+      <canvas class="chart" id="c1-brain" width="520" height="380"></canvas>
       <p class="cap">Blue = positive, red = negative. Thicker lines are stronger connections. A filled circle is a neuron firing.</p>
-      <canvas id="c1-chart" width="520" height="140" style="background: var(--panel); margin-top: 10px"></canvas>
+      <canvas class="chart" id="c1-chart" width="520" height="140" style="margin-top: 10px"></canvas>
     </div>
   </div>
   <p class="stats" id="c1-status"></p>
@@ -142,20 +210,19 @@
       <tr><td>The rule written by hand</td><td>24.3</td></tr>
       <tr><td>Evolved brains, after 100 generations</td><td>42 to 47</td></tr>
     </table></div>
-    <p class="cap">7 worlds each, October 18–19, in the default world of the time (it already had some poison food).</p></dd>
+    <p class="cap">7 worlds each, Oct 18–19, in the default world of the time (it already had some poison food).</p></dd>
     <dt>What happened</dt>
     <dd><p>Evolution beat the hand-written rule by almost double. One likely reason, not proven: full speed burns energy,
     and evolved brains learn when to slow down. With three maps per generation, the best brains now stay on top long
     enough to pass on what they have.</p></dd>
     <dt>Kept or dropped</dt>
-    <dd><span class="verdict kept">Kept</span> All four are still the base of every later chapter.</dd>
+    <dd><span class="stamp kept">Kept</span> All four are still the base of every later plate.</dd>
   </dl>
 </section>
 
-<!-- ============================================================ chapter 2 -->
-<section id="ch2">
-  <div class="kicker">Chapter 2 · October 21–23 · changes 6–7</div>
-  <h2>Hunters, and a world that runs itself</h2>
+<!-- ============================================================ plate 2 -->
+<section class="plate" id="ch2">
+  <div class="plate-head"><span class="plate-no">02</span><div><div class="tag">Plate 02 · Oct 21–23 · changes 6–7</div><h2>Hunters, and a world that runs itself</h2></div></div>
   <dl class="story">
     <dt>What we saw</dt>
     <dd><p>The prey had nothing to run from. Then, once hunters arrived, a deeper mismatch: in "generations", a judge ends
@@ -166,7 +233,7 @@
     <dd><p>First, hunters with brains, starting at 4, with a bigger gene pool (12 hunter brains instead of 4). Then, a
     world with no judge.</p></dd>
     <dt>What was built</dt>
-    <dd><p>The "living world": no generations. Every animal burns energy each moment. Eating refills it. A full animal has a
+    <dd><p>The living world: no generations. Every animal burns energy each moment. Eating refills it. A full animal has a
     baby with a slightly changed brain. An empty or old animal dies. Plants have roots: an eaten plant grows back in the
     same place. If one side dies out, it comes back from its best brains so far.</p></dd>
   </dl>
@@ -174,16 +241,19 @@
     <span class="switch" id="c2-switch"><button data-v="0" class="on">Before: generations (a judge)</button><button data-v="1">After: a living world</button></span>
   </div>
   <div class="single">
-    <div><canvas id="c2-world" width="800" height="600"></canvas>
-      <p class="cap">Green = prey, navy arrows = hunters, yellow beads = plants.</p></div>
-    <div><canvas id="c2-chart" width="520" height="300" style="background: var(--panel)"></canvas>
+    <figure>
+      <div class="dish control" id="c2-dish"><canvas id="c2-world" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag control" id="c2-tag">Before · generations · seed 1</span></figcaption>
+    </figure>
+    <div><canvas class="chart" id="c2-chart" width="520" height="300"></canvas>
       <p class="stats" id="c2-stats"></p></div>
   </div>
+  <div class="key" data-key="plain"></div>
   <div class="row">
     <span class="cap" style="margin: 0 6px 0 0">Speed</span>
     <button data-speed="c2" data-v="1">slow</button><button data-speed="c2" data-v="2" class="on">normal</button><button data-speed="c2" data-v="8">fast</button>
     <button id="c2-skip">Skip 20,000 ticks</button><button id="c2-reset">Start over</button>
-    <span class="stats" id="c2-tick" style="margin-left: 8px"></span>
+    <span class="counter" id="c2-tick"></span>
   </div>
   <dl class="story">
     <dt>The test</dt>
@@ -195,28 +265,27 @@
       <tr><td>Late hunters catch</td><td>87%</td><td>56%</td></tr>
     </table></div>
     <p><b>Does the living world last?</b> Plants that vanish when eaten: the world collapsed in every world tested (the prey
-    eat everything; no single prey gains by holding back). Plants with roots: 10 of 14 worlds kept going. Hunters and prey
-    both alive for a stretch of 20,000 ticks: 11 of 14 worlds, and 12 of 14 on 14 fresh ones.</p></dd>
+    eat everything; no single prey gains by holding back). Plants with roots: <span class="n14" data-n="10"></span> kept going.
+    Hunters and prey both alive for a stretch of 20,000 ticks: <span class="n14" data-n="11"></span>, and 12 of 14 on 14 fresh worlds.</p></dd>
     <dt>What happened</dt>
     <dd><p>An arms race. Late hunters are much better against early prey, and late prey are much better against early hunters.
     The catch rate looked flat over time only because both sides improved together.</p>
     <p class="like">Like locks and lock-pickers: both get better every year, so the number of break-ins stays about the same.</p></dd>
     <dt>Kept or dropped</dt>
-    <dd><span class="verdict kept">Kept</span> The living world became the main world. Generations stay as a measuring tool.</dd>
+    <dd><span class="stamp kept">Kept</span> The living world became the main world. Generations stay as a measuring tool.</dd>
   </dl>
 </section>
 
-<!-- ============================================================ chapter 3 -->
-<section id="ch3">
-  <div class="kicker">Chapter 3 · October 19–31 · changes 5, 8, 10</div>
-  <h2>Poison, and a real eye</h2>
+<!-- ============================================================ plate 3 -->
+<section class="plate" id="ch3">
+  <div class="plate-head"><span class="plate-no">03</span><div><div class="tag">Plate 03 · Oct 19–31 · changes 5, 8, 10</div><h2>Poison, and a real eye</h2></div></div>
   <dl class="story">
     <dt>What we saw</dt>
     <dd><p>Poison plants were a flat energy cost: eat one, lose a bit, move on. Rey wanted a real food chain, where poison
     moves from plants to prey to hunters, and the young and old suffer most. Later, a second problem: the creatures'
     senses were written by hand ("where is the nearest poison").</p></dd>
     <dt>Rey's call</dt>
-    <dd><p>Poison that builds up in the body. Then the eye: <span class="said">"raw sense so they evolve their own smart sense"</span>.</p></dd>
+    <dd><p>Poison that builds up in the body. Then the eye: <span class="rey">“raw sense so they evolve their own smart sense”</span></p></dd>
     <dt>What was built</dt>
     <dd><p>A poison level in each body. It makes everything cost more energy and fades slowly (half every 500 ticks). A
     hunter that catches a sick prey takes in all of its poison.</p>
@@ -228,27 +297,31 @@
     <span class="switch" id="c3-switch"><button data-v="0">Before: no poison</button><button data-v="1" class="on">After: poison</button></span>
   </div>
   <div class="single">
-    <div><canvas id="c3-world" width="800" height="600"></canvas>
-      <p class="cap">The ringed prey's eye is drawn as four slices. Purple squares are poison plants; purple prey are sick.</p></div>
-    <div><canvas id="c3-eye" width="520" height="240" style="background: var(--panel)"></canvas>
+    <figure>
+      <div class="dish" id="c3-dish"><canvas id="c3-world" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag" id="c3-tag">After · poison · seed 1</span>
+      <p class="cap">The ringed prey's eye is drawn as four slices, tinted by the poison each slice sees.</p></figcaption>
+    </figure>
+    <div><canvas class="chart" id="c3-eye" width="520" height="240"></canvas>
       <p class="cap">What the ringed prey's eye reads right now. Darker = more of it, closer.</p>
       <p class="stats" id="c3-stats"></p></div>
   </div>
+  <div class="key" data-key="poison"></div>
   <div class="row">
     <span class="cap" style="margin: 0 6px 0 0">Speed</span>
     <button data-speed="c3" data-v="1">slow</button><button data-speed="c3" data-v="2" class="on">normal</button><button data-speed="c3" data-v="8">fast</button>
     <button id="c3-skip">Skip 20,000 ticks</button><button id="c3-reset">Start over</button>
-    <span class="stats" id="c3-tick" style="margin-left: 8px"></span>
+    <span class="counter" id="c3-tick"></span>
   </div>
   <dl class="story">
     <dt>The test</dt>
-    <dd><p><b>Poison against no poison</b> (October 24): with poison, hunters died out 19 to 46 times per run; without it,
+    <dd><p><b>Poison against no poison</b> (Oct 24): with poison, hunters died out 19 to 46 times per run; without it,
     3 times. Hunters made immune to poison: balanced again. So the poison inside the hunters was the cause.</p>
     <p><b>Which senses did evolution keep?</b> 14 worlds × 130 generations. The control is a gene that switches on nothing.</p>
     <div class="wrap"><table>
       <tr><th>Sense</th><th>Creatures with it on, at the end</th><th>Beat the control by a lot</th></tr>
-      <tr><td>Poison plants</td><td>92%</td><td>13 of 14 worlds</td></tr>
-      <tr><td>Hunters</td><td>84%</td><td>12 of 14 worlds</td></tr>
+      <tr><td>Poison plants</td><td>92%</td><td><span class="n14" data-n="13"></span></td></tr>
+      <tr><td>Hunters</td><td>84%</td><td><span class="n14" data-n="12"></span></td></tr>
       <tr><td>Other prey</td><td>2%</td><td>–</td></tr>
       <tr><td>Control (does nothing)</td><td>38%</td><td>–</td></tr>
     </table></div>
@@ -260,26 +333,25 @@
     <p>Evolution kept the senses that tell something new <em>and</em> have a move to go with it: see poison, steer away;
     see a hunter, run. It dropped the sense with no move attached.</p></dd>
     <dt>Kept or dropped</dt>
-    <dd><span class="verdict kept">Kept</span> Poison and the eye. <span class="verdict dropped">Dropped</span> Resistance
+    <dd><span class="stamp kept">Kept</span> Poison and the eye. <span class="stamp dropped">Dropped</span> Resistance
     trained by eating poison: it stayed near zero (0.00 to 0.06), so it was switched off.</dd>
   </dl>
-  <div class="side">
-    <h4>Side box: learning during life (October 19)</h4>
+  <div class="deadend">
+    <h4>Side box: learning during life (Oct 19)</h4>
     <p>Could brains also learn while they live, not only between generations? At first learning made scores worse: the
-    connections kept growing. Rey asked for "both fixes", plus "learn less when hungry". Forgetting fixed the harm, but
-    learning still gave no gain. <span class="verdict mixed">Kept, off</span></p>
+    connections kept growing. Rey asked for two fixes (forgetting, and learning less when hungry). Forgetting fixed the
+    harm, but learning still gave no gain. <span class="stamp mixed">Kept, off</span></p>
   </div>
-  <div class="side">
-    <h4>Side box: a game (October 26–30)</h4>
-    <p>The project tried a play page with cards and terrain. Rey's verdict: <span class="said">"the logic is there but not the
-    fun"</span>. It was dropped on October 30 and the work went back to the lab. <span class="verdict dropped">Dropped</span></p>
+  <div class="deadend">
+    <h4>Side box: a game (Oct 26–30)</h4>
+    <p>The project tried a play page with cards and terrain. Rey's verdict: <span class="rey">“the logic is there but not
+    the fun”</span>. It was dropped on Oct 30 and the work went back to the lab. <span class="stamp dropped">Dropped</span></p>
   </div>
 </section>
 
-<!-- ============================================================ chapter 4 -->
-<section id="ch4">
-  <div class="kicker">Chapter 4 · November 3–11 · changes 11–12</div>
-  <h2>Hunters learn to dodge, but it doesn't pay</h2>
+<!-- ============================================================ plate 4 -->
+<section class="plate" id="ch4">
+  <div class="plate-head"><span class="plate-no">04</span><div><div class="tag">Plate 04 · Nov 3–11 · changes 11–12</div><h2>Hunters learn to dodge, but it doesn't pay</h2></div></div>
   <dl class="story">
     <dt>What we saw</dt>
     <dd><p>Hunters were dying of poison. They could only tell a sick prey by its speed (poison slows prey down), and that clue
@@ -287,28 +359,23 @@
     hunters had "adapted".</p></dd>
     <dt>Rey's call</dt>
     <dd><p>A fair bar: compare against a control, over 14 worlds. Hunters must catch fewer sick prey <em>and</em> end up more
-    numerous, in at least 10 of 14. Then a clearer clue: <span class="said">"glow then scent"</span>.</p></dd>
+    numerous, in at least 10 of 14. Then a clearer clue: glow first, then scent.</p></dd>
     <dt>What was built</dt>
     <dd><p>A glow: sick prey glow, and the hunters' eye can see it. The control is the same world with blind hunters.
     (Scent was built too; it did worse and was later deleted.)</p></dd>
   </dl>
-  <div class="legend">
-    <span><span class="dot" style="background: var(--prey)"></span>prey</span>
-    <span><span class="dot" style="background: var(--sick)"></span>sick prey</span>
-    <span><span class="dot" style="background: var(--glow)"></span>glow (only the left hunters see it)</span>
-    <span><span class="dot" style="background: var(--hunter); border-radius: 2px"></span>hunter</span>
-    <span><span class="dot" style="background: var(--food); box-shadow: 0 0 0 1px var(--food-rim)"></span>plant</span>
-    <span><span class="dot" style="background: var(--poison); border-radius: 1px"></span>poison plant</span>
-  </div>
+  <div class="key" data-key="glow"></div>
   <div class="duo">
-    <div><canvas id="c4-glow" width="800" height="600"></canvas><p class="cap"><b>After · glow:</b> hunters can see who is sick</p><p class="stats" id="c4-g-stats"></p></div>
-    <div><canvas id="c4-blind" width="800" height="600"></canvas><p class="cap"><b>Before · blind:</b> hunters can't tell</p><p class="stats" id="c4-b-stats"></p></div>
+    <figure><div class="dish"><canvas id="c4-glow" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag">After · glow · seed 1</span> <span class="cap">hunters can see who is sick</span><p class="stats" id="c4-g-stats"></p></figcaption></figure>
+    <figure><div class="dish control"><canvas id="c4-blind" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag control">Control · blind · seed 1</span> <span class="cap">hunters can't tell</span><p class="stats" id="c4-b-stats"></p></figcaption></figure>
   </div>
   <div class="row">
     <span class="cap" style="margin: 0 6px 0 0">Speed</span>
     <button data-speed="c4" data-v="1">slow</button><button data-speed="c4" data-v="2" class="on">normal</button><button data-speed="c4" data-v="8">fast</button>
     <button id="c4-skip">Skip 20,000 ticks</button><button id="c4-reset">Start over</button>
-    <span class="stats" id="c4-tick" style="margin-left: 8px"></span>
+    <span class="counter" id="c4-tick"></span>
   </div>
   <p><b>"Pick"</b> measures how choosy hunters are: the share of sick prey among their catches, divided by the share of sick
   prey alive. 1 means they catch sick prey exactly as often as chance. Below 1 means they avoid them. It needs a few
@@ -317,13 +384,13 @@
     <dt>The test</dt>
     <dd><p>Glow against blind, 14 worlds of 200,000 ticks each:</p>
     <div class="wrap"><table>
-      <tr><th></th><th>Glow</th><th>Blind</th><th>Glow better in</th></tr>
-      <tr><td>Pick (lower = avoids sick prey)</td><td>0.52</td><td>0.64</td><td>11 of 14 worlds</td></tr>
-      <tr><td>Hunters alive</td><td>27.8</td><td>27.5</td><td>7 of 14 worlds</td></tr>
+      <tr><th></th><th>Glow</th><th class="ctl"><span>Blind</span></th><th>Glow better in</th></tr>
+      <tr><td>Pick (lower = avoids sick prey)</td><td>0.52</td><td>0.64</td><td><span class="n14" data-n="11"></span></td></tr>
+      <tr><td>Hunters alive</td><td>27.8</td><td>27.5</td><td><span class="n14" data-n="7"></span></td></tr>
       <tr><td>Prey alive</td><td>81</td><td>86</td><td></td></tr>
     </table></div>
-    <p class="cap">November 8, 2026. In a longer test (6 worlds, 400,000 ticks, twice the food) the gap kept growing: 0.43
-    against 0.57 in the last stretch. The two live worlds above are one of the 14, so their numbers can differ a lot from
+    <p class="cap">Nov 8, 2026. In a longer test (6 worlds, 400,000 ticks, twice the food) the gap kept growing: 0.43
+    against 0.57 in the last stretch. The two dishes above are one of the 14, so their numbers can differ a lot from
     these averages.</p></dd>
     <dt>What happened</dt>
     <dd><p>Hunters with glow learned to dodge sick prey, in 11 of 14 worlds, every time it was tested. But they did not end
@@ -332,113 +399,139 @@
     <p class="like">Like a fisherman who learns to skip the bad fish. He catches more good ones, the lake empties faster, and
     next year he eats about the same as before.</p></dd>
     <dt>Kept or dropped</dt>
-    <dd><span class="verdict kept">Kept</span> The glow, as the clue for every later test. The bar itself was replaced in chapter 7.</dd>
+    <dd><span class="stamp kept">Kept</span> The glow, as the clue for every later test. The bar itself was replaced on plate 7.</dd>
   </dl>
-  <div class="side">
-    <h4>Side box: the balancers (November 9–11)</h4>
+  <div class="deadend">
+    <h4>Side box: the balancers (Nov 9–11)</h4>
     <p>If dodging doesn't pay, maybe the world needs a nudge. Each idea was tested against blind hunters on the same worlds:</p>
     <div class="wrap"><table>
       <tr><th>Idea</th><th>Result</th></tr>
-      <tr><td>Seasons with "extreme swings" of poison</td><td>The world broke: works in 0 of 14</td></tr>
-      <tr><td>A weaker or stronger poison ("find the sweet spot")</td><td>No dose fixes it</td></tr>
+      <tr><td>Seasons (<span class="rey">“for season make extreme swings”</span>)</td><td>The world broke: works in 0 of 14</td></tr>
+      <tr><td>A weaker or stronger poison (<span class="rey">“lets find the sweet spot”</span>)</td><td>No dose fixes it</td></tr>
       <tr><td>Cheap waiting (resting hunters burn less)</td><td>Passed the small test, failed the proof</td></tr>
       <tr><td>A brain that learns during life</td><td>Failed</td></tr>
       <tr><td>A stomach (food digests slowly)</td><td>A small effect</td></tr>
     </table></div>
-    <p><span class="verdict dropped">Mostly dropped</span> None passed the bar.</p>
+    <p><span class="stamp dropped">Mostly dropped</span> None passed the bar.</p>
   </div>
 </section>
 
-<!-- ============================================================ chapter 5 -->
-<section id="ch5">
-  <div class="kicker">Chapter 5 · November 11 · change 13</div>
-  <h2>Making it natural</h2>
+<!-- ============================================================ plate 5 -->
+<section class="plate" id="ch5">
+  <div class="plate-head"><span class="plate-no">05</span><div><div class="tag">Plate 05 · Nov 11 · change 13</div><h2>Making it natural</h2></div></div>
   <dl class="story">
     <dt>What we saw</dt>
-    <dd><p>Rey: <span class="said">"creatures die too fast"</span>. Measured: a hunter caught 2 prey in its whole life (the
+    <dd><p>Rey: <span class="rey">“creatures die too fast”</span>. Measured: a hunter caught 2 prey in its whole life (the
     middle value) and died after about 400 ticks. A prey lived about 380 ticks and ate 2 meals. Life was short and jumpy,
     and hunters often died out.</p></dd>
     <dt>Rey's call</dt>
     <dd><p>Slow down how fast bodies use energy, and check the world against nature's food pyramid. Then:
-    <span class="said">"hunter will default slow"</span>.</p></dd>
+    <span class="rey">“hunter will default slow”</span></p></dd>
     <dt>What was built</dt>
     <dd><p>Slow hunters: they burn energy 4 times slower, and each catch gives 4 times less. They need the same number of
     catches over time, but a full body now lasts 4 times longer.</p></dd>
   </dl>
+  <div class="key" data-key="glow"></div>
   <div class="duo">
-    <div><canvas id="c5-fast" width="800" height="600"></canvas><p class="cap"><b>Before · fast hunters</b></p><p class="stats" id="c5-f-stats"></p></div>
-    <div><canvas id="c5-slow" width="800" height="600"></canvas><p class="cap"><b>After · slow hunters</b></p><p class="stats" id="c5-s-stats"></p></div>
+    <figure><div class="dish control"><canvas id="c5-fast" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag control">Before · fast hunters · seed 1</span><p class="stats" id="c5-f-stats"></p></figcaption></figure>
+    <figure><div class="dish"><canvas id="c5-slow" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag">After · slow hunters · seed 1</span><p class="stats" id="c5-s-stats"></p></figcaption></figure>
   </div>
   <div class="row">
     <span class="cap" style="margin: 0 6px 0 0">Speed</span>
     <button data-speed="c5" data-v="1">slow</button><button data-speed="c5" data-v="2" class="on">normal</button><button data-speed="c5" data-v="8">fast</button>
     <button id="c5-skip">Skip 20,000 ticks</button><button id="c5-reset">Start over</button>
-    <span class="stats" id="c5-tick" style="margin-left: 8px"></span>
+    <span class="counter" id="c5-tick"></span>
   </div>
-  <p class="cap">Both worlds: hunters see the glow, poison is on, same start. "Die-outs" counts how often the hunters all died.</p>
+  <p class="cap">Both dishes: hunters see the glow, poison is on, same start. "Died out" counts how often the hunters all died.</p>
   <dl class="story">
     <dt>The test</dt>
     <dd><p>The old proofs rerun with slow hunters, same 14 worlds, 200,000 ticks each:</p>
     <div class="wrap"><table>
-      <tr><th></th><th>Fast hunters</th><th>Slow hunters</th></tr>
+      <tr><th></th><th class="ctl"><span>Fast hunters</span></th><th>Slow hunters</th></tr>
       <tr><td>Hunter die-outs per run</td><td>5.7</td><td>1.6</td></tr>
       <tr><td>Hunters per prey</td><td>0.36</td><td>0.19</td></tr>
       <tr><td>Prey alive</td><td>81</td><td>119</td></tr>
-      <tr><td>World works (no die-out at the end)</td><td>14 of 14</td><td>13 of 14</td></tr>
+      <tr><td>World works (no die-out at the end)</td><td><span class="n14" data-n="14"></span></td><td><span class="n14" data-n="13"></span></td></tr>
       <tr><td>Hunter deaths with poison in them</td><td>32%</td><td>69%</td></tr>
     </table></div>
     <p class="cap">Glow, full poison, senses handed out. With senses left to evolve the die-outs fell more: 14.5 to 3.1.</p>
     <p><b>Against nature:</b> about 10% of the energy in one level of a food chain reaches the next, and big meat-eaters
-    need about 111 kg of prey per kg of their own body (Carbone &amp; Gittleman, <i>Science</i>, 2002).
-    The world went from 36 to 19 hunters per 100 prey: closer to nature, still far above it.</p></dd>
+    need about 111 kg of prey per kg of their own body (Carbone &amp; Gittleman, <i>Science</i>, 2002). The world went from
+    36 to 19 hunters per 100 prey: closer to nature, still far above it.</p></dd>
     <dt>What happened</dt>
     <dd><p>Hunter die-outs fell 3 to 7 times. The pyramid got a narrower top. Long-lived hunters collect more poison over a
     lifetime, so more of them die with poison inside.</p>
     <p class="like">Like a bear and a shrew. The shrew must eat every few hours or die; the bear eats big and can wait. Bears'
     numbers swing much less.</p>
-    <p class="fix"><b>A correction.</b> We first read the results as "slow hunters dodge better". Wrong: blind slow hunters'
-    pick fell too (0.47 against 0.64), and blind hunters cannot see sickness. With fewer hunters per prey, a sick prey more
-    often dies by itself before anyone catches it. Only glow against blind counts, and with slow hunters that gap got
-    smaller (glow lower in 6 of 14).</p></dd>
+    <div class="deadend" style="margin-top: var(--space-2)">
+      <h4>A correction</h4>
+      <p>We first read the results as "slow hunters dodge better". Wrong: blind slow hunters' pick fell too (0.47 against
+      0.64), and blind hunters cannot see sickness. With fewer hunters per prey, a sick prey more often dies by itself before
+      anyone catches it. Only glow against blind counts, and with slow hunters that gap got smaller (glow lower in 6 of 14).</p>
+    </div></dd>
     <dt>Kept or dropped</dt>
-    <dd><span class="verdict kept">Kept</span> Slow hunters are the default since November 11.
-    <span class="verdict dropped">Dropped</span> Slow prey: prey lives in 12,000 ticks fell from 1,282 to 59 and the
+    <dd><span class="stamp kept">Kept</span> Slow hunters are the default since Nov 11.
+    <span class="stamp dropped">Dropped</span> Slow prey: prey lives in 12,000 ticks fell from 1,282 to 59 and the
     hunters starved.</dd>
   </dl>
 </section>
 
-<section class="soon"><div class="kicker">Chapter 6 · November 11–13 · change 14</div><h2>When poison keeps rising</h2>
-  <p>Resistance as a gene, poison that rises over time, and a hangover for hunters. Coming after tonight's results.</p></section>
-<section class="soon"><div class="kicker">Chapter 7 · November 19–20 · change 15</div><h2>Judged by nature</h2>
-  <p>A new bar, taken from how nature adapts to poison, and the final test at 400,000 ticks. Coming after tonight's results.</p></section>
+<section class="plate soon"><div class="plate-head"><span class="plate-no">06</span><div><div class="tag">Plate 06 · Nov 11–13 · change 14</div><h2>When poison keeps rising</h2></div></div>
+  <p class="cap">Resistance as a gene, poison that rises over time, and a hangover for hunters. Coming after tonight's results.</p></section>
+<section class="plate soon"><div class="plate-head"><span class="plate-no">07</span><div><div class="tag">Plate 07 · Nov 19–20 · change 15</div><h2>Judged by nature</h2></div></div>
+  <p class="cap">A new bar, taken from how nature adapts to poison, and the final test at 400,000 ticks. Coming after tonight's results.</p>
+  <div class="deadend">
+    <h4>Side box: verdicts that changed</h4>
+    <p>Ten times, a test said "failed" while part of the setup was wrong. We found each problem later and tested again.
+    Five verdicts flipped. Five held.</p>
+    <div class="wrap"><table>
+      <tr><th>Said "failed"</th><th>What was wrong at the time</th><th>After the fix</th></tr>
+      <tr><td>Glow hunters "not adapted" (every glow proof, Nov 6–11)</td><td>The bar asked for more hunters; nature doesn't work that way</td><td><span class="stamp kept">Flipped</span> Poison solved under the nature bar</td></tr>
+      <tr><td>Hunter eye "no clear effect" (Nov 2)</td><td>Hunter brains learned but never forgot, so they drifted</td><td><span class="stamp kept">Flipped</span> The eye helped: <span class="n14" data-n="13"></span> with senses left to evolve</td></tr>
+      <tr><td>Cheap waiting (Nov 11)</td><td>Fast hunters</td><td><span class="stamp mixed">Hint only</span> About 2–3 times the hunters, and the world kept working (3 worlds)</td></tr>
+      <tr><td>The bite (Nov 3)</td><td>Fast hunters</td><td><span class="stamp mixed">Hint only</span> Refused sick prey 57% of the time, clean prey 39% (3 worlds)</td></tr>
+      <tr><td>Scent "worse than glow" (Nov 6)</td><td>Fast hunters, the old bar</td><td><span class="stamp mixed">Hint only</span> About the same as glow (3 worlds)</td></tr>
+      <tr><td>Rising poison: works in 0 of 6 (Nov 13)</td><td>A bug: the rise started at 30% poison, not 23%</td><td><span class="stamp dropped">Held</span> Still 0 of 6</td></tr>
+      <tr><td>Seasons: works in 0 of 14</td><td>Fast hunters</td><td><span class="stamp dropped">Held</span> Still 0 of 6</td></tr>
+      <tr><td>No poison strength fixes it</td><td>Fast hunters</td><td><span class="stamp dropped">Held</span> Still no fix (strength 0.75 and 3)</td></tr>
+      <tr><td>The stomach: a small effect</td><td>Fast hunters</td><td><span class="stamp dropped">Held</span> Still small</td></tr>
+      <tr><td>Hunters take about 3.7 times the poison</td><td>Their age was judged against a fixed 6,000-tick life</td><td><span class="stamp dropped">Held</span> The fix changed little</td></tr>
+    </table></div>
+    <p>Twice it went the other way: a wrong setup made something look like a pass (a dose cap, and a year that was too short).
+    "Hint only" means 3 worlds: not proven.</p>
+    <p class="like">Like grading a fish on how well it climbs a tree. Change the test, and the same fish passes.</p>
+  </div></section>
 
 <!-- ============================================================ timeline -->
-<section id="timeline">
-  <div class="kicker">Timeline</div>
+<section class="plate" id="timeline">
+  <div class="tag">Timeline</div>
   <h2>All 15 changes, in order</h2>
   <div class="wrap"><table class="timeline">
     <tr><th>#</th><th>Date</th><th>Change</th><th>What we saw</th><th>What happened</th><th>Kept?</th></tr>
-    <tr><td>1</td><td>Oct 16</td><td>A world to watch</td><td>Start: tiny brains in a browser</td><td>Creatures learn to find food by evolution alone</td><td>Kept</td></tr>
-    <tr><td>2</td><td>Oct 17</td><td>Fair scoring: 3 food maps per generation</td><td>Scores were mostly luck (one map agreed only 0.28 with another)</td><td>Three maps per generation became the default</td><td>Kept</td></tr>
-    <tr><td>3</td><td>Oct 17</td><td>Senses and families</td><td>Which senses help?</td><td>Neighbour sense on by default; families split by brain difference</td><td>Kept</td></tr>
-    <tr><td>4</td><td>Oct 18</td><td>Exact replay</td><td>The same start must give the same world anywhere</td><td>Every browser replays a run exactly</td><td>Kept</td></tr>
-    <tr><td>5</td><td>Oct 19</td><td>Poison food, learning during life</td><td>Learning made scores worse</td><td>Forgetting fixed the harm; learning still gave no gain</td><td>Kept, off</td></tr>
-    <tr><td>6</td><td>Oct 21–23</td><td>Hunters</td><td>Prey had nothing to flee</td><td>An arms race: late hunters caught 87% of early prey, 56% of late prey</td><td>Kept</td></tr>
-    <tr><td>7</td><td>Oct 23</td><td>A world that runs by itself</td><td>Generations were a judge, not a world</td><td>The living world; plants need roots</td><td>Kept</td></tr>
-    <tr><td>8</td><td>Oct 24–26</td><td>Poison up the food chain</td><td>"They just forget about poison"</td><td>Poison tipped the balance to prey; trained resistance never built up</td><td>Poison kept</td></tr>
-    <tr><td>9</td><td>Oct 26–30</td><td>Side trip: a game</td><td>"The logic is there but not the fun"</td><td>Back to the lab</td><td>Dropped</td></tr>
-    <tr><td>10</td><td>Oct 31</td><td>A raw eye</td><td>Senses written by hand</td><td>Evolution kept the poison and hunter senses</td><td>Kept</td></tr>
-    <tr><td>11</td><td>Nov 3–8</td><td>A fair bar, and the glow</td><td>No clear way to judge "adapted"</td><td>Glow hunters dodge (11 of 14) but don't end up more numerous</td><td>Kept</td></tr>
-    <tr><td>12</td><td>Nov 9–11</td><td>Balancers</td><td>Dodging doesn't pay</td><td>None passed; seasons broke the world</td><td>Mostly dropped</td></tr>
-    <tr><td>13</td><td>Nov 11</td><td>Slow hunters</td><td>"Creatures die too fast"</td><td>Die-outs 3–7× fewer; hunters per prey 0.36 to 0.19</td><td>New default</td></tr>
-    <tr><td>14</td><td>Nov 11–13</td><td>Resistance; rising poison; hangover</td><td>Poison kills before anyone adapts</td><td>Coming in chapter 6</td><td>Resistance kept</td></tr>
-    <tr><td>15</td><td>Nov 19–20</td><td>Judged by nature</td><td>The bar asked for more hunters; nature doesn't work that way</td><td>Coming in chapter 7</td><td>Poison solved</td></tr>
+    <tr><td>1</td><td>Oct 16</td><td>A world to watch</td><td>Start: tiny brains in a browser</td><td>Creatures learn to find food by evolution alone</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>2</td><td>Oct 17</td><td>Fair scoring: 3 food maps per generation</td><td>Scores were mostly luck (one map agreed only 0.28 with another)</td><td>Three maps per generation became the default</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>3</td><td>Oct 17</td><td>Senses and families</td><td>Which senses help?</td><td>Neighbour sense on by default; families split by brain difference</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>4</td><td>Oct 18</td><td>Exact replay</td><td>The same start must give the same world anywhere</td><td>Every browser replays a run exactly</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>5</td><td>Oct 19</td><td>Poison food, learning during life</td><td>Learning made scores worse</td><td>Forgetting fixed the harm; learning still gave no gain</td><td><span class="stamp mixed">Kept, off</span></td></tr>
+    <tr><td>6</td><td>Oct 21–23</td><td>Hunters</td><td>Prey had nothing to flee</td><td>An arms race: late hunters caught 87% of early prey, 56% of late prey</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>7</td><td>Oct 23</td><td>A world that runs by itself</td><td>Generations were a judge, not a world</td><td>The living world; plants need roots</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>8</td><td>Oct 24–26</td><td>Poison up the food chain</td><td><span class="rey">“they just forget about poison”</span></td><td>Poison tipped the balance to prey; trained resistance never built up</td><td><span class="stamp kept">Poison kept</span></td></tr>
+    <tr><td>9</td><td>Oct 26–30</td><td>Side trip: a game</td><td><span class="rey">“the logic is there but not the fun”</span></td><td>Back to the lab</td><td><span class="stamp dropped">Dropped</span></td></tr>
+    <tr><td>10</td><td>Oct 31</td><td>A raw eye</td><td>Senses written by hand</td><td>Evolution kept the poison and hunter senses</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>11</td><td>Nov 3–8</td><td>A fair bar, and the glow</td><td>No clear way to judge "adapted"</td><td>Glow hunters dodge (11 of 14) but don't end up more numerous</td><td><span class="stamp kept">Kept</span></td></tr>
+    <tr><td>12</td><td>Nov 9–11</td><td>Balancers</td><td>Dodging doesn't pay</td><td>None passed; seasons broke the world</td><td><span class="stamp dropped">Mostly dropped</span></td></tr>
+    <tr><td>13</td><td>Nov 11</td><td>Slow hunters</td><td><span class="rey">“creatures die too fast”</span></td><td>Die-outs 3–7× fewer; hunters per prey 0.36 → 0.19</td><td><span class="stamp kept">New default</span></td></tr>
+    <tr><td>14</td><td>Nov 11–13</td><td>Resistance; rising poison; hangover</td><td>Poison kills before anyone adapts</td><td>Coming on plate 6</td><td><span class="stamp kept">Resistance kept</span></td></tr>
+    <tr><td>15</td><td>Nov 19–20</td><td>Judged by nature</td><td>The bar asked for more hunters; nature doesn't work that way</td><td>Coming on plate 7</td><td><span class="stamp kept">Poison solved</span></td></tr>
   </table></div>
 </section>
 
-<footer>Every number here comes from the project's test log. Unless a chapter says otherwise, "14 worlds" means 14
-different starting seeds, each compared with its own control on the same seed. Rey's words in quotes are copied from the
-log. Each world is exactly repeatable: the same start gives the same result in any browser.</footer>
+<footer>Every number here comes from the project's test log. Unless a plate says otherwise, "14 worlds" means 14
+different starting seeds, each compared with its own control on the same seed. In every with / without pair the control
+is hatched. Rey's words are quoted exactly from the log. Each world is exactly repeatable: the same start gives the same
+result in any browser.</footer>
 </div>
 <script src="dist/report.js"></script>
 </body>

@@ -3,6 +3,8 @@
 // runs the real engine live in the browser with a before / after switch for that chapter's change. It reads the worlds and never
 // changes how they evolve. Built: chapters 1-5. Chapters 6-7 wait for the overnight results (2026-11-20).
 // Each chapter runs the rules of its time (results before 2026-11-11 used fast hunters), so its live world matches its numbers.
+// Look: Rey's Instinct Lab design system (2026-11-20). Poison has one colour (fuchsin); glyphs differ by shape first (prey disc,
+// sick prey hollow ring, glow a ring, hunter arrowhead, plant bead, poison plant square); the control in a pair is hatched.
 import { createWorld, step, DEFAULT_RULES, W, H, type Creature, type Rules, type World } from "../engine/world.ts";
 import { OUT } from "../engine/brain.ts";
 import { inputLabels, EYE_R } from "../engine/senses.ts";
@@ -11,12 +13,13 @@ import { SICK } from "../engine/toxin.ts";
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const C = {
-  field: css("--field"), food: css("--food"), rim: css("--food-rim"), poison: css("--poison"), hunter: css("--hunter"),
-  prey: css("--prey"), sick: css("--sick"), glow: css("--glow"), text: css("--text"), muted: css("--muted"), line: css("--line"),
-  pos: css("--pos"), neg: css("--neg"), panel: css("--panel"), accent: css("--accent"),
+  field: css("--agar"), food: css("--food"), rim: css("--food-rim"), poison: css("--poison"), hunter: css("--hunter"),
+  prey: css("--prey"), sick: css("--prey-sick"), glow: css("--glow"), text: css("--ink"), muted: css("--ink-muted"), line: css("--line"),
+  pos: css("--weight-pos"), neg: css("--weight-neg"), panel: css("--paper"), accent: css("--accent"),
 };
 const FONT = '"Recursive", system-ui, sans-serif';
 const fmt = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "–");
+const num = (x: number) => x.toLocaleString("en-US"); // 21,116
 
 // The rules of each era. FAST = the hunter energy rules before 2026-11-11 (now the slow ones are the engine default).
 const FAST = { hunterHunger: 0.0025, hunterMeal: 0.5 };
@@ -41,25 +44,35 @@ function drawWorld(cx: CanvasRenderingContext2D, w: World, opts: { glow: boolean
       cx.fillStyle = C.food;
       cx.fill();
       cx.strokeStyle = C.rim;
-      cx.lineWidth = 1;
+      cx.lineWidth = 1.2;
       cx.stroke();
     }
   }
   for (const c of w.creatures) {
     if (!c.alive) continue;
     const sick = c.toxin > SICK;
-    if (sick && opts.glow) {
+    if (sick && opts.glow) { // the glow: a soft ring twice the prey's radius, never a fill
       cx.beginPath();
-      cx.arc(c.x, c.y, 11, 0, Math.PI * 2);
-      cx.fillStyle = C.glow;
+      cx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+      cx.strokeStyle = C.glow;
+      cx.globalAlpha = 0.7;
+      cx.lineWidth = 3;
+      cx.stroke();
+      cx.globalAlpha = 1;
+    }
+    cx.beginPath(); // healthy prey: solid disc; sick prey: hollow ring
+    if (sick) {
+      cx.arc(c.x, c.y, 4.2, 0, Math.PI * 2);
+      cx.strokeStyle = C.sick;
+      cx.lineWidth = 1.6;
+      cx.stroke();
+    } else {
+      cx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+      cx.fillStyle = C.prey;
       cx.fill();
     }
     cx.beginPath();
-    cx.arc(c.x, c.y, 5, 0, Math.PI * 2);
-    cx.fillStyle = sick ? C.sick : C.prey;
-    cx.fill();
-    cx.beginPath();
-    cx.moveTo(c.x, c.y);
+    cx.moveTo(c.x + Math.cos(c.a) * 5, c.y + Math.sin(c.a) * 5);
     cx.lineTo(c.x + Math.cos(c.a) * 9, c.y + Math.sin(c.a) * 9);
     cx.strokeStyle = sick ? C.sick : C.prey;
     cx.lineWidth = 2;
@@ -99,13 +112,50 @@ function whenVisible(el: HTMLElement, on: (v: boolean) => void): void {
   }
 }
 
-// A before / after switch: buttons with data-v inside #id; calls back with the chosen value.
-function switcher(id: string, on: (v: number) => void): void {
-  const bs = $(id).querySelectorAll<HTMLButtonElement>("button");
+// A before / after switch: buttons with data-v inside #p-switch; calls back with the chosen value. The dish and its tag are
+// hatched while the "before" (the control) shows, and the tag names what is in the dish.
+function switcher(p: string, tags: string[], on: (v: number) => void): void {
+  const bs = $(`${p}-switch`).querySelectorAll<HTMLButtonElement>("button");
   bs.forEach((b) => (b.onclick = () => {
     bs.forEach((x) => x.classList.toggle("on", x === b));
-    on(Number(b.dataset.v));
+    const v = Number(b.dataset.v);
+    $(`${p}-dish`).classList.toggle("control", v === 0);
+    const tag = $(`${p}-tag`);
+    tag.classList.toggle("control", v === 0);
+    tag.textContent = tags[v];
+    on(v);
   }));
+}
+
+// "N of 14": 14 dots, the passed ones filled, then the words (design system rule 4).
+function fourteenStrips(): void {
+  document.querySelectorAll<HTMLElement>(".n14[data-n]").forEach((el) => {
+    const n = Number(el.dataset.n);
+    let h = "";
+    for (let i = 0; i < 14; i++) h += `<i class="${i < n ? "p" : ""}"></i>`;
+    el.innerHTML = `${h}<b>${n} of 14</b>`;
+    el.setAttribute("aria-label", `${n} of 14 worlds`);
+  });
+}
+
+// The world key: the same glyphs as the dishes, so shape alone tells them apart.
+function worldKeys(): void {
+  const g = {
+    prey: `<circle cx="8" cy="8" r="5" fill="var(--prey)"/>`,
+    sick: `<circle cx="8" cy="8" r="4.2" fill="none" stroke="var(--prey-sick)" stroke-width="1.6"/>`,
+    glow: `<circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--glow)" stroke-width="2.5" opacity="0.7"/><circle cx="8" cy="8" r="3" fill="none" stroke="var(--prey-sick)" stroke-width="1.4"/>`,
+    hunter: `<path d="M14 8 L3 13.5 L5.5 8 L3 2.5 Z" fill="var(--hunter)"/>`,
+    plant: `<circle cx="8" cy="8" r="3.5" fill="var(--food)" stroke="var(--food-rim)" stroke-width="1.2"/>`,
+    poison: `<rect x="5.5" y="5.5" width="5" height="5" fill="var(--poison)"/>`,
+  };
+  const item = (k: keyof typeof g, label: string) => `<span><svg viewBox="0 0 16 16" aria-hidden="true">${g[k]}</svg>${label}</span>`;
+  const sets: Record<string, string> = {
+    plain: item("prey", "prey") + item("hunter", "hunter") + item("plant", "plant"),
+    poison: item("prey", "prey") + item("sick", "sick prey") + item("hunter", "hunter") + item("plant", "plant") + item("poison", "poison plant"),
+    glow: item("prey", "prey") + item("sick", "sick prey") + item("glow", "glow (only glow hunters see it)") + item("hunter", "hunter") +
+      item("plant", "plant") + item("poison", "poison plant"),
+  };
+  document.querySelectorAll<HTMLElement>(".key[data-key]").forEach((el) => (el.innerHTML = sets[el.dataset.key!] ?? ""));
 }
 
 const hunterDieOuts = (w: World) => w.eco.rounds.filter((r) => r.died !== "prey").length;
@@ -149,7 +199,7 @@ function live(section: string, p: string, build: () => SideSpec[], after?: (side
       if (s.stats && s.text) $(s.stats).textContent = s.text(s.w);
     }
     after?.(sides);
-    $(`${p}-tick`).textContent = skipTo ? `Skipping ahead… tick ${sides[0].w.tick} of ${skipTo}` : `Tick ${sides[0].w.tick}`;
+    $(`${p}-tick`).textContent = skipTo ? `skipping… ${num(sides[0].w.tick)} of ${num(skipTo)}` : `tick ${num(sides[0].w.tick)}`;
   };
   requestAnimationFrame(frame);
   return { restart };
@@ -173,7 +223,7 @@ function chapterBrain(): void {
     return best;
   };
   const playBtn = $<HTMLButtonElement>("c1-play"), status = $("c1-status");
-  switcher("c1-switch", (v) => { w = createWorld(1, rules); follow = null; evolveLeft = v ? 20 : 0; });
+  switcher("c1", ["Before · random brains · seed 1", "After · 20 generations · seed 1"], (v) => { w = createWorld(1, rules); follow = null; evolveLeft = v ? 20 : 0; });
   playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? "Pause" : "Play"; };
   whenVisible($("ch1"), (v) => (visible = v));
 
@@ -198,7 +248,7 @@ function chapterBrain(): void {
     const last = w.avgHist.length ? w.avgHist[w.avgHist.length - 1] : NaN;
     status.textContent = evolveLeft > 0
       ? `Evolving… generation ${w.generation} (${evolveLeft} to go)`
-      : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${w.tick} of ${rules.genTicks}` +
+      : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${num(w.tick)} of ${num(rules.genTicks)}` +
         (w.avgHist.length ? ` · last generation ate ${fmt(last, 1)} pellets per map on average` : " · random brains, no evolution yet");
   };
   requestAnimationFrame(frame);
@@ -343,14 +393,14 @@ function chapterLife(): void {
   const r = live("ch2", "c2", () => [{
     rules: mode ? life : gens, canvas: "c2-world", glow: false, stats: "c2-stats",
     text: (w) => mode
-      ? `prey ${alivePrey(w)} · hunters ${w.hunters.length} · hunter babies ${w.eco.hunterBirths} · hunter deaths ${w.eco.hunterDeaths} · hunters died out ${hunterDieOuts(w)}×`
-      : `generation ${w.generation}, round ${w.layout + 1} of ${gens.layouts}, tick ${w.tick} of ${gens.genTicks} · ` +
+      ? `prey ${alivePrey(w)} · hunters ${w.hunters.length} · hunter babies ${num(w.eco.hunterBirths)} · hunter deaths ${num(w.eco.hunterDeaths)} · hunters died out ${hunterDieOuts(w)}×`
+      : `generation ${w.generation}, round ${w.layout + 1} of ${gens.layouts}, tick ${num(w.tick)} of ${num(gens.genTicks)} · ` +
         `hunters ${w.hunters.length}, always: they never get hungry and never have babies`,
   }], (sides) => {
     if (mode) drawPops(chart, sides[0].w);
     else drawScores(chart, sides[0].w, "prey: food eaten per map, each generation (the judge's score)");
   });
-  switcher("c2-switch", (v) => { mode = v; r.restart(); });
+  switcher("c2", ["Before · generations · seed 1", "After · living world · seed 1"], (v) => { mode = v; r.restart(); });
 }
 
 // --- chapter 3: poison, and a real eye --------------------------------------------------------------------------------
@@ -377,7 +427,7 @@ function chapterEye(): void {
     }
     drawEye(s.cx, eye, follow);
   });
-  switcher("c3-switch", (v) => { mode = v; follow = null; r.restart(); });
+  switcher("c3", ["Before · no poison · seed 1", "After · poison · seed 1"], (v) => { mode = v; follow = null; r.restart(); });
 }
 
 // Slice order in the engine's 4-slice eye (senses.ts eyeInto): 0 = right of the heading, 1 = behind, 2 = left, 3 = ahead.
@@ -444,7 +494,7 @@ function drawEye(wcx: CanvasRenderingContext2D, cx: CanvasRenderingContext2D, c:
 function chapterGlow(): void {
   const base: Rules = { ...DEFAULT_RULES, ...PROOF, ...FAST };
   const text = (w: World) => `prey ${alivePrey(w)} · hunters ${w.hunters.length} · sick now ${Math.round(sickShare(w) * 100)}% · ` +
-    `catches ${w.eco.sick.caught} · pick so far ${fmt(pickSoFar(w))}`;
+    `catches ${num(w.eco.sick.caught)} · pick so far ${fmt(pickSoFar(w))}`;
   live("ch4", "c4", () => [
     { rules: { ...base, hunterCue: 2 }, canvas: "c4-glow", glow: true, stats: "c4-g-stats", text },
     { rules: { ...base, hunterCue: 0 }, canvas: "c4-blind", glow: false, stats: "c4-b-stats", text },
@@ -466,6 +516,8 @@ function chapterSlow(): void {
   ]);
 }
 
+fourteenStrips();
+worldKeys();
 chapterBrain();
 chapterLife();
 chapterEye();

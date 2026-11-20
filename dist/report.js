@@ -2270,24 +2270,25 @@
   var $ = (id) => document.getElementById(id);
   var css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   var C = {
-    field: css("--field"),
+    field: css("--agar"),
     food: css("--food"),
     rim: css("--food-rim"),
     poison: css("--poison"),
     hunter: css("--hunter"),
     prey: css("--prey"),
-    sick: css("--sick"),
+    sick: css("--prey-sick"),
     glow: css("--glow"),
-    text: css("--text"),
-    muted: css("--muted"),
+    text: css("--ink"),
+    muted: css("--ink-muted"),
     line: css("--line"),
-    pos: css("--pos"),
-    neg: css("--neg"),
-    panel: css("--panel"),
+    pos: css("--weight-pos"),
+    neg: css("--weight-neg"),
+    panel: css("--paper"),
     accent: css("--accent")
   };
   var FONT = '"Recursive", system-ui, sans-serif';
   var fmt = (x, d = 2) => Number.isFinite(x) ? x.toFixed(d) : "\u2013";
+  var num = (x) => x.toLocaleString("en-US");
   var FAST = { hunterHunger: 25e-4, hunterMeal: 0.5 };
   var SLOW = { hunterHunger: 625e-6, hunterMeal: 0.125 };
   var LIFE = { mode: 1, hunters: 4, food: 60, foodSpread: 5e-4, regrow: 100, ecoWarmup: 0, birth: 0, senseFood2: 1, senseCreature: 1 };
@@ -2306,7 +2307,7 @@
         cx.fillStyle = C.food;
         cx.fill();
         cx.strokeStyle = C.rim;
-        cx.lineWidth = 1;
+        cx.lineWidth = 1.2;
         cx.stroke();
       }
     }
@@ -2315,16 +2316,26 @@
       const sick = c.toxin > SICK;
       if (sick && opts.glow) {
         cx.beginPath();
-        cx.arc(c.x, c.y, 11, 0, Math.PI * 2);
-        cx.fillStyle = C.glow;
+        cx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+        cx.strokeStyle = C.glow;
+        cx.globalAlpha = 0.7;
+        cx.lineWidth = 3;
+        cx.stroke();
+        cx.globalAlpha = 1;
+      }
+      cx.beginPath();
+      if (sick) {
+        cx.arc(c.x, c.y, 4.2, 0, Math.PI * 2);
+        cx.strokeStyle = C.sick;
+        cx.lineWidth = 1.6;
+        cx.stroke();
+      } else {
+        cx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+        cx.fillStyle = C.prey;
         cx.fill();
       }
       cx.beginPath();
-      cx.arc(c.x, c.y, 5, 0, Math.PI * 2);
-      cx.fillStyle = sick ? C.sick : C.prey;
-      cx.fill();
-      cx.beginPath();
-      cx.moveTo(c.x, c.y);
+      cx.moveTo(c.x + Math.cos(c.a) * 5, c.y + Math.sin(c.a) * 5);
       cx.lineTo(c.x + Math.cos(c.a) * 9, c.y + Math.sin(c.a) * 9);
       cx.strokeStyle = sick ? C.sick : C.prey;
       cx.lineWidth = 2;
@@ -2361,12 +2372,43 @@
       on(true);
     }
   }
-  function switcher(id, on) {
-    const bs = $(id).querySelectorAll("button");
+  function switcher(p, tags, on) {
+    const bs = $(`${p}-switch`).querySelectorAll("button");
     bs.forEach((b) => b.onclick = () => {
       bs.forEach((x) => x.classList.toggle("on", x === b));
-      on(Number(b.dataset.v));
+      const v = Number(b.dataset.v);
+      $(`${p}-dish`).classList.toggle("control", v === 0);
+      const tag = $(`${p}-tag`);
+      tag.classList.toggle("control", v === 0);
+      tag.textContent = tags[v];
+      on(v);
     });
+  }
+  function fourteenStrips() {
+    document.querySelectorAll(".n14[data-n]").forEach((el) => {
+      const n = Number(el.dataset.n);
+      let h = "";
+      for (let i = 0; i < 14; i++) h += `<i class="${i < n ? "p" : ""}"></i>`;
+      el.innerHTML = `${h}<b>${n} of 14</b>`;
+      el.setAttribute("aria-label", `${n} of 14 worlds`);
+    });
+  }
+  function worldKeys() {
+    const g = {
+      prey: `<circle cx="8" cy="8" r="5" fill="var(--prey)"/>`,
+      sick: `<circle cx="8" cy="8" r="4.2" fill="none" stroke="var(--prey-sick)" stroke-width="1.6"/>`,
+      glow: `<circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--glow)" stroke-width="2.5" opacity="0.7"/><circle cx="8" cy="8" r="3" fill="none" stroke="var(--prey-sick)" stroke-width="1.4"/>`,
+      hunter: `<path d="M14 8 L3 13.5 L5.5 8 L3 2.5 Z" fill="var(--hunter)"/>`,
+      plant: `<circle cx="8" cy="8" r="3.5" fill="var(--food)" stroke="var(--food-rim)" stroke-width="1.2"/>`,
+      poison: `<rect x="5.5" y="5.5" width="5" height="5" fill="var(--poison)"/>`
+    };
+    const item = (k, label) => `<span><svg viewBox="0 0 16 16" aria-hidden="true">${g[k]}</svg>${label}</span>`;
+    const sets = {
+      plain: item("prey", "prey") + item("hunter", "hunter") + item("plant", "plant"),
+      poison: item("prey", "prey") + item("sick", "sick prey") + item("hunter", "hunter") + item("plant", "plant") + item("poison", "poison plant"),
+      glow: item("prey", "prey") + item("sick", "sick prey") + item("glow", "glow (only glow hunters see it)") + item("hunter", "hunter") + item("plant", "plant") + item("poison", "poison plant")
+    };
+    document.querySelectorAll(".key[data-key]").forEach((el) => el.innerHTML = sets[el.dataset.key] ?? "");
   }
   var hunterDieOuts = (w) => w.eco.rounds.filter((r) => r.died !== "prey").length;
   var alivePrey = (w) => {
@@ -2417,7 +2459,7 @@
         if (s.stats && s.text) $(s.stats).textContent = s.text(s.w);
       }
       after?.(sides);
-      $(`${p}-tick`).textContent = skipTo ? `Skipping ahead\u2026 tick ${sides[0].w.tick} of ${skipTo}` : `Tick ${sides[0].w.tick}`;
+      $(`${p}-tick`).textContent = skipTo ? `skipping\u2026 ${num(sides[0].w.tick)} of ${num(skipTo)}` : `tick ${num(sides[0].w.tick)}`;
     };
     requestAnimationFrame(frame);
     return { restart };
@@ -2437,7 +2479,7 @@
       return best;
     };
     const playBtn = $("c1-play"), status = $("c1-status");
-    switcher("c1-switch", (v) => {
+    switcher("c1", ["Before \xB7 random brains \xB7 seed 1", "After \xB7 20 generations \xB7 seed 1"], (v) => {
       w = createWorld(1, rules);
       follow = null;
       evolveLeft = v ? 20 : 0;
@@ -2469,7 +2511,7 @@
       drawBrain(bcx, follow, labels);
       drawScores(ccx, w);
       const last = w.avgHist.length ? w.avgHist[w.avgHist.length - 1] : NaN;
-      status.textContent = evolveLeft > 0 ? `Evolving\u2026 generation ${w.generation} (${evolveLeft} to go)` : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${w.tick} of ${rules.genTicks}` + (w.avgHist.length ? ` \xB7 last generation ate ${fmt(last, 1)} pellets per map on average` : " \xB7 random brains, no evolution yet");
+      status.textContent = evolveLeft > 0 ? `Evolving\u2026 generation ${w.generation} (${evolveLeft} to go)` : `Generation ${w.generation}, food map ${w.layout + 1} of ${rules.layouts}, tick ${num(w.tick)} of ${num(rules.genTicks)}` + (w.avgHist.length ? ` \xB7 last generation ate ${fmt(last, 1)} pellets per map on average` : " \xB7 random brains, no evolution yet");
     };
     requestAnimationFrame(frame);
   }
@@ -2606,12 +2648,12 @@
       canvas: "c2-world",
       glow: false,
       stats: "c2-stats",
-      text: (w) => mode ? `prey ${alivePrey(w)} \xB7 hunters ${w.hunters.length} \xB7 hunter babies ${w.eco.hunterBirths} \xB7 hunter deaths ${w.eco.hunterDeaths} \xB7 hunters died out ${hunterDieOuts(w)}\xD7` : `generation ${w.generation}, round ${w.layout + 1} of ${gens.layouts}, tick ${w.tick} of ${gens.genTicks} \xB7 hunters ${w.hunters.length}, always: they never get hungry and never have babies`
+      text: (w) => mode ? `prey ${alivePrey(w)} \xB7 hunters ${w.hunters.length} \xB7 hunter babies ${num(w.eco.hunterBirths)} \xB7 hunter deaths ${num(w.eco.hunterDeaths)} \xB7 hunters died out ${hunterDieOuts(w)}\xD7` : `generation ${w.generation}, round ${w.layout + 1} of ${gens.layouts}, tick ${num(w.tick)} of ${num(gens.genTicks)} \xB7 hunters ${w.hunters.length}, always: they never get hungry and never have babies`
     }], (sides) => {
       if (mode) drawPops(chart, sides[0].w);
       else drawScores(chart, sides[0].w, "prey: food eaten per map, each generation (the judge's score)");
     });
-    switcher("c2-switch", (v) => {
+    switcher("c2", ["Before \xB7 generations \xB7 seed 1", "After \xB7 living world \xB7 seed 1"], (v) => {
       mode = v;
       r.restart();
     });
@@ -2643,7 +2685,7 @@
       }
       drawEye(s.cx, eye, follow);
     });
-    switcher("c3-switch", (v) => {
+    switcher("c3", ["Before \xB7 no poison \xB7 seed 1", "After \xB7 poison \xB7 seed 1"], (v) => {
       mode = v;
       follow = null;
       r.restart();
@@ -2704,7 +2746,7 @@
   }
   function chapterGlow() {
     const base = { ...DEFAULT_RULES, ...PROOF, ...FAST };
-    const text = (w) => `prey ${alivePrey(w)} \xB7 hunters ${w.hunters.length} \xB7 sick now ${Math.round(sickShare(w) * 100)}% \xB7 catches ${w.eco.sick.caught} \xB7 pick so far ${fmt(pickSoFar(w))}`;
+    const text = (w) => `prey ${alivePrey(w)} \xB7 hunters ${w.hunters.length} \xB7 sick now ${Math.round(sickShare(w) * 100)}% \xB7 catches ${num(w.eco.sick.caught)} \xB7 pick so far ${fmt(pickSoFar(w))}`;
     live2("ch4", "c4", () => [
       { rules: { ...base, hunterCue: 2 }, canvas: "c4-glow", glow: true, stats: "c4-g-stats", text },
       { rules: { ...base, hunterCue: 0 }, canvas: "c4-blind", glow: false, stats: "c4-b-stats", text }
@@ -2721,6 +2763,8 @@
       { rules: { ...base, ...SLOW }, canvas: "c5-slow", glow: true, stats: "c5-s-stats", text }
     ]);
   }
+  fourteenStrips();
+  worldKeys();
   chapterBrain();
   chapterLife();
   chapterEye();
