@@ -66,6 +66,17 @@ const TESTS: Test[] = [
   //     conditions (3 by either route). Kill: either miss stays <= 9 of 14 (then the glow world's split between routes is real, not slow).
   ["nat4G-glow-resist-400k", "NATURE BAR, longer: glow, gene 0.3, 14 x 400k [proof]", ["--seeds=1-14", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2"]],
   ["nat40-glow-resist-nopoison-400k", "NATURE BAR, longer: drift control, NO poison plants, 14 x 400k [proof]", ["--seeds=1-14", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poison=0"]],
+  // (4c) Rey 2026-11-20 ("make dodge and poison resistance into 2 paths: one where the poison gets stronger and stronger, so we
+  //     expect more resistance; dodge will be the default if it's possible"). Run alone with: node src/cli/night-batch.ts --only=path.
+  //     PATH 1, steady poison (dodging possible): the blind twin of nat4G at 400k. Expectation: glow hunters dodge (pick < blind) AND need
+  //     less resistance than blind hunters (resistance glow < blind). Data so far points against it: at 200k glow pick 0.55 vs blind
+  //     0.49 (lower in 5 of 14) and glow hunter resistance 0.29 vs blind 0.18 (handed out).
+  //     PATH 2, poison getting stronger: poison plants 23% -> 40% over 300k, held 100k (= 1/3 more), glow and blind, 6 seeds (small test
+  //     first). Slow on purpose: the 150k ramps broke hunters near 30%, and hunter resistance grows only ~0.01 per 10k ticks.
+  //     Expectation: hunter resistance above the steady world (nat4G, same seeds 1-6) in >= 5 of 6, world works in >= 5 of 6.
+  ["path1B-blind-steady-400k", "PATH 1 (steady): blind twin of nat4G, gene 0.3, 14 x 400k [proof]", ["--seeds=1-14", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0"]],
+  ["path2G-glow-ramp40-400k", "PATH 2 (stronger): glow, poison plants 23% -> 40% over 300k + 100k hold, gene 0.3, 6 x 400k [small test]", ["--seeds=1-6", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=300000", "--poisonPeak=0.4"]],
+  ["path2B-blind-ramp40-400k", "PATH 2 (stronger): blind, same, 6 x 400k [small test]; pairs with path2G", ["--seeds=1-6", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=300000", "--poisonPeak=0.4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
