@@ -552,3 +552,12 @@ CORRECTION (mine): the "ramp:" line in life-genes printed the share from rules.p
 - Prior work: evolutionary rescue depends on how fast the world changes; E. coli survived a slow rise of antibiotic far more often than a fast one, and small populations are rescued less often (Lindsey et al. 2013, Nature 494:463, doi:10.1038/nature11879). Our hunters are the small, slow-breeding side, so their safe rate is lower than the prey's: matches path 2.
 - Open: is 30% too MUCH for hunters, or did it come too FAST? Cheapest test (not run): steady 35% from tick 1 (poisonRamp 1, poisonPeak 0.35; no new setting), glow + blind, 6 x 200k.
 - night-batch.ts reset to half threads, low priority.
+
+## 2026-11-23 (17:08-17:21 local): too much or too fast? steady 35% poison [small test, 6 x 200k, half threads, low priority]
+Rey: "a". Same world as natG / natB (slow hunters, prey-like breeding, both eyes, dose 0.75 / cap 2, resistGene 0.3) with poison plants held at 35% of all plants from tick 1,000 (poisonRamp 1, poisonPeak 0.35; no new setting). Control: natG / natB seeds 1-6 (steady 23%). Handed out / evolved.
+- Works: glow 3 / 1 of 6, blind 4 / 2 of 6 (23%: 6 / 6 and 6 / 5). Done-if (>= 5) missed; kill-if (<= 2) hit with evolved senses, not with senses handed out.
+- Hunters 8.7 / 5.3 (glow), 8.3 / 5.1 (blind) vs ~17-21 at 23%; hunter die-outs per run 15 / 26 (glow), 9.5 / 32 (blind) vs 1-2; hunters per prey worst 0.10-0.22.
+- Handed out the hunters slowly settle: die-out rounds per 20k fall (blind: 3, 2, 1, 1, 1, 1, 0, 0, 1, 0), hunter resistance climbs to 0.18-0.19 (23%: 0.19-0.35 at 200k). Evolved they do not (rounds keep climbing to 39-52, resistance 0.05-0.07).
+- Prey resistance 0.69 / 0.61 (glow), 0.38 / 0.22 (blind) vs control 0.23 / 0.26.
+- Answer: mostly TOO MUCH. A steady 35% with no rise at all already halves the worlds that work and cuts hunters to less than half; the 23% -> 40% rise (path 2) was worse still (0 of 6). A slower rise can only help below the hunters' limit, which sits between 23% and 35%.
+- Labels: evolved "broke"; handed out "too slow to show" (die-outs stopping, resistance rising at 200k).
