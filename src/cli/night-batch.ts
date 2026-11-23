@@ -102,6 +102,12 @@ const TESTS: Test[] = [
   //     blind twin. At 6 seeds: works 3 / 0 of 6, hunter die-outs 4.2 / 27.7 (no hangover: 78 / 76), pick 0.86 / 0.90.
   ["hang14G-glow-ramp60-early-glowoff", "HANGOVER: glow, 60% ramp, early breeding + glow-off hangover, 14 x 200k [proof]", [...PROOF, ...E, "--hunterCue=2", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.6", "--resistGene=0.3", "--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1"]],
   ["hang14B-blind-ramp60-early-glowoff", "HANGOVER: blind twin, same, 14 x 200k [proof]; pairs with hang14G", [...PROOF, ...E, "--hunterCue=0", ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--poisonRamp=150000", "--poisonPeak=0.6", "--resistGene=0.3", "--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1"]],
+  // (4f) Rey 2026-11-23 ("a"): is ~30% poison too MUCH for hunters, or did it come too FAST? Steady 35% from the start: poisonRamp 1
+  //     jumps the share to poisonPeak at the first re-typing (tick 1,000) and holds it; no new setting. Control: natG / natB seeds 1-6
+  //     (steady 23%). Done-if: works >= 5 of 6 (then it is the speed: try a slower or later rise). Kill-if: works <= 2 of 6 (35% is
+  //     too much for hunters). Run with: node src/cli/night-batch.ts --only=lvl
+  ["lvl35G-glow-steady35", "LEVEL: glow, steady 35% poison plants, gene 0.3, 6 x 200k [small test]; control natG seeds 1-6", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", "--poisonPeak=0.35"]],
+  ["lvl35B-blind-steady35", "LEVEL: blind twin, same; control natB seeds 1-6", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=1", "--poisonPeak=0.35"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
