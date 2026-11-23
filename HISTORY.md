@@ -561,3 +561,8 @@ Rey: "a". Same world as natG / natB (slow hunters, prey-like breeding, both eyes
 - Prey resistance 0.69 / 0.61 (glow), 0.38 / 0.22 (blind) vs control 0.23 / 0.26.
 - Answer: mostly TOO MUCH. A steady 35% with no rise at all already halves the worlds that work and cuts hunters to less than half; the 23% -> 40% rise (path 2) was worse still (0 of 6). A slower rise can only help below the hunters' limit, which sits between 23% and 35%.
 - Labels: evolved "broke"; handed out "too slow to show" (die-outs stopping, resistance rising at 200k).
+
+## 2026-11-23 17:42: slow rise made a proof (Rey: "make this a proof experiment, it's not poison too potent, but hunters evolve too slow as they are slow")
+- CORRECTION (mine): I read the steady-35% test as "mostly too much, not too fast". Too strong: a world held at 35% from tick 1,000 is the fastest possible change for hunters that start with no resistance, so it cannot separate "too much" from "evolves too slowly". It only says: from zero, slow hunters do not adapt to 35% within 200k.
+- Premise checked [screen, seeds 1-2, 10k-40k, steady 23%]: slow hunter generation ~2,900-3,500 ticks (births 4.3-7.0 per 1k, 12-25 hunters); fast hunters ~615-680 ticks (33-34 per 1k). Slow hunters get ~5x fewer generations per tick. The fast 23% -> 40% rise (300k) gave slow hunters only ~90-100 generations.
+- Queued --only=slow: 23% -> 40% over 3M ticks, run 2M (crosses ~30% at ~1.2M), glow + blind, 14 seeds [proof, Rey's call; rule 1's small test skipped]. Done-if works >= 10 of 14; kill-if <= 6.
