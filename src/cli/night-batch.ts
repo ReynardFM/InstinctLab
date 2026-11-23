@@ -108,6 +108,12 @@ const TESTS: Test[] = [
   //     too much for hunters). Run with: node src/cli/night-batch.ts --only=lvl
   ["lvl35G-glow-steady35", "LEVEL: glow, steady 35% poison plants, gene 0.3, 6 x 200k [small test]; control natG seeds 1-6", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", "--poisonPeak=0.35"]],
   ["lvl35B-blind-steady35", "LEVEL: blind twin, same; control natB seeds 1-6", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=1", "--poisonPeak=0.35"]],
+  // (4g) Rey 2026-11-23 ("make it slower, like 0.1 slower; nature takes decades"): the path-2 rise 10x slower: 23% -> 40% over
+  //     3,000,000 ticks (path2 took 300k), run to 2,000,000 ticks (share ~0.34 at the end; it crosses the hunters' ~30% break point
+  //     at ~1.2M). Small test, 6 seeds. Done-if: works >= 5 of 6 (fast rise: 0 of 6; steady 35%: 3 / 1 of 6). Kill-if: works <= 2 of 6.
+  //     Run with: node src/cli/night-batch.ts --only=slowG (glow alone) or --only=slow (glow + blind twin).
+  ["slowG-glow-ramp40-x10", "SLOW RISE: glow, 23% -> 40% over 3M ticks, run 2M, gene 0.3, 6 seeds [small test]", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  ["slowB-blind-ramp40-x10", "SLOW RISE: blind twin, same; pairs with slowG", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
