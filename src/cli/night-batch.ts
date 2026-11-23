@@ -112,10 +112,11 @@ const TESTS: Test[] = [
   //     3,000,000 ticks (path2 took 300k), run to 2,000,000 ticks (share ~0.34 at the end; it crosses the hunters' ~30% break point
   //     at ~1.2M). Rey 17:42: "make this a proof: it's not the poison too potent, the hunters evolve too slowly as they are slow"
   //     (checked, seeds 1-2, 30k: a slow hunter generation is ~2,900-3,500 ticks, a fast one ~615-680, so 5x fewer generations).
-  //     PROOF straight away on Rey's call (rule 1's small test skipped; seeds 1-6 are inside). Done-if: works >= 10 of 14 at 2M
-  //     (fast rise: 0 of 6; steady 35%: 3 / 1 of 6). Kill-if: works <= 6 of 14. Run with: node src/cli/night-batch.ts --only=slow
-  ["slow14G-glow-ramp40-x10", "SLOW RISE: glow, 23% -> 40% over 3M ticks, run 2M, gene 0.3, 14 seeds [proof]", ["--seeds=1-14", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
-  ["slow14B-blind-ramp40-x10", "SLOW RISE: blind twin, same [proof]; pairs with slow14G", ["--seeds=1-14", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  //     Rey 17:50 "use less seeds": SMALL TEST on seeds 1-6 (the seeds of path2, lvl35 and the natG / natB controls), not a proof.
+  //     Done-if: works >= 5 of 6 at 2M (fast rise: 0 of 6; steady 35%: 3 / 1 of 6). Kill-if: works <= 2 of 6.
+  //     Run with: node src/cli/night-batch.ts --only=slow (glow + blind) or --only=slow6G (glow alone)
+  ["slow6G-glow-ramp40-x10", "SLOW RISE: glow, 23% -> 40% over 3M ticks, run 2M, gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  ["slow6B-blind-ramp40-x10", "SLOW RISE: blind twin, same [small test]; pairs with slow6G", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
