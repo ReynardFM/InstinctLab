@@ -7,8 +7,8 @@ import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const DIR = "proto/out/life-genes";
-process.env.LAB_PRIORITY = "normal"; // Rey 2026-11-24 02:54: 3/4 threads, normal priority for the --only=fix overnight. Reset to half / low after. Testing rule 4: ask Rey before every batch.
-const W = `--workers=${Math.max(1, Math.floor((availableParallelism() * 3) / 4))}`; // this batch: 3/4 of the threads (Rey 2026-11-24 02:54)
+// Default: half the threads, low priority (LAB_PRIORITY unset). Testing rule 4: ask Rey before every batch. (Reset 2026-11-24 after the --only=fix overnight at 3/4 threads, normal priority.)
+const W = `--workers=${Math.max(1, Math.floor(availableParallelism() / 2))}`;
 const S14 = "--seeds=1-14";
 // The queue below holds only tests still to run; finished ones are removed once their results are in HISTORY.md (git keeps them).
 // DEFAULTS THAT CHANGE BEHAVIOUR (all runs): hunterLearn 0.02, hunterCue 1 (speed) unless a test sets it, relativeReward 1 + forget 0.002 (also for hunters).
@@ -141,6 +141,10 @@ const TESTS: Test[] = [
   ["fixAll3G-x10", "SLOW RISE + ALL five together (hangover, cheap waiting, bite, stomach, sight trade); glow, seeds 1-3 x 2M, handed out only [small test, rule 6]",
     ["--seeds=1-3", "--ticks=2000000", "--conds=0", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4",
       "--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1", "--hunterIdle=0.25", "--hunterBite=1", "--digest=8", "--hunterSightTrade=1"]],
+  // (4k) 2026-11-24: does the SLOWNESS matter, or was the old ramp machinery the whole problem? The FAST rise (path2: 23% -> 40% over 300k,
+  //     run 400k) again on the fixed ramp. Compare fixslow6G (works 5 / 6 of 6) and path2G on the old ramp (0 / 0). Done-if ("time matters"):
+  //     works <= 2 of 6 here. Kill-if ("only the machinery mattered"): works >= 5 of 6. Run with: --only=fixfast
+  ["fixfast6G-glow-ramp40-300k", "FAST RISE on the fixed ramp: glow, 23% -> 40% over 300k, run 400k, gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=300000", "--poisonPeak=0.4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];

@@ -591,3 +591,19 @@ Ramp machinery on (plants re-typed to the target share every 1,000 ticks, caps f
 - Check [seed 2, 30k, ramp 20k to 0.4]: living poison share 0.270 / 0.316 / 0.359 / 0.402 at 5k / 10k / 15k / 20k (target 0.273 / 0.315 / 0.358 / 0.400), then held at 0.402.
 - All ramp results before this (rmp, rmp2, hang, path2, hang14, slow6G, flat6G) used the old ramp and stay as recorded; they will not replay with today's code (the old code: git 80fffe7 and before).
 - The flat-ramp control is now identical to natG by construction, so it no longer needs running. Next ramp test: rerun the 10x slower rise (slow6G) on the fixed ramp.
+
+## 2026-11-24 (03:00-~07:10 local): failed balancers on the FIXED 10x slower rise [small test, glow, seeds 1-6 x 2M; arms handed out only; 3/4 threads, normal priority]
+Fixed ramp (caps only, f8b8d11), 23% -> 40% over 3M, run 2M (0.34 at the end). Slow hunters, prey-like breeding, both eyes, dose 0.75 / cap 2, resistGene 0.3.
+- BASE fixslow6G vs slow6G (same rise, OLD ramp): works 5 / 6 of 6 vs 3 / 1; hunter die-outs per run 1.8 / 10.8 vs 139 / 230 (fewer in 5 / 6 of 6); hunters 21.8 / 15.0 vs 12.4 / 7.7; hunter resistance at 2M 0.59 / 0.55 (0.07-0.96 by seed) vs 0.56 / 0.40; poisoned share of hunter deaths 0.26 / 0.40 vs 0.52 / 0.65; prey resistance 0.54 / 0.38 vs 0.89 / 0.90. Done-if (>= 5 of 6) MET in both conditions.
+- Why the prey resist less: the living poison share does reach the target (checked, seed 1, a 30k ramp to 0.343: 0.342 at 30k and 45k), but in patches it is easy to avoid: sick prey share over the last 200k 0.20 (fixed ramp at ~0.33) vs 0.49 (old ramp) vs 0.16 (steady 23%, natG). The old re-typing ramp more than doubled the sick prey; patched poison at 33% is only a little worse than 23%.
+- Arms (handed out, vs base same seeds; base works 5 of 6, die-outs 1.8, hunter resistance 0.59, hunters 21.8, prey 89):
+  | arm | works | die-outs | hunter res. 2M | hunters | prey | pick | poisoned deaths |
+  | hangover (early + glow-off + half-life 100) | 6 | 2.5 | 0.12 | 31.4 | 65 | 0.79 | 0.08 |
+  | cheap waiting (idle 0.25) | 6 | 1.7 | 0.31 | 37.6 | 72 | 0.58 | 0.30 |
+  | bite | 6 | 2.8 | 0.69 (higher in 5 of 6) | 19.9 | 102 | 0.54 | 0.39 |
+  | stomach (digest 8) | 6 | 3.0 | 0.42 | 15.1 | 95 | 0.56 | 0.41 |
+  | sight trade | 6 | 1.8 | 0.95 (0.89-0.97 in every seed) | 21.4 | 96 | 0.57 | 0.34 |
+  | ALL five (seeds 1-3) | 2 of 3 | 9.7 | 0.10 | 18.3 | 63 | 0.84 | 0.05 |
+- Reading: on the fixed slow rise every arm alone works (6 of 6), but the base already works (5 of 6), so none is needed. Hangover and cheap waiting make hunters many and prey few, and take away the reason to resist (hunter resistance 0.12 / 0.31). The sight trade, given 2M ticks, makes EVERY world's hunters resisters (0.95), the opposite of its 200k result (dodgers). All five together is worse than any alone (as Nov 13).
+- Open: the fix changed more than the speed did. Is the slowness needed at all on the fixed ramp? Queued --only=fixfast: the fast rise (300k) on the fixed ramp, 6 x 400k.
+- night-batch reset to half threads, low priority.
