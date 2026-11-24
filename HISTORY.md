@@ -567,3 +567,12 @@ Rey: "a". Same world as natG / natB (slow hunters, prey-like breeding, both eyes
 - Premise checked [screen, seeds 1-2, 10k-40k, steady 23%]: slow hunter generation ~2,900-3,500 ticks (births 4.3-7.0 per 1k, 12-25 hunters); fast hunters ~615-680 ticks (33-34 per 1k). Slow hunters get ~5x fewer generations per tick. The fast 23% -> 40% rise (300k) gave slow hunters only ~90-100 generations.
 - Queued --only=slow: 23% -> 40% over 3M ticks, run 2M (crosses ~30% at ~1.2M), glow + blind, 14 seeds [proof, Rey's call; rule 1's small test skipped]. Done-if works >= 10 of 14; kill-if <= 6.
 - Rey 17:50 "use less seeds": now a SMALL TEST, seeds 1-6, glow + blind (24 runs of 2M, ~2 h at half threads); done-if works >= 5 of 6, kill-if <= 2 of 6. Not a proof.
+
+## 2026-11-23 (20:05-23:05 local): 10x slower rise read [small test, glow, seeds 1-6 x 2M; half threads, low priority]
+23% -> 40% over 3M ticks, run 2M (share 0.34 at the end; ~0.30 at 1.2M). Slow hunters, prey-like breeding, both eyes, dose 0.75 / cap 2, resistGene 0.3. Handed out / evolved. Compare: fast rise path2G (0 / 0 of 6), steady 35% lvl35G (3 / 1 of 6).
+- Works 3 / 1 of 6. Done-if (>= 5) missed; kill-if (<= 2) hit with evolved senses only.
+- Hunter resistance at the end 0.56 / 0.40 (fast rise 0.12 / 0.10); high-resistance hunters (> 0.6) 58 of 71 / 14 of 24 (fast rise 0 of 18 / 0 of 16). Prey resistance 0.89 / 0.90.
+- The worlds SPLIT. Handed out, seeds 1, 5, 6: hunter resistance 0.96-0.99 by 600k-1.2M, then NO more die-outs up to 34% poison (rounds flat: 14, 6, 1), hunters 16-22. Seeds 2, 3, 4: resistance stays 0.01-0.34, die-outs grow with the poison (101-610 rounds). Evolved: only seed 6 (0.97). Evolved seeds 1 and 2 reached 0.94-0.99 by 600k and LOST it (0.30 / 0.29 at 1.2M) once die-outs began near 27-28%.
+- Reading [not tested]: a race between resistance and die-outs. A restart refills hunters from the best catchers, whose resistance can be low, so each crash throws the gain away. Rey's idea held where hunters got there first.
+- Open check: in the first 200k (share 0.23-0.24) the ramp worlds already had ~8 die-out rounds on average vs ~2 in natG (steady 23%, same seeds). The ramp re-types plants every 1,000 ticks; that may shake the world by itself [unverified]. Cheapest control: a flat ramp (poisonRamp on, poisonPeak = the normal 0.23), 6 x 200k glow.
+- Labels: handed out "half": 3 worlds solved, 3 broke; evolved "broke".
