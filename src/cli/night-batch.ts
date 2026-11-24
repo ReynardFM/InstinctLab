@@ -117,6 +117,11 @@ const TESTS: Test[] = [
   //     Run with: node src/cli/night-batch.ts --only=slow (glow + blind) or --only=slow6G (glow alone)
   ["slow6G-glow-ramp40-x10", "SLOW RISE: glow, 23% -> 40% over 3M ticks, run 2M, gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
   ["slow6B-blind-ramp40-x10", "SLOW RISE: blind twin, same [small test]; pairs with slow6G", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  // (4h) Rey 2026-11-23 23:52 ("a"): does the ramp machinery itself shake the world? A FLAT ramp (a do-nothing control): ramp on, peak =
+  //     the normal world's own share 54 / 234 = 0.230769, so the share never moves but plants are still re-typed every 1,000 ticks and
+  //     the caps still follow. Glow, seeds 1-6 x 200k; compare natG seeds 1-6 (die-out rounds ~2 by 200k) and slow6G (~8 by 200k).
+  //     Done-if: rounds at 200k average <= 3 (the machinery is innocent). Kill-if: >= 6 (it causes crashes: fix it before any ramp result).
+  ["flat6G-glow-flatramp", "FLAT RAMP control: glow, ramp on but held at 0.2308, gene 0.3, seeds 1-6 x 200k [check]", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.230769"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
