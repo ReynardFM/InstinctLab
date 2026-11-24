@@ -145,6 +145,10 @@ const TESTS: Test[] = [
   //     run 400k) again on the fixed ramp. Compare fixslow6G (works 5 / 6 of 6) and path2G on the old ramp (0 / 0). Done-if ("time matters"):
   //     works <= 2 of 6 here. Kill-if ("only the machinery mattered"): works >= 5 of 6. Run with: --only=fixfast
   ["fixfast6G-glow-ramp40-300k", "FAST RISE on the fixed ramp: glow, 23% -> 40% over 300k, run 400k, gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=400000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=300000", "--poisonPeak=0.4"]],
+  // (4l) Testing rule 1, missed on 2026-11-24 (Rey: "you forgot the instruction we set before"): fixslow6G passed its done-if (works 5 / 6
+  //     of 6), so its proof must be queued behind the gate. 14 seeds x 2M, both conditions (28 runs). Run with: --only=fixslow14
+  ["fixslow14G-glow-ramp40-x10-proof", "SLOW RISE on the fixed ramp: glow, 23% -> 40% over 3M, run 2M, gene 0.3, 14 seeds [proof]; only if fixslow6G works in >= 5 of 6",
+    ["--seeds=1-14", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"], passGate("fixslow6G-glow-ramp40-x10", 5)],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
