@@ -46,7 +46,7 @@ export const seasonFactor = (w: World): number => {
 // the ramp no longer re-types plants. It moves only the two caps (their total stays the same); poison plants grow into the new room by
 // spreading from their own patches, and an eaten plant whose kind is over its cap dies instead of regrowing (life.ts, overCap), so the
 // other kind shrinks only where it is eaten. A ramp held at the normal share is the plain world exactly. The old version (random plants
-// re-typed every 1,000 ticks, poison scattered instead of patched) is in git 8f8da49 and before. Ramp ignores seasons.
+// re-typed every 1,000 ticks, poison scattered instead of patched) is in git 8f8da49 and before. With rules.season the ramp swings (rampShare).
 export const rampCaps = (w: World): [number, number] => { const [g, p] = baseCaps(w), pc = Math.round((g + p) * rampShare(w)); return [g + p - pc, pc]; };
 // rules.poisonRamp: is the kind of this plant above its cap? Counts the living plants (eaten ones regrowing count; dead slots don't).
 export function overCap(w: World, poison: boolean): boolean {
@@ -57,8 +57,17 @@ export function overCap(w: World, poison: boolean): boolean {
 }
 const baseCaps = (w: World): [number, number] => [Math.round(w.rules.food * PLANT_CAP), Math.round(Math.round(w.rules.poison * w.rules.food) * PLANT_CAP)];
 export const baseShare = (w: World): number => { const [g, p] = baseCaps(w); return p / Math.max(1, g + p); };
+// rules.season + poisonRamp (Rey 2026-11-24: "4 phases: ori, poison, back to ori, back to poison"; no new setting): the ramp follows the
+// season's quarters instead of climbing once. Quarters 0, 2 = the normal share, 1, 3 = poisonPeak. At each quarter start the share moves
+// in a straight line over poisonRamp ticks (1 = at once; then poison grows or dies back at its own speed, as in the fixed ramp). With a
+// ramp the season does not re-type plants or draw farms (spreadFood); seasons without a ramp are unchanged.
 export const rampShare = (w: World): number => {
   const r = w.rules, b = baseShare(w);
+  if (r.season > 0) {
+    const k = Math.floor((4 * w.tick) / r.season), into = w.tick - (k * r.season) / 4;
+    const to = k % 2 ? r.poisonPeak : b, from = k % 2 || k === 0 ? b : r.poisonPeak;
+    return from + (to - from) * Math.min(1, into / Math.max(1, r.poisonRamp));
+  }
   return b + (r.poisonPeak - b) * Math.min(1, w.tick / Math.max(1, r.poisonRamp));
 };
 export const farmSeason = (w: World): boolean => w.rules.seasonFarm > 0 && seasonQuarter(w) >= 2;
@@ -100,7 +109,7 @@ export function spreadFood(w: World): void {
   const tick = w.tick;
   const walls = r.walls > 0;
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
-  if (r.season > 0 && tick % Math.max(1, Math.floor(r.season / 4)) === 0) turnSeason(w); // rules.season: the plants turn with the season
+  if (r.season > 0 && !(r.poisonRamp > 0) && tick % Math.max(1, Math.floor(r.season / 4)) === 0) turnSeason(w); // rules.season: the plants turn with the season (not with a ramp: the ramp moves the caps, rampShare)
   // per kind (0 = good, 1 = poison): free slots (eaten for good), pellets, pellets standing now
   const free: number[][] = [[], []];
   const count = [0, 0];

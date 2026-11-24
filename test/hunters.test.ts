@@ -679,3 +679,18 @@ test("hunterSightTrade: low resistance sees faint glow sharply, high resistance 
   off.creatures[0].toxin = 0.05; off.hunters[0].resist = 0;
   assert.equal(glowSeen(off, off.hunters[0], 0), 0.05, "off: min(poison, 1)");
 });
+
+// rules.season + poisonRamp, the poison swing (Rey 2026-11-24: "4 phases: ori, poison, back to ori, back to poison"): the ramp follows
+// the quarters (normal / peak / normal / peak), the plants are not re-typed and no farms are drawn.
+test("season + poisonRamp: the poison share swings normal / peak / normal / peak by quarter, on the caps only", () => {
+  const w = createWorld(2, { ...BOTH_EYES, season: 16000, poisonRamp: 1, poisonPeak: 0.4 });
+  const b = 54 / 234, at = (t: number) => { w.tick = t; return rampShare(w); };
+  assert.deepEqual([500, 3999, 4001, 7999, 8001, 11999, 12001, 15999, 16001].map((t) => +at(t).toFixed(6)), [b, b, 0.4, 0.4, b, b, 0.4, 0.4, b].map((x) => +x.toFixed(6)));
+  w.tick = 0;
+  const share = () => { const p = w.food.filter((f) => !f.remains && f.readyAt !== Infinity); return p.filter((f) => f.poison).length / p.length; };
+  runTicks(w, 3900); const s0 = share();
+  runTicks(w, 3900); const s1 = share();
+  runTicks(w, 3900); const s2 = share();
+  assert.ok(s1 > s0 + 0.08 && s2 < s1 - 0.08, `poison rises in the poison quarter and falls back: ${s0.toFixed(3)} / ${s1.toFixed(3)} / ${s2.toFixed(3)}`);
+  assert.equal(w.eco.farms.length, 0, "no farms with a ramp (the season does not pack the plants)");
+});

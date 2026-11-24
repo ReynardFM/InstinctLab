@@ -84,6 +84,7 @@ export interface Rules {
   // hunters poison no longer raises hunger; instead, when the poison wears off (falls under SICK) a hangover starts that lasts as long
   // as the poison did. 1 = no sight of the sickness cue (glow); 2 = the eye reaches half as far; 3 = both. 0 = off (hunger harm, as before)
   poisonRamp: number; // ecosystem with spreading food (Rey 2026-11-13): ticks over which the share of poison plants among all plants rises
+  // (with season > 0: the swing, 2026-11-24: quarters alternate normal share / poisonPeak, each change taking poisonRamp ticks; plants.ts rampShare)
   // in a straight line from the normal world's own share (0.23 with poison 0.3, food 60) to rules.poisonPeak, then holds (plants.ts). 0 = off
   poisonPeak: number; // with poisonRamp: the share of poison plants among ALL plants at the end of the ramp (below 1: prey get energy only from clean plants)
   seasonFarm: number; // with season: the NUMBER of farms in the farm seasons (3rd and 4th quarter: plants packed into farm zones). 2 =

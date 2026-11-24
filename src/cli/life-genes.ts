@@ -11,7 +11,7 @@ import { ECO_BASE } from "./eco-lab.ts";
 import { ecoResultOf } from "./job.ts";
 import { ecoMetrics, WORKS_QUIET, type EcoMetrics } from "./eco-metrics.ts";
 import { margin } from "./stats.ts";
-import { baseShare } from "../engine/plants.ts";
+import { rampShare } from "../engine/plants.ts";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { availableParallelism, setPriority, constants } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -48,7 +48,9 @@ const CONDS: [string, Partial<Rules>][] = [
 const QUARTER = (WORLD.season ?? 0) > 0 ? Math.round((WORLD.season as number) / 4) : 0;
 // With a poison ramp (rules.poisonRamp) the marks are every 20k ticks, so resistance can be read as the poison rises.
 const RAMPED = (WORLD.poisonRamp ?? 0) > 0;
-const MARKS = (QUARTER > 0 ? Array.from({ length: Math.floor(TICKS / QUARTER) }, (_, i) => (i + 1) * QUARTER).concat(TICKS)
+// Seasons + ramp (the poison swing, 2026-11-24): marks every half quarter, so each phase is read in the middle and at its end.
+const STEP = QUARTER > 0 && RAMPED ? Math.round(QUARTER / 2) : QUARTER;
+const MARKS = (QUARTER > 0 ? Array.from({ length: Math.floor(TICKS / STEP) }, (_, i) => (i + 1) * STEP).concat(TICKS)
   : RAMPED ? Array.from({ length: Math.floor(TICKS / 20000) }, (_, i) => (i + 1) * 20000).concat(TICKS)
   : [10000, 30000, 60000, 100000, 200000, 400000, 600000, TICKS]).filter((t, i, a) => t <= TICKS && a.indexOf(t) === i);
 interface Job { cond: number; seed: number }
@@ -150,8 +152,7 @@ if (isMainThread) {
     const winPick = (r: Result, mi: number) => { const a = r.marks[mi].sick, b = mi ? r.marks[mi - 1].sick : [0, 0, 0, 0]; const c = a[0] - b[0], n = a[3] - b[3], sh = a[2] - b[2]; return c > 0 && n > 0 && sh > 0 ? (a[1] - b[1]) / c / (sh / n) : NaN; };
     if ((WORLD.resistGene ?? 0) > 0 || RAMPED) {
       const at = (fn: (m: Mark) => number) => MARKS.map((_, mi) => f2(avg(R.map((r) => fn(r.marks[mi]))))).join(" / ");
-      const B0 = baseShare(createWorld(1, { ...DEFAULT_RULES, ...WORLD } as Rules)); // the ramp starts at the normal world's share (0.23), as plants.ts does (FIX 2026-11-20: the print started at rules.poison 0.30; the engine was right)
-      if (RAMPED) console.log(`  ramp: poison share at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: ${MARKS.map((t) => f2(B0 + ((WORLD.poisonPeak ?? 0.9) - B0) * Math.min(1, t / (WORLD.poisonRamp as number)))).join(" / ")} | prey ${at((m) => m.prey)} | die-out rounds so far ${at((m) => m.rounds)}`);
+      if (RAMPED) console.log(`  ramp: poison share at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: ${MARKS.map((t) => { const w0 = createWorld(1, { ...DEFAULT_RULES, ...WORLD } as Rules); w0.tick = t; return f2(rampShare(w0)); }).join(" / ")} | prey ${at((m) => m.prey)} | die-out rounds so far ${at((m) => m.rounds)}`);
       console.log(`  hunters by resistance at the end (low < 0.2 / high > 0.6, summed over seeds): ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hLow, 0)} / ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hHigh, 0)} of ${R.reduce((a, r) => a + r.marks[r.marks.length - 1].hunters, 0)}`);
       console.log(`  resistance at ${MARKS.map((t) => t / 1000 + "k").join(" / ")}: prey ${at((m) => m.pResist)}; hunters ${at((m) => m.hResist)}`);
     }

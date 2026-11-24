@@ -149,6 +149,15 @@ const TESTS: Test[] = [
   //     of 6), so its proof must be queued behind the gate. 14 seeds x 2M, both conditions (28 runs). Run with: --only=fixslow14
   ["fixslow14G-glow-ramp40-x10-proof", "SLOW RISE on the fixed ramp: glow, 23% -> 40% over 3M, run 2M, gene 0.3, 14 seeds [proof]; only if fixslow6G works in >= 5 of 6",
     ["--seeds=1-14", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"], passGate("fixslow6G-glow-ramp40-x10", 5)],
+  // (4m) Rey 2026-11-24 13:47 ("seperate it into 4 phase, ori, posion, back to ori, back to poison, the tick increase only for season"):
+  //     the POISON SWING on the fixed ramp (caps only, poison grows in patches): 3M ticks (fixslow 2M + 50%), four phases of 750k:
+  //     23% / 40% / 23% / 40%. Each switch is a step (poisonRamp 1); the living share follows within ~2,500 ticks [checked, seed 2].
+  //     No new setting: season + poisonRamp (plants.ts rampShare). Marks every 375k (middle and end of each phase).
+  //     Compare fixslow6G (same seeds, same world, slow rise to 0.34 at 2M). Done-if: works >= 5 of 6. Kill-if: <= 2 of 6.
+  //     Gated proof (testing rule 1): 14 seeds, runs only if the small test works in >= 5 of 6. Run with: --only=swing
+  ["swing6G-glow-4phase-3M", "POISON SWING on the fixed ramp: glow, 3M, phases 23% / 40% / 23% / 40% (750k each), gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", "--poisonPeak=0.4", "--season=3000000"]],
+  ["swing14G-glow-4phase-3M-proof", "POISON SWING: same, 14 seeds [proof]; only if swing6G works in >= 5 of 6",
+    ["--seeds=1-14", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", "--poisonPeak=0.4", "--season=3000000"], passGate("swing6G-glow-4phase-3M", 5)],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
