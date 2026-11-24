@@ -42,8 +42,19 @@ export const seasonFactor = (w: World): number => {
 // are capped at PLANT_CAP x round(poison x food) and good ones at PLANT_CAP x food, so poison 0.3 / food 60 gives 54 of 234 = 0.23.
 // (FIX 2026-11-13: the first version re-typed plants to rules.poison of all plants = 0.30 at tick 0, a jump from 0.23, and the live
 // poison share ran ~0.40 against ~0.27 in the steady world; its first results did not start "normal".)
-// The plants are re-typed every RAMP_STEP ticks and the two caps follow the share (their total stays the same). Ramp ignores seasons.
-export const RAMP_STEP = 1000;
+// FIX 2026-11-24 (Rey: "a"; the flat-ramp control showed the old machinery costs hunters: die-outs 5.5 vs 2.3, hunters ~13 vs ~21):
+// the ramp no longer re-types plants. It moves only the two caps (their total stays the same); poison plants grow into the new room by
+// spreading from their own patches, and an eaten plant whose kind is over its cap dies instead of regrowing (life.ts, overCap), so the
+// other kind shrinks only where it is eaten. A ramp held at the normal share is the plain world exactly. The old version (random plants
+// re-typed every 1,000 ticks, poison scattered instead of patched) is in git 8f8da49 and before. Ramp ignores seasons.
+export const rampCaps = (w: World): [number, number] => { const [g, p] = baseCaps(w), pc = Math.round((g + p) * rampShare(w)); return [g + p - pc, pc]; };
+// rules.poisonRamp: is the kind of this plant above its cap? Counts the living plants (eaten ones regrowing count; dead slots don't).
+export function overCap(w: World, poison: boolean): boolean {
+  if (!(w.rules.poisonRamp > 0)) return false;
+  let n = 0;
+  for (const f of w.food) if (!f.remains && f.poison === poison && f.readyAt !== Infinity) n++;
+  return n > rampCaps(w)[poison ? 1 : 0];
+}
 const baseCaps = (w: World): [number, number] => [Math.round(w.rules.food * PLANT_CAP), Math.round(Math.round(w.rules.poison * w.rules.food) * PLANT_CAP)];
 export const baseShare = (w: World): number => { const [g, p] = baseCaps(w); return p / Math.max(1, g + p); };
 export const rampShare = (w: World): number => {
@@ -55,8 +66,8 @@ function turnSeason(w: World): void {
   const r = w.rules;
   const plants = w.food.filter((f) => !f.remains);
   // rules.poison is the poison share of all plants on a fresh map (creature.ts newFoodLayout); the season scales it
-  // poison plants this season, or (rules.poisonRamp) on the ramp
-  const want = Math.min(plants.length, Math.round(plants.length * (r.poisonRamp > 0 ? rampShare(w) : r.poison * seasonFactor(w))));
+  // poison plants this season
+  const want = Math.min(plants.length, Math.round(plants.length * r.poison * seasonFactor(w)));
   const have = plants.filter((f) => f.poison).length;
   const toPoison = have < want; // too few poison plants: good ones turn; too many: poison ones turn back
   const from = plants.filter((f) => f.poison !== toPoison);
@@ -90,7 +101,6 @@ export function spreadFood(w: World): void {
   const walls = r.walls > 0;
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   if (r.season > 0 && tick % Math.max(1, Math.floor(r.season / 4)) === 0) turnSeason(w); // rules.season: the plants turn with the season
-  if (r.poisonRamp > 0 && tick > 0 && tick % RAMP_STEP === 0) turnSeason(w); // rules.poisonRamp: the plants follow the ramp
   // per kind (0 = good, 1 = poison): free slots (eaten for good), pellets, pellets standing now
   const free: number[][] = [[], []];
   const count = [0, 0];
@@ -106,13 +116,15 @@ export function spreadFood(w: World): void {
   // rules.season: the poison cap follows the season and the good cap gives way, so the total cap is unchanged (factor 1 = as before)
   let poisonCap = Math.round(Math.round(r.poison * r.food) * PLANT_CAP * seasonFactor(w));
   let cap = [Math.round(r.food * PLANT_CAP) - (poisonCap - Math.round(Math.round(r.poison * r.food) * PLANT_CAP)), poisonCap];
-  if (r.poisonRamp > 0) { const [g, p] = baseCaps(w); poisonCap = Math.round((g + p) * rampShare(w)); cap = [g + p - poisonCap, poisonCap]; } // the ramp moves the caps
+  const ramp = r.poisonRamp > 0;
+  if (ramp) { cap = rampCaps(w); poisonCap = cap[1]; } // the ramp moves the caps
   const n = food.length; // sprouts from this tick don't sprout again this tick (they appear next tick)
   for (let i = 0; i < n; i++) {
     const f = food[i];
     if (f.readyAt > tick || f.remains) continue;
     if (w.env.next() >= r.foodSpread) continue;
     const k = f.poison ? 1 : 0;
+    if (ramp && count[k] - free[k].length >= cap[k]) continue; // rules.poisonRamp: no room for this kind (dead slots don't count)
     let slot = free[k].pop();
     if (slot === undefined) {
       if (count[k] >= cap[k]) continue;

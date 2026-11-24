@@ -595,20 +595,21 @@ test("seasonFarm 0: the poison swings with the seasons but the plants are never 
 });
 
 // rules.poisonRamp / poisonPeak (Rey 2026-11-13): the poison share of the plants starts at the normal world's own share, rises slowly to
-// poisonPeak, then holds.
+// poisonPeak, then holds. Since 2026-11-24 the ramp moves only the caps (no re-typing): poison grows from its own patches and an eaten
+// plant over its kind's cap dies, so a ramp held at the normal share is the plain world exactly.
 import { baseShare, rampShare } from "../src/engine/plants.ts";
-test("poisonRamp: starts at the normal world's poison share, climbs to poisonPeak and holds; off = the steady world", () => {
-  const R = { ...BOTH_EYES, poisonRamp: 4000, poisonPeak: 0.6 };
-  const w = createWorld(2, R), off = createWorld(2, BOTH_EYES);
-  const share = (x: typeof w) => { const p = x.food.filter((f) => !f.remains); return p.filter((f) => f.poison).length / p.length; };
-  assert.ok(Math.abs(baseShare(w) - 54 / 234) < 1e-12, "the normal world: 54 poison of 234 plants");
-  runTicks(w, 1000); runTicks(off, 1000);
-  assert.ok(Math.abs(share(w) - share(off)) < 0.04, `starts normal: ${share(w).toFixed(2)} vs steady ${share(off).toFixed(2)}`);
-  runTicks(w, 1000);
-  assert.ok(Math.abs(rampShare(w) - (54 / 234 + (0.6 - 54 / 234) / 2)) < 1e-12, "half way: half the climb");
-  runTicks(w, 3000); runTicks(off, 4000);
-  assert.ok(Math.abs(share(w) - 0.6) < 0.06, `held at the peak: ${share(w).toFixed(2)}`);
-  assert.ok(Math.abs(share(off) - 54 / 234) < 0.06, `off: the steady share: ${share(off).toFixed(2)}`);
+test("poisonRamp: a ramp held at the normal share replays the plain world exactly; a real ramp climbs to poisonPeak and holds", () => {
+  const sig = (x: ReturnType<typeof createWorld>) => JSON.stringify([x.food.map((f) => [f.x, f.y, f.poison, f.readyAt]), x.creatures.map((c) => [c.x, c.y, c.energy]), x.hunters.map((h) => [h.x, h.y])]);
+  const plain = createWorld(2, BOTH_EYES), flat = createWorld(2, { ...BOTH_EYES, poisonRamp: 3000000, poisonPeak: 54 / 234 });
+  assert.ok(Math.abs(baseShare(plain) - 54 / 234) < 1e-12, "the normal world: 54 poison of 234 plants");
+  runTicks(plain, 3000); runTicks(flat, 3000);
+  assert.equal(sig(flat), sig(plain), "flat ramp = plain world (the old ramp re-typed random plants every 1,000 ticks)");
+  const w = createWorld(2, { ...BOTH_EYES, poisonRamp: 8000, poisonPeak: 0.4 });
+  const share = () => { const p = w.food.filter((f) => !f.remains && f.readyAt !== Infinity); return p.filter((f) => f.poison).length / p.length; };
+  runTicks(w, 4000);
+  assert.ok(Math.abs(rampShare(w) - (54 / 234 + (0.4 - 54 / 234) / 2)) < 1e-12, "half way: half the climb");
+  runTicks(w, 8000);
+  assert.ok(Math.abs(share() - 0.4) < 0.03, `held at the peak: ${share().toFixed(3)}`);
 });
 
 // rules.hunterEarlyBreed / hunterHangover (Rey 2026-11-13): poison lets a hunter breed early; when it wears off, a sense is dulled.

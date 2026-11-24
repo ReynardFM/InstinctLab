@@ -1055,7 +1055,16 @@
     const q = seasonQuarter(w);
     return q < 0 ? 1 : q % 2 === 0 ? 1 - SEASON_SWING : 1 + SEASON_SWING;
   };
-  var RAMP_STEP = 1e3;
+  var rampCaps = (w) => {
+    const [g, p] = baseCaps(w), pc = Math.round((g + p) * rampShare(w));
+    return [g + p - pc, pc];
+  };
+  function overCap(w, poison) {
+    if (!(w.rules.poisonRamp > 0)) return false;
+    let n = 0;
+    for (const f of w.food) if (!f.remains && f.poison === poison && f.readyAt !== Infinity) n++;
+    return n > rampCaps(w)[poison ? 1 : 0];
+  }
   var baseCaps = (w) => [Math.round(w.rules.food * PLANT_CAP), Math.round(Math.round(w.rules.poison * w.rules.food) * PLANT_CAP)];
   var baseShare = (w) => {
     const [g, p] = baseCaps(w);
@@ -1068,7 +1077,7 @@
   function turnSeason(w) {
     const r = w.rules;
     const plants = w.food.filter((f) => !f.remains);
-    const want = Math.min(plants.length, Math.round(plants.length * (r.poisonRamp > 0 ? rampShare(w) : r.poison * seasonFactor(w))));
+    const want = Math.min(plants.length, Math.round(plants.length * r.poison * seasonFactor(w)));
     const have = plants.filter((f) => f.poison).length;
     const toPoison = have < want;
     const from = plants.filter((f) => f.poison !== toPoison);
@@ -1104,7 +1113,6 @@
     const walls = r.walls > 0;
     const place = (v, size) => walls ? Math.min(Math.max(v, 0), size) : (v + size) % size;
     if (r.season > 0 && tick % Math.max(1, Math.floor(r.season / 4)) === 0) turnSeason(w);
-    if (r.poisonRamp > 0 && tick > 0 && tick % RAMP_STEP === 0) turnSeason(w);
     const free = [[], []];
     const count = [0, 0];
     const active = [0, 0];
@@ -1118,10 +1126,10 @@
     }
     let poisonCap = Math.round(Math.round(r.poison * r.food) * PLANT_CAP * seasonFactor(w));
     let cap = [Math.round(r.food * PLANT_CAP) - (poisonCap - Math.round(Math.round(r.poison * r.food) * PLANT_CAP)), poisonCap];
-    if (r.poisonRamp > 0) {
-      const [g, p] = baseCaps(w);
-      poisonCap = Math.round((g + p) * rampShare(w));
-      cap = [g + p - poisonCap, poisonCap];
+    const ramp = r.poisonRamp > 0;
+    if (ramp) {
+      cap = rampCaps(w);
+      poisonCap = cap[1];
     }
     const n = food.length;
     for (let i = 0; i < n; i++) {
@@ -1129,6 +1137,7 @@
       if (f.readyAt > tick || f.remains) continue;
       if (w.env.next() >= r.foodSpread) continue;
       const k = f.poison ? 1 : 0;
+      if (ramp && count[k] - free[k].length >= cap[k]) continue;
       let slot = free[k].pop();
       if (slot === void 0) {
         if (count[k] >= cap[k]) continue;
@@ -1248,7 +1257,7 @@
         else c.energy = Math.min(c.energy + 0.3, 1.5);
       }
       if (spreading(w)) {
-        seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow);
+        seen.food.readyAt = overCap(w, seen.food.poison) ? Infinity : w.tick + Math.max(1, w.rules.regrow);
       } else {
         Object.assign(seen.food, newFood(w, seen.food.poison));
         if (w.grids?.foodOn) w.grids.food.move(seen.food.slot, seen.food.x, seen.food.y);

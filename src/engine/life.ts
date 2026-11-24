@@ -8,7 +8,7 @@ import { cos, sin } from "./dmath.ts";
 import { eyeCreatureChanged, eyeFoodChanged, senseInto } from "./senses.ts";
 import { SENSE_GENES, senseOn } from "./genes.ts";
 import { H, W } from "./space.ts";
-import { spreading } from "./plants.ts";
+import { overCap, spreading } from "./plants.ts";
 import { dose, fade, harm, newPoison, preyLife } from "./toxin.ts";
 import { PELLET, PREY_BURN, PREY_GUT, digestTick, hasRoom, preyDigest, swallow } from "./gut.ts";
 
@@ -82,7 +82,8 @@ export function live(w: World, c: Creature, costFactor: number): void {
       else c.energy = Math.min(c.energy + 0.3, 1.5);
     }
     if (spreading(w)) {
-      seen.food.readyAt = w.tick + Math.max(1, w.rules.regrow); // spreading food (plants.ts): an eaten plant regrows where it was
+      // spreading food (plants.ts): an eaten plant regrows where it was; on the poison ramp a plant whose kind is over its cap dies instead
+      seen.food.readyAt = overCap(w, seen.food.poison) ? Infinity : w.tick + Math.max(1, w.rules.regrow);
     } else {
       Object.assign(seen.food, newFood(w, seen.food.poison)); // same kind, somewhere new
       if (w.grids?.foodOn) w.grids.food.move(seen.food.slot!, seen.food.x, seen.food.y);
