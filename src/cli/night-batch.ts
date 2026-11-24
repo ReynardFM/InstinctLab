@@ -125,6 +125,22 @@ const TESTS: Test[] = [
   // (4i) 2026-11-24: the 10x slower rise again on the FIXED ramp (caps only, poison grows in patches; f8b8d11). Same as slow6G otherwise.
   //     Compare slow6G (old ramp: works 3 / 1 of 6). Done-if: works >= 5 of 6. Kill-if: <= 2 of 6. Run with: --only=fix
   ["fixslow6G-glow-ramp40-x10", "SLOW RISE on the fixed ramp: glow, 23% -> 40% over 3M, run 2M, gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  // (4j) Rey 2026-11-24 02:50 ("add back the hangover and a lot of stuff that failed; try if very slow changes help the predators adapt"):
+  //     the failed balancers that are still in the code, each ALONE on the fixed 10x slower rise (same as fixslow6G), plus ALL TOGETHER on
+  //     half the seeds (testing rule 6). Senses handed out only (--conds=0) to halve the cost; fixslow6G (both conditions) is the base.
+  //     Measured per arm vs fixslow6G, same seeds: works, hunter die-outs, hunter resistance at 1.2M and 2M, poisoned share of hunter deaths.
+  //     Done-if (per arm): works >= 5 of 6 AND more than the base. Kill-if: works below the base. Run with: node src/cli/night-batch.ts --only=fix
+  ...([
+    ["fixHang", "hangover: early breeding 0.3 + glow-off hangover + half-life 100 (the best 60%-ramp arm, Nov 13)", ["--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1"]],
+    ["fixIdle", "cheap waiting: resting hunters burn less (hunterIdle 0.25)", ["--hunterIdle=0.25"]],
+    ["fixBite", "the bite: hunters can refuse prey in reach (hunterBite 1)", ["--hunterBite=1"]],
+    ["fixGut", "the stomach: food digests slowly (digest 8)", ["--digest=8"]],
+    ["fixTrade", "the sight trade-off: glow seen x (1 - resistance) (hunterSightTrade 1)", ["--hunterSightTrade=1"]],
+  ] as [string, string, string[]][]).map(([n, what, a]) => [`${n}6G-x10`, `SLOW RISE + ${what}; glow, seeds 1-6 x 2M, handed out only [small test]`,
+    ["--seeds=1-6", "--ticks=2000000", "--conds=0", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4", ...a]] as [string, string, string[]]),
+  ["fixAll3G-x10", "SLOW RISE + ALL five together (hangover, cheap waiting, bite, stomach, sight trade); glow, seeds 1-3 x 2M, handed out only [small test, rule 6]",
+    ["--seeds=1-3", "--ticks=2000000", "--conds=0", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4",
+      "--hunterPoisonHalfLife=100", "--hunterEarlyBreed=0.3", "--hunterHangover=1", "--hunterIdle=0.25", "--hunterBite=1", "--digest=8", "--hunterSightTrade=1"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];

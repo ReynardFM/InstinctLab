@@ -24,12 +24,14 @@ const SEEDS: number[] = SEEDS_ARG.includes(",") ? SEEDS_ARG.split(",").map(Numbe
   : (() => { const [a, b] = SEEDS_ARG.split("-").map(Number); return Array.from({ length: (b ?? a) - a + 1 }, (_, i) => a + i); })();
 const [s0, s1] = [SEEDS[0], SEEDS[SEEDS.length - 1]];
 const OUT = opt("out", "eye4");
+// --conds=0 runs only "senses handed out" (Rey 2026-11-24: an overnight with many arms; half the runs). Default: both conditions.
+const CONDS_ON = opt("conds", "0,1").split(",").map(Number);
 const SENSES = ["control", "creature", "purple", "hunter"];
 const base = Object.fromEntries(Object.entries(ECO_BASE).map(([k, v]) => [k, v![0]])) as Partial<Rules>;
 // senseFood2 / senseCreature only shape the hunters' inputs here (prey use the eye)
 const WORLD: Partial<Rules> = { ...base, poison: 0.3, eye: 4, ecoWarmup: 0, birth: 0, senseFood2: 1, senseCreature: 1 };
 // any other --rule=value overrides that rule in both conditions (e.g. --poisonDose=0)
-const OWN = new Set(["ticks", "seeds", "workers", "cost", "out"]);
+const OWN = new Set(["ticks", "seeds", "workers", "cost", "out", "conds"]);
 const EXTRA: Partial<Rules> = {};
 for (const a of process.argv.slice(2)) {
   const m = /^--(\w+)=(.+)$/.exec(a);
@@ -86,7 +88,7 @@ if (isMainThread) {
   const NORMAL = process.env.LAB_PRIORITY === "normal";
   if (!NORMAL) try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
   const js: Job[] = [];
-  for (let cond = 0; cond < CONDS.length; cond++) for (const seed of SEEDS) js.push({ cond, seed });
+  for (let cond = 0; cond < CONDS.length; cond++) if (CONDS_ON.includes(cond)) for (const seed of SEEDS) js.push({ cond, seed });
   console.error(`${js.length} runs of ${TICKS} ticks on ${threads} of ${availableParallelism()} threads, ${NORMAL ? "normal" : "low"} priority`);
   const t0 = performance.now(), res: Result[] = new Array(js.length);
   let next = 0, done = 0;
@@ -113,6 +115,7 @@ if (isMainThread) {
   const B = res.filter((r) => r.cond === 0).sort((a, b) => a.seed - b.seed);
   for (let c = 0; c < CONDS.length; c++) {
     const R = res.filter((r) => r.cond === c).sort((a, b) => a.seed - b.seed);
+    if (!R.length) continue; // --conds: this condition was not run
     const d = R.map((r, i) => r.m.prey - B[i].m.prey), mg = margin(d, 0.05);
     console.log(`\n${CONDS[c][0]}: prey ${f1(avg(R.map((r) => r.m.prey)))}${c ? ` (vs handed out ${(avg(d) >= 0 ? "+" : "") + f1(avg(d))} ±${f1(mg)}${Math.abs(avg(d)) > mg ? " *" : ""})` : ""}, hunters ${f1(avg(R.map((r) => r.m.hunters)))}, caught/1k ticks ${f1(avg(R.map((r) => r.caughtPer1k)))}, poison/prey/1k ${f1(avg(R.map((r) => r.m.poison)))}, pick ${avg(R.map((r) => r.m.pick)).toFixed(2)} (sick share of catches / sick share of prey; below 1 = hunters avoid sick prey)`);
     console.log(`  ${WORLD.remains ? `remains eaten/1k ticks ${f1(avg(R.map((r) => r.remainsPer1k)))}; ` : ""}die-outs per run: prey ${f1(avg(R.map((r) => r.m.preyDieOuts)))} (max ${Math.max(...R.map((r) => r.m.preyDieOuts))}), hunters ${f1(avg(R.map((r) => r.m.hunterDieOuts)))}; seeds with >10 prey die-outs ${R.filter((r) => r.m.preyDieOuts > 10).length}/${R.length}`);
