@@ -122,6 +122,9 @@ const TESTS: Test[] = [
   //     the caps still follow. Glow, seeds 1-6 x 200k; compare natG seeds 1-6 (die-out rounds ~2 by 200k) and slow6G (~8 by 200k).
   //     Done-if: rounds at 200k average <= 3 (the machinery is innocent). Kill-if: >= 6 (it causes crashes: fix it before any ramp result).
   ["flat6G-glow-flatramp", "FLAT RAMP control: glow, ramp on but held at 0.2308, gene 0.3, seeds 1-6 x 200k [check]", ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.230769"]],
+  // (4i) 2026-11-24: the 10x slower rise again on the FIXED ramp (caps only, poison grows in patches; f8b8d11). Same as slow6G otherwise.
+  //     Compare slow6G (old ramp: works 3 / 1 of 6). Done-if: works >= 5 of 6. Kill-if: <= 2 of 6. Run with: --only=fix
+  ["fixslow6G-glow-ramp40-x10", "SLOW RISE on the fixed ramp: glow, 23% -> 40% over 3M, run 2M, gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
