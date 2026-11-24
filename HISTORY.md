@@ -576,3 +576,11 @@ Rey: "a". Same world as natG / natB (slow hunters, prey-like breeding, both eyes
 - Reading [not tested]: a race between resistance and die-outs. A restart refills hunters from the best catchers, whose resistance can be low, so each crash throws the gain away. Rey's idea held where hunters got there first.
 - Open check: in the first 200k (share 0.23-0.24) the ramp worlds already had ~8 die-out rounds on average vs ~2 in natG (steady 23%, same seeds). The ramp re-types plants every 1,000 ticks; that may shake the world by itself [unverified]. Cheapest control: a flat ramp (poisonRamp on, poisonPeak = the normal 0.23), 6 x 200k glow.
 - Labels: handed out "half": 3 worlds solved, 3 broke; evolved "broke".
+
+## 2026-11-24 (00:15-00:22 local): flat-ramp control read [check, glow, seeds 1-6 x 200k, half threads]
+Ramp machinery on (plants re-typed to the target share every 1,000 ticks, caps follow) but the share held at the normal 0.2308. Control natG seeds 1-6 (no ramp). Handed out / evolved.
+- Die-out rounds at 200k: 5.5 vs 2.3 (more in 4 of 6, 2 equal) / 3.3 vs 3.3. Done-if (<= 3) missed and kill-if (>= 6) not hit with senses handed out; evolved: innocent.
+- Hunters 12.9 vs 20.8 / 12.8 vs 16.7 (fewer in both); catches per 1k 106 vs 156 / 91 vs 135; hunter resistance 0.15 vs 0.35 / 0.20 vs 0.19; works 5 vs 6 / 6 vs 6.
+- Handed out the prey are sicker (sick share 0.20 vs 0.16, poison eaten 1.57 vs 1.26 per prey per 1k) and more hunter deaths carry poison (0.73 vs 0.56); evolved the other way (0.15 vs 0.18).
+- Reading: the ramp machinery is NOT neutral: it costs hunters about a quarter to a third of their numbers and roughly doubles die-outs with senses handed out. So part of every ramp result's hunter trouble (rmp2, hang, path2, slow6G) came from the machinery, not the poison level. Why [not tested]: re-typing random plants scatters poison instead of the patches it grows in by itself, so it is harder to avoid.
+- Possible fix: let the ramp move only the caps and let poison plants spread to the new cap by themselves (no re-typing). Changes ramp worlds only (the ramp is off by default; fingerprints unaffected); old ramp results would no longer replay.
