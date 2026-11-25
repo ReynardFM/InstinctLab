@@ -14,7 +14,7 @@ import { margin } from "./stats.ts";
 import { rampShare } from "../engine/plants.ts";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { availableParallelism, setPriority, constants } from "node:os";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const opt = (k: string, d: string) => process.argv.find((x) => x.startsWith(`--${k}=`))?.split("=")[1] ?? d;
 const TICKS = Number(opt("ticks", "200000")), COST = Number(opt("cost", "0.0002"));
@@ -85,9 +85,14 @@ function run(j: Job): Result {
 }
 
 if (isMainThread) {
-  const threads = Number(opt("workers", String(Math.max(1, Math.floor(availableParallelism() / 2)))));
+  // Machine override (Rey 2026-11-24 21:41: "B" while a batch was already running): proto/out/life-genes/_machine.txt, e.g.
+  // "threads=0.75 priority=normal", is read when each test starts, so a running batch changes speed from its next test on. Delete the file
+  // to go back to the batch's own setting.
+  const MACH = existsSync("proto/out/life-genes/_machine.txt") ? readFileSync("proto/out/life-genes/_machine.txt", "utf8") : "";
+  const share = Number(/threads=([\d.]+)/.exec(MACH)?.[1] ?? 0);
+  const threads = share > 0 ? Math.max(1, Math.floor(availableParallelism() * share)) : Number(opt("workers", String(Math.max(1, Math.floor(availableParallelism() / 2)))));
   // Standing rule: low priority (Rey plays games meanwhile). LAB_PRIORITY=normal (set by the night batch, Rey 2026-11-11) keeps normal priority.
-  const NORMAL = process.env.LAB_PRIORITY === "normal";
+  const NORMAL = process.env.LAB_PRIORITY === "normal" || /priority=normal/.test(MACH);
   if (!NORMAL) try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
   const js: Job[] = [];
   for (let cond = 0; cond < CONDS.length; cond++) if (CONDS_ON.includes(cond)) for (const seed of SEEDS) js.push({ cond, seed });
