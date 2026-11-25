@@ -209,7 +209,16 @@ for (const [name, what, args, skipIf] of TESTS) {
   if (why) { console.log(`skip ${name}: ${why}`); writeFileSync(file, `== ${name}: ${what}\nSKIPPED by gate: ${why}\n`); continue; }
   console.log(`run ${name}: ${what} (${((performance.now() - t0) / 60000).toFixed(0)} min in)`);
   // stderr goes straight to the terminal, so the per-run progress lines of life-genes show live (Rey 2026-11-11)
-  const r = spawnSync(process.execPath, ["src/cli/life-genes.ts", W, `--out=${name}`, ...args], { encoding: "utf8", maxBuffer: 1 << 24, stdio: ["ignore", "pipe", "inherit"] });
+  // Testing rule 4 (Rey 2026-11-24 23:56): a LONG test (runs x ticks >= 10M, about half an hour or more) always runs at 3/4 threads,
+  // normal priority; short ones keep the batch default (half, low). life-genes' _machine.txt override still wins.
+  const ticks = Number(args.find((a) => a.startsWith("--ticks="))?.slice(8) ?? 30000);
+  const sd = (args.find((a) => a.startsWith("--seeds="))?.slice(8) ?? "1").split("-").map(Number);
+  const runs = (sd.length > 1 ? sd[1] - sd[0] + 1 : 1) * (args.includes("--conds=0") || args.includes("--conds=1") ? 1 : 2);
+  const long = runs * ticks >= 10_000_000;
+  const w = long ? `--workers=${Math.max(1, Math.floor((availableParallelism() * 3) / 4))}` : W;
+  const env = long ? { ...process.env, LAB_PRIORITY: "normal" } : process.env;
+  if (long) console.log(`  long test (${runs} runs x ${ticks} ticks): 3/4 threads, normal priority (testing rule 4)`);
+  const r = spawnSync(process.execPath, ["src/cli/life-genes.ts", w, `--out=${name}`, ...args], { encoding: "utf8", maxBuffer: 1 << 24, stdio: ["ignore", "pipe", "inherit"], env });
   const out = `== ${name}: ${what}\n${r.stdout}${r.status ? `\nFAILED (exit ${r.status}): see the terminal for the error` : ""}`;
   if (r.status) console.log(`  FAILED, see ${file}`);
   if (!r.status) writeFileSync(file, out);

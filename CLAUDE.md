@@ -21,7 +21,7 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
   1. *Size:* small first = 6 seeds x 100k ("long check"; with seasons, 4 years). Queue the proof (14 seeds x 200k) behind a gate, so it runs by itself only if the small test passes its done-if. Nothing is "done" below proof.
   2. *Old-result comparison:* rerun ONE reference scenario (the closest) with the same settings, seeds and length plus the new rule, and compare seed by seed with the result on file (no rerun of the old). Before a rule becomes a DEFAULT, rerun all four references. References on file (slow hunters, 14 x 200k, 2026-11-11): shW3 (base world, engine breeding), shWS3 (base world, prey-like breeding), shGS3 (glow, full poison), shBS3 (blind, full poison).
   3. *Twins:* not automatic. Add a blind twin or a rule-off twin only when the question needs it ("every comparison needs a control" still holds), and say that it was added.
-  4. *Machine use:* ask Rey before every batch (threads and priority); no default.
+  4. *Machine use (Rey 2026-11-24 23:56, replaces "ask before every batch"):* LONG tests (about half an hour or more; in night-batch: runs x ticks >= 10M, e.g. 6 seeds x 2 conditions x 1M) ALWAYS run at 3/4 threads, normal priority, no asking. If Rey needs the laptop, they wait for the overnight batch instead of running slower. Short tests: half threads, low priority. proto/out/life-genes/_machine.txt still overrides everything (delete it to go back).
   5. *Writing:* simple words and one analogy per idea by default; numbers only where needed; details when Rey asks.
   6. *A new feature that needs balancers (Rey 2026-11-11, from the resistance + seasons case: "test the resistance in 2 different ways, stomach and scattered farms, add half the number of seeds with both"):* when a new feature only works with helpers (balancers), and there are several candidate balancers:
      - test the feature with EACH balancer alone, at the full small size (6 seeds);
@@ -39,7 +39,7 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
 - **Golden re-records (Rey 2026-11-03):** any golden re-record goes in its own commit that shows only the expected cases changed.
 - **Reporting results (Rey 2026-11-03):** one test at a time, each with a simple conclusion (with its evidence level), before proposing any fix or new test.
 - After the learning-off re-tests: list each new hunter flag (hunterEye, eyeMotion, remains, hunterDoseCap, hunter resistance rules; hunterBite deleted, hunterForget merged into forget) as keep or delete.
-- Heavy runs: half the threads, low priority by default (his laptop froze once). Long runs go on his Windows terminal.
+- Machine use: see testing rule 4 (long = 3/4 threads, normal priority, or wait for the overnight batch; short = half, low). Long runs go on his Windows terminal.
 - Every speed change must be checked bit-identical (golden tests, fingerprints). Experiments behind flags, off by default.
 - Follow the token rules (Rules section): results via tail/grep, compact summaries, no polling.
 - Record every result in HISTORY.md (Results log) and every call Rey makes in CLAUDE.md (rules/handoff) or HISTORY.md (Decision log).
