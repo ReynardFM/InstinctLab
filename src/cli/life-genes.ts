@@ -85,37 +85,58 @@ function run(j: Job): Result {
 }
 
 if (isMainThread) {
-  // Machine override (Rey 2026-11-24 21:41: "B" while a batch was already running): proto/out/life-genes/_machine.txt, e.g.
-  // "threads=0.75 priority=normal", is read when each test starts, so a running batch changes speed from its next test on. Delete the file
-  // to go back to the batch's own setting.
-  // One setting per line; a line may start with from=YYYY-MM-DDTHH:MM (local time, Rey 2026-11-25 02:03: "swap the rest after 9:45 to
-  // half low"): the last line whose time has come applies (a line without from= applies from the start).
-  const MLINES = (existsSync("proto/out/life-genes/_machine.txt") ? readFileSync("proto/out/life-genes/_machine.txt", "utf8") : "").split(/\r?\n/).filter((l) => l.trim());
-  const MACH = MLINES.filter((l) => { const f = /from=(\S+)/.exec(l)?.[1]; return !f || new Date(f).getTime() <= Date.now(); }).at(-1) ?? "";
-  const share = Number(/threads=([\d.]+)/.exec(MACH)?.[1] ?? 0);
-  const threads = share > 0 ? Math.max(1, Math.floor(availableParallelism() * share)) : Number(opt("workers", String(Math.max(1, Math.floor(availableParallelism() / 2)))));
-  // Standing rule: low priority (Rey plays games meanwhile). LAB_PRIORITY=normal (set by the night batch, Rey 2026-11-11) keeps normal priority;
-  // priority=low in _machine.txt forces low.
-  const NORMAL = /priority=low/.test(MACH) ? false : process.env.LAB_PRIORITY === "normal" || /priority=normal/.test(MACH);
-  if (!NORMAL) try { setPriority(constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal priority */ }
+  // Machine settings (Rey 2026-11-24 / 25): proto/out/life-genes/_machine.txt, one setting per line, for example
+  //   threads=0.75 priority=normal             always
+  //   hours=10-16 threads=0.5 priority=low      only while the local hour is 10..15 (Rey is active; "make 10-4")
+  //   from=2026-11-25T09:45 threads=...         only from that local time on
+  // The LAST line whose conditions hold wins; no line = the batch's own setting (--workers, LAB_PRIORITY). Re-checked every minute while
+  // a test runs (Rey 2026-11-25 02:06: a real time check, not a guess): priority changes at once; the number of workers changes as runs
+  // finish (a run in flight is never stopped). Results do not depend on the worker count (each run is its own job, stored by index).
+  const BASE = Number(opt("workers", String(Math.max(1, Math.floor(availableParallelism() / 2))))), ENV_NORMAL = process.env.LAB_PRIORITY === "normal";
+  const machine = (): { threads: number; normal: boolean } => {
+    const file = "proto/out/life-genes/_machine.txt";
+    const lines = (existsSync(file) ? readFileSync(file, "utf8") : "").split(/\r?\n/).map((l) => l.replace(/#.*/, "").trim()).filter(Boolean);
+    const now = new Date(), h = now.getHours();
+    const M = lines.filter((l) => {
+      const f = /from=(\S+)/.exec(l)?.[1], hr = /hours=(\d+)-(\d+)/.exec(l);
+      return (!f || new Date(f).getTime() <= now.getTime()) && (!hr || (h >= Number(hr[1]) && h < Number(hr[2])));
+    }).at(-1) ?? "";
+    const share = Number(/threads=([\d.]+)/.exec(M)?.[1] ?? 0);
+    return { threads: share > 0 ? Math.max(1, Math.floor(availableParallelism() * share)) : BASE, normal: /priority=low/.test(M) ? false : ENV_NORMAL || /priority=normal/.test(M) };
+  };
+  // Standing rule: low priority (Rey plays games meanwhile) unless the batch or _machine.txt says normal.
+  const applyPriority = (normal: boolean) => { try { setPriority(normal ? constants.priority.PRIORITY_NORMAL : constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* keep the current priority */ } };
+  let cur = machine();
+  if (!cur.normal) applyPriority(false);
   const js: Job[] = [];
   for (let cond = 0; cond < CONDS.length; cond++) if (CONDS_ON.includes(cond)) for (const seed of SEEDS) js.push({ cond, seed });
-  console.error(`${js.length} runs of ${TICKS} ticks on ${threads} of ${availableParallelism()} threads, ${NORMAL ? "normal" : "low"} priority`);
+  console.error(`${js.length} runs of ${TICKS} ticks on ${cur.threads} of ${availableParallelism()} threads, ${cur.normal ? "normal" : "low"} priority`);
   const t0 = performance.now(), res: Result[] = new Array(js.length);
-  let next = 0, done = 0;
+  let next = 0, done = 0, active = 0;
   await new Promise<void>((ok, bad) => {
-    for (let wi = 0; wi < Math.min(threads, js.length); wi++) {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const spawn = () => {
       const wk = new Worker(new URL(import.meta.url), { argv: process.argv.slice(2) });
+      active++;
       let mine = -1;
-      const feed = () => { if (next < js.length) { mine = next++; wk.postMessage(js[mine]); } else wk.terminate(); };
+      const feed = () => { if (next < js.length && active <= cur.threads) { mine = next++; wk.postMessage(js[mine]); } else { active--; wk.terminate(); } };
       wk.on("message", (r: Result) => {
         res[mine] = r; done++;
         console.error(`  run ${done} of ${js.length} done (${((performance.now() - t0) / 60000).toFixed(0)} min)`); // progress (Rey 2026-11-11)
-        if (done === js.length) ok(); feed();
+        if (done === js.length) { clearInterval(timer); active--; wk.terminate(); ok(); return; }
+        feed(); top();
       });
-      wk.on("error", bad);
+      wk.on("error", (e) => { clearInterval(timer); bad(e); });
       feed();
-    }
+    };
+    const top = () => { while (active < cur.threads && next < js.length) spawn(); };
+    timer = setInterval(() => {
+      const m = machine();
+      if (m.normal !== cur.normal || m.threads !== cur.threads) console.error(`  machine (schedule, ${new Date().toTimeString().slice(0, 5)}): ${m.threads} threads, ${m.normal ? "normal" : "low"} priority`);
+      if (m.normal !== cur.normal) applyPriority(m.normal);
+      cur = m; top();
+    }, Number(process.env.LAB_MACHINE_CHECK_MS ?? 60000));
+    top();
   });
   mkdirSync("proto/out/life-genes", { recursive: true });
   writeFileSync(`proto/out/life-genes/${OUT}.json`, JSON.stringify(res));
