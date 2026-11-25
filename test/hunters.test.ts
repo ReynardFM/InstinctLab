@@ -694,3 +694,20 @@ test("season + poisonRamp: the poison share swings normal / peak / normal / peak
   assert.ok(s1 > s0 + 0.08 && s2 < s1 - 0.08, `poison rises in the poison quarter and falls back: ${s0.toFixed(3)} / ${s1.toFixed(3)} / ${s2.toFixed(3)}`);
   assert.equal(w.eco.farms.length, 0, "no farms with a ramp (the season does not pack the plants)");
 });
+
+// rules.rampFarm (Rey 2026-11-24, "A"): with season + poisonRamp, quarters 2-3 pack the plants into the farms, poison in its own slice,
+// and sprouts outside the farms die (a fence). Off = the swing alone (checked by fingerprint and a swing hash).
+test("rampFarm: farm quarters pack every plant into the farms and keep them there; poison stays in its own patch", () => {
+  const w = createWorld(2, { ...BOTH_EYES, season: 16000, poisonRamp: 1, poisonPeak: 0.4, rampFarm: 1 });
+  runTicks(w, 7900);
+  assert.equal(w.eco.farms.length, 0, "no farms in the spread quarters");
+  runTicks(w, 8000); // late in quarter 3 (farm, poison), 7,900 ticks into the farm quarters
+  const R = farmRadius(2), F = w.eco.farms;
+  const inF = (x: number, y: number) => [0, 2].some((k) => { let dx = Math.abs(x - F[k]), dy = Math.abs(y - F[k + 1]); dx = Math.min(dx, 800 - dx); dy = Math.min(dy, 600 - dy); return dx * dx + dy * dy <= R * R; });
+  const p = w.food.filter((f) => !f.remains && f.readyAt !== Infinity), pz = p.filter((f) => f.poison);
+  assert.equal(F.length, 4, "two farms");
+  assert.equal(p.filter((f) => inF(f.x, f.y)).length, p.length, "every living plant is inside a farm (the fence holds)");
+  assert.ok(Math.abs(pz.length / p.length - 0.4) < 0.05, `poison share follows the swing: ${(pz.length / p.length).toFixed(3)}`);
+  let same = 0; for (const f of pz.slice(0, 30)) same += p.filter((g) => g !== f).map((g) => [(g.x - f.x) ** 2 + (g.y - f.y) ** 2, g.poison] as [number, boolean]).sort((a, b) => a[0] - b[0]).slice(0, 5).filter((x) => x[1]).length / 5;
+  assert.ok(same / 30 > 0.7, `poison in patches: ${(same / 30).toFixed(2)} of a poison plant's 5 nearest are poison (random mix ~0.4)`);
+});

@@ -183,6 +183,13 @@ const TESTS: Test[] = [
   ["more6-swingslow-14", "GRADUAL SWING, 14 seeds [proof]; only if more6-swingslow-6 works in >= 5 of 6", ["--seeds=1-14", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=750000", "--poisonPeak=0.4"], passGate("more6-swingslow-6", 5)],
   // (5g) Stability: the slow rise run to 6M (reaches 40% at 3M, then held 3M). Does it stay working at 40%? Seeds 1-6.
   ["more7-long6M", "LONG RUN: slow rise to 40% at 3M, held to 6M, glow, 6 seeds [small test]", ["--seeds=1-6", "--ticks=6000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  // (5h) Rey 2026-11-24 21:45 ("A"): FARM SWING = the four seasons on the fixed ramp: spread 23% / spread 40% / FARM 23% / FARM 40%
+  //      (750k each). Farm quarters pack every plant into 2 farms (poison in its own slice of each farm; sprouts fenced in; rampFarm 1).
+  //      Compare swing6G (same, no farms: works 6 / 6). Screen [seed 2, 40k year]: plants 100% in farms, poison patched (0.84-0.90 of a
+  //      poison plant's neighbours poison), hunters camp in the farms (20 of 21), then fall to 1 in the farm-poison quarter.
+  //      Done-if works >= 5 of 6; kill-if <= 2 of 6 (label broke / too slow). Gated proof.
+  ["more8-farmswing-6", "FARM SWING: spread 23 / spread 40 / farm 23 / farm 40% (750k each), glow, 6 x 3M [small test]", ["--seeds=1-6", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=1", "--poisonPeak=0.4", "--rampFarm=1"]],
+  ["more8-farmswing-14", "FARM SWING, 14 seeds [proof]; only if more8-farmswing-6 works in >= 5 of 6", ["--seeds=1-14", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=1", "--poisonPeak=0.4", "--rampFarm=1"], passGate("more8-farmswing-6", 5)],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];

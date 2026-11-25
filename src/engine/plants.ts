@@ -103,6 +103,41 @@ function turnSeason(w: World): void {
   }
 }
 
+// rules.rampFarm (Rey 2026-11-24, "A": the four seasons on the fixed ramp: spread-normal, spread-poison, farm-normal, farm-poison).
+// With season + poisonRamp + rampFarm, quarters 2-3 are FARM seasons: at the start of quarter 2 every plant moves into rules.seasonFarm
+// farm discs (total area as the 2 built farms). Poison keeps its own patch: in each farm the poison plants fill one slice of the disc
+// (slice size = their share), the clean plants the rest, so poison is not mixed in at random (the old ramp's flaw). During farm seasons a
+// sprout that lands outside every farm does not take root (a fence), so farms do not leak over 750k ticks. At the start of quarter 0 of a
+// later year the plants scatter over the map again. Off (0): nothing here runs; the swing alone is unchanged.
+const farmOn = (w: World): boolean => w.rules.rampFarm > 0 && w.rules.season > 0 && w.rules.poisonRamp > 0;
+function moveFarm(w: World): void {
+  const r = w.rules, q = seasonQuarter(w);
+  const plants = w.food.filter((f) => !f.remains);
+  const walls = r.walls > 0;
+  const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
+  if (q === 0) { if (w.tick > 0) for (const f of plants) { f.x = w.env.next() * W; f.y = w.env.next() * H; } return; }
+  if (q !== 2) return;
+  const farms = w.eco.farms, nFarms = Math.max(1, Math.round(r.seasonFarm)), farmR = farmRadius(nFarms);
+  if (!farms.length) for (let k = 0; k < nFarms; k++) farms.push(w.env.next() * W, w.env.next() * H);
+  const start: number[] = []; for (let k = 0; k < nFarms; k++) start.push(w.env.next() * Math.PI * 2); // where each farm's poison slice begins
+  const share = plants.filter((f) => f.poison).length / Math.max(1, plants.length);
+  for (const f of plants) {
+    const k = Math.floor(w.env.next() * nFarms), u = w.env.next(), d = farmR * Math.sqrt(w.env.next());
+    const a = start[k] + (f.poison ? u * share : share + u * (1 - share)) * Math.PI * 2;
+    f.x = place(farms[2 * k] + cos(a) * d, W);
+    f.y = place(farms[2 * k + 1] + sin(a) * d, H);
+  }
+}
+// rules.rampFarm: is (x, y) inside a farm? (wrapping distance unless walls)
+function inFarm(w: World, x: number, y: number): boolean {
+  const farms = w.eco.farms, R = farmRadius(Math.max(1, Math.round(w.rules.seasonFarm))), walls = w.rules.walls > 0;
+  for (let k = 0; k < farms.length; k += 2) {
+    let dx = Math.abs(x - farms[k]), dy = Math.abs(y - farms[k + 1]);
+    if (!walls) { dx = Math.min(dx, W - dx); dy = Math.min(dy, H - dy); }
+    if (dx * dx + dy * dy <= R * R) return true;
+  }
+  return false;
+}
 export function spreadFood(w: World): void {
   const r = w.rules;
   const food = w.food;
@@ -110,6 +145,8 @@ export function spreadFood(w: World): void {
   const walls = r.walls > 0;
   const place = (v: number, size: number) => (walls ? Math.min(Math.max(v, 0), size) : (v + size) % size);
   if (r.season > 0 && !(r.poisonRamp > 0) && tick % Math.max(1, Math.floor(r.season / 4)) === 0) turnSeason(w); // rules.season: the plants turn with the season (not with a ramp: the ramp moves the caps, rampShare)
+  if (farmOn(w) && tick % Math.max(1, Math.floor(r.season / 4)) === 0) moveFarm(w); // rules.rampFarm: farms in quarters 2-3
+  const fence = farmOn(w) && seasonQuarter(w) >= 2 && w.eco.farms.length > 0; // rules.rampFarm: sprouts outside the farms die
   // per kind (0 = good, 1 = poison): free slots (eaten for good), pellets, pellets standing now
   const free: number[][] = [[], []];
   const count = [0, 0];
@@ -146,6 +183,7 @@ export function spreadFood(w: World): void {
     const s = food[slot];
     s.x = place(f.x + cos(a) * d, W);
     s.y = place(f.y + sin(a) * d, H);
+    if (fence && !inFarm(w, s.x, s.y)) { s.readyAt = Infinity; free[k].push(slot); continue; } // rules.rampFarm: outside the fence
     s.readyAt = tick + 1;
   }
   for (const k of [0, 1]) {
