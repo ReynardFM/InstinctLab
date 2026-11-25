@@ -158,6 +158,31 @@ const TESTS: Test[] = [
   ["swing6G-glow-4phase-3M", "POISON SWING on the fixed ramp: glow, 3M, phases 23% / 40% / 23% / 40% (750k each), gene 0.3, seeds 1-6 [small test]", ["--seeds=1-6", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", "--poisonPeak=0.4", "--season=3000000"]],
   ["swing14G-glow-4phase-3M-proof", "POISON SWING: same, 14 seeds [proof]; only if swing6G works in >= 5 of 6",
     ["--seeds=1-14", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", "--poisonPeak=0.4", "--season=3000000"], passGate("swing6G-glow-4phase-3M", 5)],
+  // (5) Rey 2026-11-24 19:06 ("All, based on impact first, not difficulty"): the gaps after the slow-rise proof, in order of impact.
+  //     Run with: --only=more. World as fixslow14G (slow hunters, prey-like breeding, both eyes, dose 0.75 / cap 2, resistGene 0.3, fixed ramp).
+  // (5a) Nature-bar points 2 and 3b for the rising poison: does resistance come from the poison, or drift? NO poison plants (--poison=0;
+  //      no ramp: with poison 0 the ramp would climb from 0 to 0.4), 14 x 2M, glow. Pairs with fixslow14G by seed (.dsh/nb.mjs).
+  //      Prediction: resistance drifts low (upkeep), prey and hunters ~0.1-0.2 (nat0 at 400k: 0.08-0.21); if it ends near the poison runs,
+  //      the resistance is not a poison answer.
+  ["more1-ctl14-nopoison-2M", "CONTROL for the slow rise: glow, NO poison plants, 14 x 2M [proof size]", ["--seeds=1-14", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poison=0"]],
+  // (5b) Nature-bar point 3a: does glow give a dodge on the slow rise? BLIND twin of fixslow14G, same seeds. Prediction: pick glow vs blind
+  //      lower in < 10 of 14 (at steady poison, 400k, glow added no dodge with senses handed out: 4 of 14).
+  ["more2-blind14-slowrise", "BLIND twin of fixslow14G: 23% -> 40% over 3M, run 2M, 14 seeds [proof size]", ["--seeds=1-14", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=0", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  // (5c) Replication: evolved senses passed at exactly the bar (10 of 14). Same test on NEW seeds 15-28. Prediction: 8-12 of 14 evolved.
+  ["more3-seeds15-slowrise", "SLOW RISE again on seeds 15-28 (replication of fixslow14G) [proof size]", ["--seeds=15-28", "--ticks=2000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
+  // (5d) The real limit on the FIXED ramp: poison held at 35 / 45 / 60% from tick 1 (step), 6 x 200k, glow. Compare natG seeds 1-6 (23%)
+  //      and lvl35G (35% on the OLD ramp: works 3 / 1 of 6). Prediction: 35% works >= 4 of 6 now; the break sits between 45% and 60%.
+  ...([["35", "0.35"], ["45", "0.45"], ["60", "0.6"]] as [string, string][]).map(([n, v]) => [`more4-lim${n}-steady`, `LIMIT: poison held at ${n}% (fixed ramp, step), glow, 6 x 200k [diagnostic]`,
+    ["--seeds=1-6", "--ticks=200000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=1", `--poisonPeak=${v}`]] as [string, string, string[]]),
+  // (5e) HARDER swing: 23 / 60 / 23 / 60%, otherwise swing6G. Done-if works >= 5 of 6; kill-if <= 2. Gated proof.
+  ["more5-swing60-6", "HARDER SWING: 23 / 60 / 23 / 60% (750k phases, step), glow, 6 x 3M [small test]", ["--seeds=1-6", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=1", "--poisonPeak=0.6"]],
+  ["more5-swing60-14", "HARDER SWING, 14 seeds [proof]; only if more5-swing60-6 works in >= 5 of 6", ["--seeds=1-14", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=1", "--poisonPeak=0.6"], passGate("more5-swing60-6", 5)],
+  // (5f) GRADUAL swing: each change takes the whole phase (poisonRamp 750k): a slow tide 23 -> 40 -> 23 -> 40%. Compare swing6G (step).
+  //      Prediction: fewer die-outs at the first poison phase than the step (evolved: 3.8 -> 21.7 rounds). Gated proof.
+  ["more6-swingslow-6", "GRADUAL SWING: 23% <-> 40%, each change over a whole 750k phase, glow, 6 x 3M [small test]", ["--seeds=1-6", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=750000", "--poisonPeak=0.4"]],
+  ["more6-swingslow-14", "GRADUAL SWING, 14 seeds [proof]; only if more6-swingslow-6 works in >= 5 of 6", ["--seeds=1-14", "--ticks=3000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--season=3000000", "--poisonRamp=750000", "--poisonPeak=0.4"], passGate("more6-swingslow-6", 5)],
+  // (5g) Stability: the slow rise run to 6M (reaches 40% at 3M, then held 3M). Does it stay working at 40%? Seeds 1-6.
+  ["more7-long6M", "LONG RUN: slow rise to 40% at 3M, held to 6M, glow, 6 seeds [small test]", ["--seeds=1-6", "--ticks=6000000", ...E, ...SAME, "--poisonDose=0.75", "--hunterDoseCap=2", "--resistGene=0.3", "--hunterCue=2", "--poisonRamp=3000000", "--poisonPeak=0.4"]],
   // Empty on 2026-11-13: every queued test is finished and recorded in HISTORY.md (git keeps the old entries; last full queue: 26f0ccb).
   // Helpers above: E, SAME, SLOW (now the engine default), FOOD2, CHECK, PROOF, worksGate, sweetGate, passGate. --only=<name start> runs a subset.
 ];
