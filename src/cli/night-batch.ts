@@ -191,6 +191,9 @@ mkdirSync(DIR, { recursive: true });
 const t0 = performance.now();
 // --only=<start of a test name>: run just the tests whose name starts with it (Rey 2026-11-11: "just that"); the rest stay queued
 const ONLY = (process.argv.find((a) => a.startsWith("--only="))?.slice(7) ?? "").split(",").filter(Boolean); // --only=path,why,... (Rey 2026-11-20)
+// Extra --only names from proto/out/life-genes/_only.txt (Rey 2026-11-24: "can we add to the loop?"): a loop already running with --only
+// picks up the new groups on its next pass, without a restart. Ignored when no --only is given (then everything runs anyway).
+if (ONLY.length && existsSync(`${DIR}/_only.txt`)) ONLY.push(...readFileSync(`${DIR}/_only.txt`, "utf8").split(/[\s,]+/).filter(Boolean));
 for (const [name, what, args, skipIf] of TESTS) {
   if (ONLY.length && !ONLY.some((o) => name.startsWith(o))) continue;
   const file = `${DIR}/${name}.txt`;
