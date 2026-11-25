@@ -651,3 +651,8 @@ Same world in all: slow hunters, prey-like breeding, both eyes, glow, dose 0.75 
 - Checks: off = bit-identical (24 fingerprints; swing world hash equal to the pre-farm code); new test fails on the old code, passes now (plants 100% inside farms, poison share 0.40 in the farm-poison quarter, poison patched); all suites pass (hunters 46; engine, eco-lab, cli, grid, toxin, split, stats 78; queue skipped: needs Redis); typecheck clean.
 - Screen [seed 2, year 40k, step swing, glow]: plants inside farms 1.00 in the farm quarters; a poison plant's 5 nearest are poison 0.84 / 0.90 (share 0.23 / 0.40; spread quarters 0.67 / 0.76); hunters in farms 7 of 10, 12 of 17, 20 of 21, then 1 hunter left at 40k (the farm-poison quarter). Hint only.
 - Queued more8-farmswing-6 (6 x 3M) + gated proof more8-farmswing-14, after more1-7 (the running loop picks them up on its next pass).
+
+## 2026-11-25 00:21: more1 no-poison control read [proof size, 14 x 2M, half threads, low priority, 203 min] -> SLOW RISE PASSES THE NATURE BAR
+- Control = fixslow14G's world with no poison plants (--poison=0, no ramp). Slow rise vs control, by seed, at 2M (handed out / evolved):
+  (1) works 13 / 10 of 14 (control 14 / 14); (2) prey resistance 0.65 vs 0.13, higher in 13 of 14 / 0.55 vs 0.17, 11 of 14; (3b) hunter resistance 0.71 vs 0.09, higher in 13 of 14 / 0.54 vs 0.07, 11 of 14; (4) hunters per prey (whole-run average, as .dsh/nb.mjs) worst seed 0.39 / 0.37. ALL FOUR POINTS HOLD in both conditions. (At the last mark alone one evolved seed reads 0.90: a snapshot after a prey dip; the bar uses the run average, as for natG.)
+- Point 3a (dodge vs blind) waits for more2 (running at 3/4 since ~00:21).
