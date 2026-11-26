@@ -66,3 +66,4 @@ pressure (hunters survive with poison) -> choice (eat output) -> pattern (terrai
 
 ## Loose ends
 - Commit pending (message in proto/out/commit-msg.txt).
+- d1 [parked 2026-11-25] Farm swing on the fixed ramp (rampFarm): proof 9 / 5 of 14, the farms themselves crash the prey; cause unknown (camping hunters / fence / one-tick move); next = diagnostic
