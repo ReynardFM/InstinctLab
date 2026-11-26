@@ -3,7 +3,7 @@
 // Draws worlds with the report's glyphs and the design system's brightfield stains, side by side, into PNG frames;
 // ffmpeg turns the frames into a GIF. Usage: node gif.mjs <scene> (scenes below).
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 
@@ -102,6 +102,7 @@ async function clip(name, { sides, start = 0, frames = 90, every = 8, fps = 15, 
   const out = `/home/claude/gif/out/${name}.gif`; mkdirSync("/home/claude/gif/out", { recursive: true });
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", `${dir}/f%04d.png`, "-vf",
     `split[a][b];[a]palettegen=max_colors=48:stats_mode=full[p];[b][p]paletteuse=dither=none`, "-loop", "0", out]);
+  copyFileSync(`${dir}/f${String(k - 1).padStart(4, "0")}.png`, out.replace(/\.gif$/, ".png")); // the still: last frame, for reduced motion and Pause
   console.log(name, "done:", out);
 }
 
@@ -145,9 +146,9 @@ const SCENES = {
   slow: () => clip("4-slow", { frames: 100, every: 1200, fps: 12, hold: 15,
     sides: [
       { label: "Fast hunters · seed 1", ctl: true, rules: { ...PROOF, hunterCue: 2, ...FAST }, glow: true,
-        stats: (w) => `tick ${num(w.tick)} · hunters ${w.hunters.length} per 100 prey ${per100(w)}\nhunters died out ${dieOuts(w)}×` },
+        stats: (w) => `tick ${num(w.tick)} · hunters ${w.hunters.length} · ${per100(w)} per 100 prey\nhunters died out ${dieOuts(w)}×` },
       { label: "Slow hunters · seed 1", rules: { ...PROOF, hunterCue: 2, ...SLOW }, glow: true,
-        stats: (w) => `tick ${num(w.tick)} · hunters ${w.hunters.length} per 100 prey ${per100(w)}\nhunters died out ${dieOuts(w)}×` },
+        stats: (w) => `tick ${num(w.tick)} · hunters ${w.hunters.length} · ${per100(w)} per 100 prey\nhunters died out ${dieOuts(w)}×` },
     ] }),
   // 5: judged by nature: no poison vs poison, a time-lapse of 400,000 ticks; toughness is the number to watch.
   nature: () => clip("5-nature", { frames: 100, every: 4000, fps: 12, hold: 15,
