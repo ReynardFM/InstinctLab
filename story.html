@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instinct Lab: the hunters and the poison</title>
+<style>
+  /* Instinct Lab design system (tokens.json v1): Brightfield by default, Darkfield in dark mode. Stains have one job each. */
+  @font-face { font-family: "Recursive"; src: url("assets/fonts/recursive.woff2") format("woff2"); font-weight: 300 1000; font-display: swap; }
+  :root {
+    --bench: #cdd6d2; --bench-light: #dde4e0; --paper: #fbfcf7; --grid: rgba(43,92,158,0.07); --line: #c9d2cf; --agar: #e7e2b6;
+    --ink: #1e2b30; --ink-muted: #5d6c70; --methylene: #2b5c9e; --on-methylene: #ffffff; --safranin: #b23a48; --on-safranin: #ffffff;
+    --iodine: #8a5a00; --nigrosin: #34405e; --fuchsin: #6e2a5e; --malachite: #368658; --eosin: #c94a80; --yeast: #fff8dc; --yeast-rim: #b9a24f;
+    --shadow-page: 0 0 0 1px rgba(30,43,48,0.08), 0 14px 30px -20px rgba(30,43,48,0.4);
+    --shadow-dish: inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(30,43,48,0.12), 0 22px 40px -18px rgba(30,43,48,0.45);
+    --glass: rgba(255,255,255,0.55);
+    /* roles */
+    --accent: var(--methylene); --focus: var(--methylene); --prey: var(--malachite); --prey-sick: var(--fuchsin); --glow: var(--eosin);
+    --hunter: var(--nigrosin); --poison: var(--fuchsin); --food: var(--yeast); --food-rim: var(--yeast-rim); --weight-pos: var(--methylene);
+    --weight-neg: var(--safranin); --rey: var(--iodine); --control: var(--ink-muted);
+    --space-1: 4px; --space-1-5: 6px; --space-2: 8px; --space-3: 12px; --space-5: 20px; --space-6: 24px; --space-7: 28px; --space-10: 40px;
+    --radius-xs: 4px; --radius-page: 6px; --radius-control: 8px; --radius-agar: 24px; --radius-dish: 34px; --radius-pill: 999px;
+    --font: "Recursive", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bench: #0e1416; --bench-light: #141c1f; --paper: #162024; --grid: rgba(140,190,255,0.06); --line: #2e3c40; --agar: #22241a;
+      --ink: #e6ece6; --ink-muted: #9aaaac; --methylene: #7fb0ee; --on-methylene: #0e1416; --safranin: #f08a94; --on-safranin: #0e1416;
+      --iodine: #e2b35c; --nigrosin: #a9b8e0; --fuchsin: #b46aa6; --malachite: #62d394; --eosin: #ff9cc2; --yeast: #f3e7b0; --yeast-rim: #c9b35a;
+      --shadow-page: 0 0 0 1px rgba(230,236,230,0.08), 0 14px 30px -20px rgba(0,0,0,0.7);
+      --shadow-dish: inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(230,236,230,0.14), 0 22px 40px -18px rgba(0,0,0,0.8);
+      --glass: rgba(255,255,255,0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bench: #0e1416; --bench-light: #141c1f; --paper: #162024; --grid: rgba(140,190,255,0.06); --line: #2e3c40; --agar: #22241a;
+    --ink: #e6ece6; --ink-muted: #9aaaac; --methylene: #7fb0ee; --on-methylene: #0e1416; --safranin: #f08a94; --on-safranin: #0e1416;
+    --iodine: #e2b35c; --nigrosin: #a9b8e0; --fuchsin: #b46aa6; --malachite: #62d394; --eosin: #ff9cc2; --yeast: #f3e7b0; --yeast-rim: #c9b35a;
+    --shadow-page: 0 0 0 1px rgba(230,236,230,0.08), 0 14px 30px -20px rgba(0,0,0,0.7);
+    --shadow-dish: inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(230,236,230,0.14), 0 22px 40px -18px rgba(0,0,0,0.8);
+    --glass: rgba(255,255,255,0.06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: var(--bench) radial-gradient(ellipse at 50% 0%, var(--bench-light), var(--bench) 70%) no-repeat;
+    font: 400 15px/22px var(--font); font-variation-settings: "CASL" 0; font-variant-numeric: tabular-nums; }
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--space-7) 16px 64px; }
+  p, li, dd { max-width: 62ch; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+  /* type: two voices */
+  .lab-label, .tag, .story dt.caps { font-size: 12.5px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .hand { font-variation-settings: "CASL" 1; }
+  .rey { color: var(--rey); font-variation-settings: "CASL" 1; font-size: 16px; line-height: 24px; font-weight: 500; }
+  /* title page */
+  .masthead { padding: var(--space-5) 0 var(--space-3); }
+  .masthead h1 { font-size: 56px; line-height: 58px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .masthead p { margin: var(--space-3) 0 0; }
+  .masthead .by { font-size: 14px; }
+  nav { margin: var(--space-5) 0 0; background: var(--paper); border-radius: var(--radius-page); padding: var(--space-5) var(--space-6); box-shadow: var(--shadow-page); }
+  nav ol { margin: var(--space-2) 0 0; padding-left: 22px; columns: 2; column-gap: 40px; }
+  nav li { margin: 2px 0; }
+  nav .soon { color: var(--ink-muted); }
+  /* a plate = one chapter = one notebook page */
+  .plate { margin-top: var(--space-10); background: var(--paper); border-radius: var(--radius-page); padding: var(--space-6); box-shadow: var(--shadow-page);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 20px 20px; }
+  .plate-head { display: flex; gap: var(--space-5); align-items: flex-end; margin-bottom: var(--space-2); }
+  .plate-no { font-variation-settings: "CASL" 1; font-size: 96px; line-height: 86px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink-muted); }
+  .plate-head .tag { color: var(--ink-muted); }
+  .plate h2 { font-size: 26px; line-height: 30px; font-weight: 800; letter-spacing: -0.015em; margin: var(--space-1) 0 0; }
+  .plate.soon { background-image: none; }
+  .plate.soon .plate-no { font-size: 56px; line-height: 52px; }
+  /* the chapter template */
+  .story { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--space-3) var(--space-5); margin: var(--space-5) 0 0; }
+  .story dt { font-size: 15px; line-height: 22px; font-weight: 700; }
+  .story dd { margin: 0; min-width: 0; }
+  .story dd p { margin: 0 0 var(--space-2); }
+  .like { border-left: 3px solid var(--line); padding: 2px 0 2px var(--space-3); font-style: italic; }
+  .cap { font-size: 14px; line-height: 20px; color: var(--ink-muted); margin: var(--space-2) 0 0; }
+  .stats { font-size: 14px; line-height: 20px; margin: var(--space-1) 0 0; }
+  /* stamps: a status is always a word */
+  .stamp { display: inline-block; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 8px; border: 1.5px solid currentColor; border-radius: var(--radius-control); margin-right: var(--space-1-5); transform: rotate(-2deg); }
+  .stamp.kept { color: var(--methylene); }
+  .stamp.dropped { color: var(--safranin); }
+  .stamp.mixed { color: var(--ink-muted); }
+  /* dead ends and corrections */
+  .deadend { border: 1px dashed var(--line); border-radius: var(--radius-page); padding: var(--space-3) var(--space-5); margin-top: var(--space-5); background: var(--paper); }
+  .deadend h4 { font-variation-settings: "CASL" 1; font-size: 14px; line-height: 20px; font-weight: 700; margin: 0 0 var(--space-1); }
+  .deadend p { margin: var(--space-1) 0; }
+  /* the dish: every live world sits in glass */
+  .dish { padding: var(--space-3); border-radius: var(--radius-dish); background: var(--glass); box-shadow: var(--shadow-dish); }
+  .dish.control { background: repeating-linear-gradient(-45deg, var(--glass) 0 6px, color-mix(in srgb, var(--control) 22%, transparent) 6px 8px); }
+  .dish canvas { display: block; width: 100%; height: auto; border-radius: var(--radius-agar); background: var(--agar); }
+  .chart { display: block; width: 100%; height: auto; border-radius: var(--radius-xs); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+  figure { margin: 0; }
+  figcaption { margin-top: var(--space-2); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: var(--paper); }
+  .tag.control { background: repeating-linear-gradient(-45deg, var(--paper) 0 5px, color-mix(in srgb, var(--control) 30%, transparent) 5px 7px); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-top: var(--space-5); }
+  .single { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-7); margin-top: var(--space-5); align-items: start; }
+  /* controls */
+  .row { display: flex; flex-wrap: wrap; gap: var(--space-1-5); align-items: center; margin-top: var(--space-3); }
+  button { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--paper); border: 1px solid var(--line);
+    border-radius: var(--radius-control); padding: 5px 12px; cursor: pointer; font-variation-settings: "CASL" 0; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--methylene); color: var(--on-methylene); border-color: var(--methylene); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .switch { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; margin-right: var(--space-2); }
+  .switch button { border: 0; border-radius: 0; padding: 6px 14px; }
+  .switch button + button { border-left: 1px solid var(--line); }
+  .counter { font-variation-settings: "CASL" 1; font-size: 22px; line-height: 26px; font-weight: 750; margin-left: var(--space-2); }
+  /* world key: shape first, colour second */
+  .key { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); font-size: 14px; color: var(--ink-muted); margin-top: var(--space-3); }
+  .key span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+  .key svg { width: 16px; height: 16px; }
+  /* N of 14 */
+  .n14 { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .n14 i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-pill); border: 1.5px solid var(--control); }
+  .n14 i.p { background: var(--methylene); border-color: var(--methylene); }
+  .n14 b { font-weight: 400; margin-left: 6px; }
+  /* tables */
+  .wrap { overflow-x: auto; }
+  table { border-collapse: collapse; margin: var(--space-3) 0; font-size: 15px; }
+  th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 700; }
+  th.ctl span { padding: 0 4px; border-radius: var(--radius-xs); background: repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in srgb, var(--control) 30%, transparent) 5px 7px); }
+  .story td:first-child, .deadend td:first-child { min-width: 11em; }
+  .timeline td { font-size: 14px; }
+  .timeline td:first-child { color: var(--ink-muted); }
+  .timeline .stamp { transform: none; font-size: 11px; padding: 1px 6px; }
+  footer { margin-top: var(--space-10); font-size: 14px; }
+  @media (max-width: 760px) {
+    .duo, .single { grid-template-columns: minmax(0, 1fr); } nav ol { columns: 1; }
+    .story { grid-template-columns: minmax(0, 1fr); gap: 2px; } .story dd { margin-bottom: var(--space-3); }
+    .plate { padding: var(--space-5) 16px; } .plate-no { font-size: 64px; line-height: 58px; }
+    .masthead h1 { font-size: 38px; line-height: 42px; }
+    .dish { padding: 8px; border-radius: 30px; } .dish canvas { border-radius: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .stamp { transform: none; } }
+  /* story page (2026-11-25): a short narrative; same plates and stains as the report */
+  .scene p { max-width: 62ch; margin: var(--space-3) 0 0; }
+  .scene .hook { font-size: 18px; line-height: 26px; font-weight: 600; margin-top: var(--space-2); }
+  .scene .next { color: var(--ink-muted); margin-top: var(--space-5); }
+  .scene .like { margin-top: var(--space-5); }
+</style>
+</head>
+<body>
+<div class="page">
+<header class="masthead">
+  <div class="tag">Instinct Lab · the story</div>
+  <h1>The hunters and the poison</h1>
+  <p>Six weeks, one small world, and a question: can a tiny brain plus evolution find answers nobody wrote? And do those
+  answers hold up the way nature does? A five-minute read. Every number comes from the lab log; the
+  <a href="report.html">full report</a> shows each test.</p>
+  <p class="by">By Rey Milson · Nov 2026</p>
+</header>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">01</span><div><div class="tag">Oct 16–18</div><h2>A dish of tiny brains</h2></div></div>
+  <p class="hook">Nobody tells these creatures how to find food. Evolution has to.</p>
+  <p>It starts as a dish. Small creatures, each with a brain of a few connections, wander around looking for food. Nobody
+  writes the rules. The ones that eat well have children, the children copy their brains with small changes, and the rest
+  fade out.</p>
+  <p>At first the scores were mostly luck: a good creature on one food map was a poor one on the next. So every
+  generation got three maps. After that, real skill showed. The creatures learned to find food, by evolution alone.</p>
+  <p class="like">Like learning to cook with no recipe: you only keep the dishes that taste good.</p>
+  <p class="next">Next: food that doesn't run away is easy. So we gave them something to run from.</p>
+</section>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">02</span><div><div class="tag">Oct 21–23</div><h2>Hunters arrive</h2></div></div>
+  <p class="hook">Prey had nothing to run from. So we gave them hunters.</p>
+  <p>Hunters got brains too, and an arms race began. Late hunters caught 87% of early prey, but only 56% of late prey: both
+  sides kept getting better against each other.</p>
+  <p>Then the bigger change. Until now a judge picked the best brains each generation. We took the judge away. In the
+  living world, prey and hunters eat, have young and die on their own, all the time. Nobody scores anyone.</p>
+  <p class="like">Like a game of tag where both sides keep getting faster.</p>
+  <p class="next">Next: a world that runs itself needs a reason to struggle. Poison was that reason.</p>
+</section>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">03</span><div><div class="tag">Oct 24 – Nov 11</div><h2>Poison climbs the food chain</h2></div></div>
+  <p class="hook">The prey forgot about poison. So poison started moving up the chain.</p>
+  <p>Some plants were poison, and the prey kept eating them. Rey's verdict: <span class="rey">“they just forget about
+  poison”</span>. So we let poison stay in the body: a prey that ate poison became sick, and a hunter that ate a sick prey
+  got the poison too.</p>
+  <p>Now the hunters kept dying out. We gave them a clue: sick prey glow. In 11 of 14 worlds, glow hunters dodged sick
+  prey more than blind ones. They still didn't end up more numerous.</p>
+  <p>Along the way we built a game for four days. It wasn't fun yet: <span class="rey">“the logic is there but not the
+  fun”</span>. We went back to the lab.</p>
+  <p class="like">Like DDT in birds of prey: poison passed up a food chain hits the top hardest.</p>
+  <p class="next">Next: maybe the hunters weren't failing. Maybe the world was too fast.</p>
+</section>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">04</span><div><div class="tag">Nov 11</div><h2>Slowing down</h2></div></div>
+  <p class="hook">Creatures lived short, jumpy lives. Nature doesn't work like that.</p>
+  <p>A hunter caught about two prey in its whole life and died soon after. Rey: <span class="rey">“creatures die too
+  fast”</span>. So we slowed the hunters down: they burn energy four times slower, and each catch gives four times less.</p>
+  <p>Hunter die-outs fell 3 to 7 times. The world started to look like a food pyramid, with fewer hunters on top of many
+  prey. And we gave everyone a resistance gene: toughness against poison you are born with, which costs energy every
+  tick.</p>
+  <p class="like">Like a bear and a shrew. The shrew must eat every few hours; the bear eats big and can wait.</p>
+  <p class="next">Next: the hunters still weren't winning. Maybe we were asking the wrong question.</p>
+</section>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">05</span><div><div class="tag">Nov 19–20</div><h2>Changing the question</h2></div></div>
+  <p class="hook">We kept asking hunters to become more numerous. Nature doesn't ask that.</p>
+  <p>In nature a better hunter doesn't end up more numerous: it eats its prey down. And animals meet toxic prey in two
+  ways. They avoid them, or they resist them. Rey's call was two words: <span class="rey">“by nature”</span>.</p>
+  <p>So the test changed. Do both sides live on? Do prey resist more than in a world without poison? Do hunters dodge or
+  resist more? Do hunters stay fewer than prey? Over 400,000 ticks, all four held: the world worked in
+  <span class="n14"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><b>14 of 14</b></span>,
+  and hunters ended up tougher than in the no-poison world in 12 of 14.</p>
+  <p class="like">Like garter snakes and toxic newts: in some places the snakes resist fully, in others barely.</p>
+  <p class="next">Next: steady poison was solved. Real worlds don't stay steady.</p>
+</section>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">06</span><div><div class="tag">Nov 13–24</div><h2>The bug that hid in plain sight</h2></div></div>
+  <p class="hook">Rising poison kept breaking the hunters. Then a test that did nothing found the real problem.</p>
+  <p>When poison rose, the hunters broke at about a third poison plants, in 0 of 6 worlds. Even a rise ten times slower
+  only half worked. Rey thought they needed time: <span class="rey">“it's not poison too potent, but hunters evolve too
+  slow as they are slow”</span>.</p>
+  <p>So we ran a test where the poison never moved at all. The hunters still lost a quarter to a third of their numbers.
+  The tool that raised the poison was broken. It kept moving poison plants to random spots, so nobody could learn where
+  they were.</p>
+  <p>We fixed it, and the verdicts flipped. The slow rise now works in
+  <span class="n14"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i></i><b>13 of 14</b></span>,
+  again in 13 of 14 brand-new worlds, and prey and hunters grow tougher than without poison in 13 of 14.</p>
+  <p class="like">Like mines moved every night: you can't learn a map that keeps changing.</p>
+  <p class="next">Next: if hunters can handle poison that rises, what about poison that comes and goes?</p>
+</section>
+
+<section class="plate scene">
+  <div class="plate-head"><span class="plate-no">07</span><div><div class="tag">Nov 24–25</div><h2>Poison that comes and goes</h2></div></div>
+  <p class="hook">Real years have seasons. So poison got seasons too.</p>
+  <p>Poison went up and down: normal, poison, normal, poison. As a switch or as a slow tide, the world worked in
+  <span class="n14"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><b>14 of 14</b></span>.
+  Held at 60% for good, nearly every world broke (1 of 6 worked). As seasons, 60% worked in 14 of 14: the clean seasons
+  gave the hunters a rest. The second poison season hurt less, because the hunters dodged more (a hint from 6 worlds).</p>
+  <p>One twist didn't work. When every plant was packed into two farms for part of the year, the world worked in only 9 of
+  14. The farms themselves broke it, mostly the prey. We don't know why yet, so farms are parked.</p>
+  <p class="like">Like a boxer between rounds: the same punches, with a minute to breathe.</p>
+</section>
+
+<section class="plate scene">
+  <div class="tag">What it adds up to</div>
+  <h2>Two answers nobody wrote</h2>
+  <p>Nobody told the hunters how to handle poison. Evolution found two answers on its own: grow tough, or learn to dodge.
+  Most worlds leaned one way. Where senses could evolve, hunters that saw sickness dodged more, and blind hunters grew
+  tougher instead. Nature shows the same split.</p>
+  <p>It holds up within limits. Steady poison, rising poison and poison seasons all pass. Poison held above about half the
+  plants breaks the hunters, and the farm seasons are still unsolved.</p>
+  <p>The biggest lesson wasn't about the creatures. Four "failed" results flipped once we fixed the test or asked the
+  right question. Checking the test was worth as much as waiting longer.</p>
+  <p class="next">Every test, number and dead end is in the <a href="report.html">full report</a>.</p>
+</section>
+
+<footer>"14 worlds" means 14 different starting seeds of the same world. Rey's words are quoted exactly from the lab log.</footer>
+</div>
+</body>
+</html>
