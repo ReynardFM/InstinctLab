@@ -142,6 +142,10 @@
   .scene .hook { font-size: 18px; line-height: 26px; font-weight: 600; margin-top: var(--space-2); }
   .scene .next { color: var(--ink-muted); margin-top: var(--space-5); }
   .scene .like { margin-top: var(--space-5); }
+  /* story GIFs (2026-11-25): one world from the 14 (seed 1), drawn with the report's glyphs; the 14-world number sits in the caption */
+  .scene figure.gif { margin: var(--space-5) 0 0; }
+  .scene figure.gif img { display: block; max-width: 100%; height: auto; border-radius: var(--radius-page); }
+  .scene figure.gif figcaption { color: var(--ink-muted); font-size: 13px; line-height: 18px; margin-top: var(--space-2); max-width: 70ch; }
 </style>
 </head>
 <body>
@@ -158,6 +162,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">01</span><div><div class="tag">Oct 16–18</div><h2>A dish of tiny brains</h2></div></div>
   <p class="hook">Nobody tells these creatures how to find food. Evolution has to.</p>
+  <figure class="gif"><img src="assets/story/1-brains.gif" alt="Generation 1 and generation 60 of the same world, side by side" loading="lazy">
+    <figcaption>Seed 1, the same stretch of one food map. Watch the food counters: by generation 60 the creatures find food several times faster.</figcaption></figure>
   <p>It starts as a dish. Small creatures, each with a brain of a few connections, wander around looking for food. Nobody
   writes the rules. The ones that eat well have children, the children copy their brains with small changes, and the rest
   fade out.</p>
@@ -170,6 +176,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">02</span><div><div class="tag">Oct 21–23</div><h2>Hunters arrive</h2></div></div>
   <p class="hook">Prey had nothing to run from. So we gave them hunters.</p>
+  <figure class="gif"><img src="assets/story/2-hunters.gif" alt="The living world: prey and hunters moving in one dish" loading="lazy">
+    <figcaption>One living world, seed 1. Nobody picks the winners: prey and hunters eat, have young and die on their own.</figcaption></figure>
   <p>Hunters got brains too, and an arms race began. Late hunters caught 87% of early prey, but only 56% of late prey: both
   sides kept getting better against each other.</p>
   <p>Then the bigger change. Until now a judge picked the best brains each generation. We took the judge away. In the
@@ -181,6 +189,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">03</span><div><div class="tag">Oct 24 – Nov 11</div><h2>Poison climbs the food chain</h2></div></div>
   <p class="hook">The prey forgot about poison. So poison started moving up the chain.</p>
+  <figure class="gif"><img src="assets/story/3-glow.gif" alt="Blind hunters and glow hunters side by side; sick prey are rings, the glow is a pink halo" loading="lazy">
+    <figcaption>Seed 1. Sick prey are hollow rings; the pink halo is the glow, which only the right-hand hunters see. Pick below 1 means sick prey were skipped. Across 14 worlds, glow hunters skipped more in 11 of 14.</figcaption></figure>
   <p>Some plants were poison, and the prey kept eating them. Rey's verdict: <span class="rey">“they just forget about
   poison”</span>. So we let poison stay in the body: a prey that ate poison became sick, and a hunter that ate a sick prey
   got the poison too.</p>
@@ -195,6 +205,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">04</span><div><div class="tag">Nov 11</div><h2>Slowing down</h2></div></div>
   <p class="hook">Creatures lived short, jumpy lives. Nature doesn't work like that.</p>
+  <figure class="gif"><img src="assets/story/4-slow.gif" alt="Fast hunters and slow hunters over 120,000 ticks" loading="lazy">
+    <figcaption>120,000 ticks in about ten seconds, seed 1. Fast hunters died out 5 times; slow hunters never did. Across 14 worlds, die-outs fell 3 to 7 times.</figcaption></figure>
   <p>A hunter caught about two prey in its whole life and died soon after. Rey: <span class="rey">“creatures die too
   fast”</span>. So we slowed the hunters down: they burn energy four times slower, and each catch gives four times less.</p>
   <p>Hunter die-outs fell 3 to 7 times. The world started to look like a food pyramid, with fewer hunters on top of many
@@ -207,6 +219,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">05</span><div><div class="tag">Nov 19–20</div><h2>Changing the question</h2></div></div>
   <p class="hook">We kept asking hunters to become more numerous. Nature doesn't ask that.</p>
+  <figure class="gif"><img src="assets/story/5-nature.gif" alt="A world without poison and a world with poison over 400,000 ticks; the toughness numbers climb only with poison" loading="lazy">
+    <figcaption>400,000 ticks, seed 1. Watch the toughness numbers: they climb only where there is poison (prey 0.86 against 0.12). Across 14 worlds, prey were tougher in 12 of 14 and hunters in 12 of 14.</figcaption></figure>
   <p>In nature a better hunter doesn't end up more numerous: it eats its prey down. And animals meet toxic prey in two
   ways. They avoid them, or they resist them. Rey's call was two words: <span class="rey">“by nature”</span>.</p>
   <p>So the test changed. Do both sides live on? Do prey resist more than in a world without poison? Do hunters dodge or
@@ -220,6 +234,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">06</span><div><div class="tag">Nov 13–24</div><h2>The bug that hid in plain sight</h2></div></div>
   <p class="hook">Rising poison kept breaking the hunters. Then a test that did nothing found the real problem.</p>
+  <figure class="gif"><img src="assets/story/6-bug.gif" alt="The old ramp and the fixed ramp at the same moment, poison at 34%" loading="lazy">
+    <figcaption>The same world at the same moment, seed 1, with poison at 34%. Old ramp: 3 hunters left, 15 die-outs. Fixed ramp: 13 hunters, none. Across 14 worlds, the slow rise now works in 13 of 14.</figcaption></figure>
   <p>When poison rose, the hunters broke at about a third poison plants, in 0 of 6 worlds. Even a rise ten times slower
   only half worked. Rey thought they needed time: <span class="rey">“it's not poison too potent, but hunters evolve too
   slow as they are slow”</span>.</p>
@@ -236,6 +252,8 @@
 <section class="plate scene">
   <div class="plate-head"><span class="plate-no">07</span><div><div class="tag">Nov 24–25</div><h2>Poison that comes and goes</h2></div></div>
   <p class="hook">Real years have seasons. So poison got seasons too.</p>
+  <figure class="gif"><img src="assets/story/7-seasons.gif" alt="Poison held at 60% and 60% as seasons over 3,000,000 ticks" loading="lazy">
+    <figcaption>3,000,000 ticks, seed 1. Held at 60%, the hunters died out 474 times. As seasons, they died out 103 times in the first poison season, then only 3 more: the second poison season barely touched them. Held at 60%, 1 of 6 worlds worked; as seasons, 14 of 14.</figcaption></figure>
   <p>Poison went up and down: normal, poison, normal, poison. As a switch or as a slow tide, the world worked in
   <span class="n14"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><b>14 of 14</b></span>.
   Held at 60% for good, nearly every world broke (1 of 6 worked). As seasons, 60% worked in 14 of 14: the clean seasons
