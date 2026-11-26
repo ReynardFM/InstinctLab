@@ -101,11 +101,11 @@ Past results, decisions and plans: **HISTORY.md** (grep it for a specific findin
 ## Open problems
 - **HANDOFF 2026-11-24 evening (details in HISTORY.md from "2026-11-20 overnight" on).** Poison SOLVED at steady 23% (nature bar). Rising poison on the FIXED ramp (f8b8d11: caps only, poison grows in patches; every ramp result before 2026-11-24 used the broken re-typing ramp):
   - Slow rise DONE [proof, works 13 / 10 of 14; evolved just at the bar]. Fast rise works 5 / 4 of 6 [small test]: the old ramp, not the speed, was most of the problem. Helpers (hangover, cheap waiting, bite, stomach, sight trade) not needed on the slow rise.
-  - Poison swing (season + poisonRamp, no new setting; e2afe9c): swing6G works 6 / 6 of 6; first poison switch costs evolved worlds the most; resistance falls in the clean phases (upkeep). Gated proof swing14G running (Rey's Windows loop; Ctrl+C after it).
+  - Poison swing (season + poisonRamp, no new setting; e2afe9c): swing6G works 6 / 6 of 6; first poison switch costs evolved worlds the most; resistance falls in the clean phases (upkeep). Proof swing14G done: works 14 / 13 of 14 (HISTORY 2026-11-24 evening).
   - 2026-11-25 batch DONE (HISTORY "2026-11-25"): slow rise passes all four nature-bar points (more1 control) and replicates on seeds 15-28 (13 / 13); swings DONE [proof]: step 23/40 (14 / 13), harder 23/60 (14 / 11), gradual (14 / 13); limit steady ~45-60% (handed out) / ~35-45% (evolved); 6M long run 5 / 5 of 6 (evolved crashes keep dripping); glow vs blind: no dodge handed out (6 of 14), dodge evolved (10 of 14) while blind hunters resist more.
   - PARKED (Rey 2026-11-25 "b"): FARM SWING fails (proof 9 / 5 of 14; crashes start in the farm-NORMAL phase, prey crash most). Cause unknown: hunters camping at farms / fence killing edge sprouts / the one-tick move. Next if revived: a diagnostic (plants and hunters-in-farm per phase; farms with hunters kept out), not a fix. rampFarm stays in the code, off.
-  - Open: report plates 6-7 (use these results; the "verdicts that changed" table needs the old-ramp caveat); then the public demo. Plain-words timeline and the shelf of parked / deleted ideas: TIMELINE.md.
-  - night-batch.ts is back at half threads, low priority (rule 4: ask anyway). Scratch scripts in .dsh/ (nb.mjs = nature-bar pairing by seed).
+  - Report: plates 6-7 written and plate 8 added (d1d6081, f4983a9; verdicts box carries the old-ramp caveat); story.html added (6ac991d-514b32b). Open: the public demo (hosting still undecided).
+  - night-batch.ts / life-genes: machine use follows testing rule 4 (long tests 3/4 threads, normal priority, no asking; 10:00-16:00 half threads, low priority; _machine.txt). Scratch scripts in .dsh/ (nb.mjs = nature-bar pairing by seed).
 
 ## What this is
 A 2D world where creatures with tiny neural-network brains evolve by mutation and selection. Rey sets the rules and watches what evolves.
