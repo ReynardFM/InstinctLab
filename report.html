@@ -138,6 +138,7 @@
   }
   @media (prefers-reduced-motion: reduce) { .stamp { transform: none; } }
 </style>
+<link rel="stylesheet" href="assets/ds/motion.css">
 </head>
 <body>
 <div class="page">
@@ -367,10 +368,10 @@
   </dl>
   <div class="key" data-key="glow"></div>
   <div class="duo">
-    <figure><div class="dish"><canvas id="c4-glow" width="800" height="600"></canvas></div>
-      <figcaption><span class="tag">After · glow · seed 1</span> <span class="cap">hunters can see who is sick</span><p class="stats" id="c4-g-stats"></p></figcaption></figure>
     <figure><div class="dish control"><canvas id="c4-blind" width="800" height="600"></canvas></div>
       <figcaption><span class="tag control">Control · blind · seed 1</span> <span class="cap">hunters can't tell</span><p class="stats" id="c4-b-stats"></p></figcaption></figure>
+    <figure><div class="dish"><canvas id="c4-glow" width="800" height="600"></canvas></div>
+      <figcaption><span class="tag">After · glow · seed 1</span> <span class="cap">hunters can see who is sick</span><p class="stats" id="c4-g-stats"></p></figcaption></figure>
   </div>
   <div class="row">
     <span class="cap" style="margin: 0 6px 0 0">Speed</span>
@@ -652,5 +653,7 @@ is hatched. Rey's words are quoted exactly from the log. Each world is exactly r
 result in any browser.</footer>
 </div>
 <script src="dist/report.js"></script>
+<script src="assets/ds/apply-motion.js"></script>
+<script src="assets/ds/bundle.js"></script>
 </body>
 </html>
